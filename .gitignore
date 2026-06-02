@@ -1,0 +1,53 @@
+# Spec-Kit / Claude Code (recomendación oficial: evitar fugas de credenciales)
+.claude/
+
+# Secretos y variables de entorno — NUNCA subir
+# (la implementación heredará el chasis Convenia, que usa .env con credenciales)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+secrets/
+
+# OS
+.DS_Store
+Thumbs.db
+
+.specify
+
+# Editores
+.idea/
+.vscode/
+*.swp
+*~
+
+CLAUDE.md
+
+# Entornos virtuales / dependencias (a expandir cuando se defina el stack)
+.venv/
+node_modules/
+target/
+
+# Build outputs (backend Maven/Gradle + frontend React futuro)
+dist/
+build/
+out/
+.next/
+coverage/
+
+# Logs y diagnósticos (evita volcados tipo logs.<timestamp>.json)
+*.log
+logs/
+logs.*.json
+
+# Índices semánticos / cachés de herramientas (codegraph los regenera)
+.codegraph/
+
+# Material aportado por la Coordinación Académica (política de habeas data)
+# Ver docs/nuevo-proyecto/01-planteamiento/guia-entrevista-3.md Anexo B
+# y memoria engram proyecto-grado/coord-material-policy
+material-coord/*
+!material-coord/README.md
