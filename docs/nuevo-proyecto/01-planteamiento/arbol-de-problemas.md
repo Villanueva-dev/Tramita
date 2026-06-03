@@ -10,16 +10,16 @@
 
 ## 1. Contexto
 
-La **Universidad Remington — Sede Cali** opera procesos de gestión académica que dependen de una coordinadora académica que orquesta manualmente solicitudes formales presentadas por estudiantes y aprobadas por una cadena de roles (coordinación → registro Medellín → docente, según el tipo de trámite).
+La **Universidad Remington — Sede Cali** opera procesos de gestión académica que dependen de una coordinadora académica que orquesta manualmente solicitudes formales presentadas por estudiantes y aprobadas por una cadena de roles que varía según el trámite: para **adición de créditos**, Coordinación → Facultad/Decano → Registro y Control Cali (carga el PDF en QF) → Registro y Control Nacional (Medellín, ejecuta la matrícula); para **novedad de notas**, la cadena suma además a la **Dirección de CD** y al **Área Financiera** (verifica el recibo de pago) antes de Registro y Control.
 
 Los dos procesos críticos identificados en las entrevistas son:
 
-- **Adición de créditos**: el estudiante solicita inscribir una o más asignaturas fuera del periodo regular de matrícula.
+- **Adición de créditos**: el estudiante necesita matricular asignaturas que superan el tope de créditos que CLASS permite para su semestre (frecuente en homologantes); CLASS lo bloquea con el aviso «ha sobrepasado el límite de créditos» y el trámite autoriza la excepción.
 - **Novedad de notas**: el docente o el estudiante solicita corregir o registrar una calificación luego de cerrado el periodo oficial de notas.
 
-Ambos procesos comparten una **estructura de flujo idéntica**: formulario en Word → firmas escaneadas → revisión por coordinación → reenvío a Registro Medellín → confirmación por correo. La diferencia es el contenido del formato y los roles que firman; el esqueleto del proceso es el mismo. Esa simetría es la base para proponer un **motor genérico de workflow configurable**, no dos sistemas independientes.
+Ambos procesos comparten el **mismo esqueleto** (formulario en Word → firmas → ruteo multi-aprobación → cierre en Registro y Control), pero **difieren en la cadena de aprobadores y en los campos**: novedad de notas pasa por más áreas y más firmas (incluye Dirección de CD y Área Financiera) que adición de créditos. Esa **asimetría dentro de la simetría** es precisamente lo que justifica un **motor genérico de workflow configurable**, no dos sistemas independientes.
 
-Los sistemas institucionales preexistentes —**Class** (sistema académico) y **QF** (gestor documental de firmas)— se consideran cajas negras: el sistema propuesto no los reemplaza ni se integra con ellos, sino que se sitúa **aguas arriba** orquestando el trámite hasta el punto en que un humano lo asienta en esos sistemas.
+Los sistemas institucionales preexistentes —**Class** (sistema académico) y **QF** (gestor documental / banco de documentos institucional)— se consideran cajas negras: el sistema propuesto no los reemplaza ni se integra con ellos, sino que se sitúa **aguas arriba** orquestando el trámite hasta el punto en que un humano lo asienta en esos sistemas.
 
 ---
 
@@ -41,10 +41,10 @@ Los efectos están ordenados de **operativos** a **estratégicos**, de menor a m
 
 | ID | Efecto | Evidencia en las entrevistas |
 |----|--------|------------------------------|
-| **E1** | Estudiantes que no quedan matriculados o no reciben su nota a tiempo, afectando su avance académico. | "Si esto no se hace, el estudiante no aparece matriculado en esa materia." (entrevista 1) |
+| **E1** | Estudiantes que no quedan matriculados o no reciben su nota a tiempo, afectando su avance académico. | «el Class no me permite matricular esa materia» (entrevista 1); «esa nota no se carga en el sistema» (entrevista 2) |
 | **E2** | Re-trabajo por errores formales detectados tarde en la cadena (formato mal diligenciado, firma faltante, anexo incorrecto). | El formato vuelve atrás varias veces antes de ser aceptado por Registro Medellín. |
 | **E3** | Sobrecarga administrativa sobre la coordinación académica, que actúa como **punto único de orquestación humano** para todos los trámites. | La coordinadora reenvía, valida, recuerda, recolecta firmas y persigue respuestas. |
-| **E4** | Trámites perdidos o estancados en bandejas de correo saturadas, sin alerta automática del retraso. | "A veces el correo se queda ahí dos meses." (entrevista 2) |
+| **E4** | Trámites perdidos o estancados en bandejas de correo saturadas, sin alerta automática del retraso. | «se puede traspapelar … llegan tantos correos que de pronto la facultad no lo vio» (entrevista 2) |
 | **E5** | Tiempos de ciclo extremos e impredecibles: entre **una semana y dos meses** para un mismo tipo de trámite. | Estimación directa de la coordinación en entrevista 2. |
 
 **Efecto raíz consolidado**: el estudiante —cliente final del proceso— no tiene certeza de **cuándo** ni **si** su solicitud va a resolverse, y la institución no tiene métricas para auditar ni mejorar el proceso.
@@ -59,11 +59,11 @@ Las causas están ordenadas para que cada una pueda mapearse, más adelante, a u
 |----|------------|-------------------------|
 | **C1** | No existe un **repositorio central** del estado de cada solicitud. | El estado vive en la memoria de la coordinadora y en hilos de correo dispersos. |
 | **C2** | Los formatos se llenan **manualmente en Word**, sin validación de campos. | Errores tipográficos, códigos de asignatura mal escritos, periodos inconsistentes. |
-| **C3** | Las **firmas se escanean** y se adjuntan al expediente en QF; el original digital se pierde. | Cada nuevo paso requiere re-imprimir, firmar a mano y volver a escanear. |
+| **C3** | Las **firmas se escanean** y se adjuntan al expediente en QF; el original digital se pierde. | Cuando se firma a mano, el firmante imprime, firma y vuelve a escanear; tanto la firma escaneada como la digital son válidas. |
 | **C4** | No hay **bandeja por rol**: cada actor depende de su inbox personal para saber qué le toca actuar. | La coordinación tiene que recordar y empujar manualmente cada paso. |
-| **C5** | Las **aprobaciones** se dan por correo electrónico, sin trazabilidad estructurada (quién aprobó qué, cuándo, con qué comentario). | No se puede reconstruir el histórico de decisiones sin leer cadenas de correos. |
+| **C5** | Las **aprobaciones** se dan por correo electrónico, sin trazabilidad estructurada (quién aprobó qué, cuándo, con qué comentario). | No se puede reconstruir el histórico de decisiones sin leer cadenas de correos. Hoy el propio hilo de correos es el control anti-fraude: Registro y Control no asienta el trámite sin verificar en la cadena que las aprobaciones son auténticas («no falsifiqué la firma», entrevista 2). |
 | **C6** | Los **anexos** (capturas, soportes, comprobantes) se manejan manualmente y se reenvían por correo. | Riesgo de versiones desactualizadas y de pérdida de adjuntos. |
-| **C7** | La **comunicación** del trámite está dispersa en al menos cuatro canales: correo, WhatsApp, Class y OneDrive. | No hay un único "lugar de la verdad" para el estudiante o el coordinador. |
+| **C7** | La **comunicación** del trámite está dispersa en al menos cuatro canales: correo, WhatsApp, Teams y OneDrive. | No hay un único "lugar de la verdad" para el estudiante o el coordinador. |
 
 ---
 
@@ -143,7 +143,7 @@ Cada causa raíz se traduce en un sub-problema **MECE** (mutuamente excluyente, 
 - Proceso de **adición de créditos** y **novedad de notas**, en la **Sede Cali**.
 - Backend (API REST + Swagger) + frontend mínimo a cargo del compañero del equipo.
 - Motor de workflow capaz de modelar los dos procesos sin código duplicado.
-- Persistencia en PostgreSQL, autenticación JWT, generación de PDF, auditoría inmutable.
+- Persistencia en PostgreSQL, autenticación (mecanismo **pendiente de validar** — guía 3, Q9–11; la constitución adopta cookie-session, no JWT), generación de PDF, auditoría inmutable.
 
 **Fuera del alcance del MVP** (hipótesis a validar con tutor):
 
@@ -178,6 +178,7 @@ Las tres variables de la pregunta de investigación se operacionalizan así:
 | **Riesgo** | La firma digital institucional no es estandarizable a corto plazo. | Como fallback, sello electrónico verificable (hash + timestamp + actor) sobre el PDF generado por el sistema. |
 | **Riesgo** | El plazo de 2,5 meses se reduce si la asignación del tutor se retrasa. | Avanzar el documento de requisitos y la arquitectura como artefactos independientes del tutor; obtener feedback informal en paralelo. |
 | **Riesgo** | La plantilla institucional del trabajo de grado y la rúbrica de evaluación todavía no están en posesión del equipo. | Pivotar el formato del documento cuando lleguen; mantener el contenido portable en Markdown para reformatear rápido. |
+| **Riesgo** | Una firma escaneada puede quedar no visible al subirse a QF (documento «editable»), provocando devolución del trámite. | Aplanar/normalizar el PDF generado antes de la entrega y verificar que la firma sea visible. |
 
 ---
 

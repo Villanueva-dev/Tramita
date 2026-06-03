@@ -51,3 +51,5 @@ logs.*.json
 # y memoria engram proyecto-grado/coord-material-policy
 material-coord/*
 !material-coord/README.md
+
+.atl
