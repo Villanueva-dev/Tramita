@@ -53,3 +53,5 @@ material-coord/*
 !material-coord/README.md
 
 .atl
+.pi
+openspec
