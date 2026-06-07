@@ -10,7 +10,7 @@
 
 **Trámita** es un motor de workflow configurable que orquesta los trámites académicos de la Coordinación de la Sede Cali de la Universidad Remington, reemplazando el ciclo manual de formato Word + correos + memoria humana por un flujo estructurado, validado y auditable.
 
-**Para quién**: la **Coordinadora Académica de la Sede Cali** (usuaria primaria, no técnica). El **estudiante** consulta el estado de sus propias solicitudes.
+**Para quién**: la **Coordinadora Académica de la Sede Cali** (usuaria primaria, no técnica). El **estudiante** recibe un aviso al completarse su trámite; no accede al sistema.
 
 **Qué resuelve**: hoy los trámites de **adición de créditos** y **novedad de notas** toman entre **una semana y dos meses**. La mezcla de formatos manuales sin validación, firmas escaneadas, bandejas dispersas y ausencia de timeline produce trámites perdidos, re-trabajo y opacidad para el estudiante. Trámita le da al ciclo un **cauce explícito**: captura validada en origen, bandeja por rol, trazabilidad inmutable y PDF formal generado al cierre, listo para asentar en QF.
 
@@ -56,28 +56,27 @@
 
 ---
 
-### 2.2 Estudiante *(consulta exclusiva)*
+### 2.2 Estudiante *(notificado)*
 
-**Contexto**: presenta solicitudes por el canal institucional actual (correo, mensaje a coord). En el MVP **no captura solicitudes directamente desde Trámita** — la coord lo hace en su nombre. *Pendiente de validar con coordi en entrevista 3 (pregunta #21): ¿quiere que el estudiante capture por sí mismo o lo prefiere seguir capturando ella?*
+**Contexto**: presenta solicitudes por el canal institucional actual (correo, mensaje a la coordinación). La coordinación captura la solicitud en Trámita en nombre del estudiante — **inferido de** E3-p2 (Q21–Q22): la coordinación rechazó un portal o login propio para el estudiante y el sistema es interno y administrativo, de modo que, sin acceso del estudiante, la captura recae necesariamente en la coordinación (la coordi no afirmó textualmente "yo capturo"; se deduce por eliminación).
 
 **Goals**:
 
-- Saber el estado de su propia solicitud sin preguntarle a la coord.
-- Tener certeza de cuándo se va a resolver, o si ya se resolvió.
+- Tener certeza de que su solicitud se resolvió.
 
 **Frustraciones de hoy**:
 
-- Silencio. El trámite vive en la bandeja de correo de otra persona.
+- Silencio. El trámite vive en la bandeja de correo de otra persona; el estudiante no sabe cuándo ni si se resuelve.
 
-**Permisos en el MVP**: solo lectura, solo de **sus** solicitudes. No edita, no aprueba, no captura.
+**Permisos en el MVP**: **ninguno** — el estudiante no tiene login ni vista en el sistema. Sus consultas de estado se atienden de forma mediada (pregunta a la coordinación, la coordinación consulta el cockpit y responde). Al completarse el trámite, recibe un aviso institucional (correo automático + acción opcional de chat con plantilla desde el cockpit).
 
-**Frecuencia de uso esperada**: ocasional — al inicio del semestre, al cierre de notas. No es usuario diario.
+**Frecuencia de uso esperada**: recibe el aviso de finalización una vez por trámite. No es usuario del sistema.
 
 ---
 
 ### 2.3 Roles excluidos del MVP
 
-**Docente, Registro Medellín como usuario del sistema, Auditor académico, Admin** — no se incluyen. Coherente con la decisión cerrada en sesión 2026-05-19 (ver constitución § Roles del MVP). Se agregan solo si la coordi los pide explícitamente o si una entrevista futura los justifica con evidencia.
+**Estudiante como usuario del sistema** — descartado explícitamente por la coordinación en E3-p2 (Q22); sin login ni vista de auto-consulta. Motivación de la coordi: no quiere que el estudiante audite/persiga el trabajo interno (*«no porque no nos audite el trabajo de nosotros»*, E3-p2 Q22). **Docente, Registro Medellín como usuario del sistema, Auditor académico, Admin** — no se incluyen. Coherente con la decisión cerrada en sesión 2026-05-19 (ver constitución § Roles del MVP). Se agregan solo si la coordi los pide explícitamente o si una entrevista futura los justifica con evidencia.
 
 ---
 
@@ -95,7 +94,7 @@ Cada journey describe el camino del trámite **desde la perspectiva del usuario*
 | 4 | Coordinadora | Revisa los datos, aprueba o devuelve con comentario. | Detalle de solicitud + botones "Aprobar" / "Devolver". |
 | 5 | Trámita | Al aprobarse, genera el PDF formal de adición de créditos. | PDF descargable + estado **Aprobado por Coord**. |
 | 6 | Coordinadora | Descarga el PDF, lo asienta en QF (fuera de Trámita) y marca la solicitud como **asentada**. | Acción "Marcar como asentado" + confirmación final → estado **Finalizado**. |
-| 7 | Estudiante | En cualquier momento, consulta el estado de su solicitud. | Vista de solo lectura con el timeline completo (cuándo se capturó, cuándo se aprobó, cuándo se asentó). |
+| 7 | Trámita | Al llegar al estado **Finalizado**, el sistema envía el **aviso de cierre** al correo institucional del estudiante. La coordinación puede además disparar una notificación de chat con plantilla desde el cockpit. El timeline registra el evento "aviso enviado". | — (sin interacción del estudiante con el sistema). |
 
 **Garantías invisibles para el usuario**:
 
@@ -103,7 +102,7 @@ Cada journey describe el camino del trámite **desde la perspectiva del usuario*
 - El PDF formal es **obligatorio** para cerrar el trámite — sin PDF generado, el estado no puede llegar a Finalizado (Principio III, invariante de cierre).
 - Class y QF NO se integran con Trámita. La coord es el puente humano que asienta el PDF en QF (Principio VI).
 
-**Pendientes de validar con coordi en entrevista 3**: validación de cupo de asignatura (pregunta #11), normativa aplicable al formato del PDF (pregunta #7), si el estudiante presenta directamente en el MVP (pregunta #21), firma digital vs sello electrónico (pregunta #1).
+**Pendientes de validar**: validación de cupo de asignatura (pregunta #11), normativa aplicable al formato del PDF (pregunta #7), firma digital vs sello electrónico (pregunta #1). **Resuelto en E3-p2**: Q21 — la coordinación captura la solicitud; el estudiante no accede al sistema (Q22–Q23).
 
 ---
 
@@ -123,7 +122,7 @@ El **esqueleto es idéntico** al de adición de créditos. Lo que cambia:
 
 ### 3.3 Por qué los dos journeys justifican el motor genérico
 
-El esqueleto operativo es **el mismo**: capturar → validar → aprobar → generar PDF → asentar → consultar. Lo que cambia entre trámites es: nombre y campos del formulario, plantilla del PDF, secuencia de aprobaciones.
+El esqueleto operativo es **el mismo**: capturar → validar → aprobar → generar PDF → asentar → **notificar** (aviso de cierre al estudiante). Lo que cambia entre trámites es: nombre y campos del formulario, plantilla del PDF, secuencia de aprobaciones. El paso "consultar" es interno (la coordinación usa el cockpit para responder al estudiante de forma mediada), no una vista del estudiante en el sistema.
 
 Esto **es configuración, no código distinto**. Si Trámita logra modelar los dos trámites con la misma maquinaria parametrizada (Principio III), está demostrada la **pregunta de investigación** del árbol §6: *"¿puede un motor de workflow configurable reducir tiempo, re-trabajo y opacidad en la tramitación de adición de créditos y novedad de notas?"*
 
@@ -139,7 +138,7 @@ Es **el aporte académico del proyecto**, y por eso aparece visible en este PRD 
 
 - 2 trámites: adición de créditos + novedad de notas.
 - 1 sede: Cali.
-- 2 roles: Coordinadora (acción) + Estudiante (consulta).
+- **1 actor del sistema: Coordinadora** (acción). Estudiante = **notificado** (sin login; recibe aviso de finalización).
 - Despliegue local con `docker-compose`.
 
 **Fuera del alcance del MVP**:
@@ -207,10 +206,11 @@ Mapeo de los sub-problemas SP1–SP7 del árbol §7 a épicas con su Definition 
 
 **Funcionalidad observable al cierre**:
 
-- Bandeja de trabajo de la coord con solicitudes pendientes ordenadas por SLA.
-- Notificaciones por correo en transiciones clave (aprobada, devuelta, asentada).
-- Vista del estudiante para consultar sus solicitudes.
+- Bandeja de trabajo de la coordinación con solicitudes pendientes ordenadas por SLA.
+- **Puerto de notificación** al estudiante, activado **solo al completarse** el trámite (estado FINALIZADO): correo institucional automático (adaptador canónico) + acción opcional de chat con plantilla desde el cockpit. Las transiciones intermedias generan únicamente entradas en el timeline interno.
 - **El motor soporta novedad de notas con la misma maquinaria** — solo cambia configuración. Esto es la prueba viva de la genericidad.
+
+> **Nota de riesgo — adaptador email**: el chasis no incluye infraestructura de correo (sin `spring-boot-starter-mail`, sin `JavaMailSender`). El adaptador email es el canónico del puerto de notificación, pero depende de SMTP (dependencia externa; derivar a profe Diego, Q34). El camino crítico del MVP usa el **chat-template como fallback** si SMTP no está disponible a tiempo. Diseñar el puerto como interfaz swappable desde el inicio.
 
 **Demo final (a coord y, cuando esté, al tutor)**: correr **los dos trámites en el mismo sistema**, evidenciando que el código es el mismo y solo cambia configuración. Esto **cierra la pregunta de investigación** del árbol §6.
 
@@ -254,7 +254,7 @@ Registro auditable de decisiones tomadas **antes de implementar**. Cada bloque a
 Memoria: `project-mvp-scope-decisions`.
 
 1. Single-tenant explícito.
-2. Dos roles: Coord (acción) + Estudiante (consulta).
+2. **1 actor del sistema: Coordinadora** (acción). Estudiante = **notificado** (sin login), confirmado en E3-p2 Q22–Q23.
 3. Frontend en React.
 4. Sprints de 2 semanas con demo a la coord al cierre.
 5. Despliegue inicial con `docker-compose` local.
@@ -294,7 +294,7 @@ Trámita parte de hipótesis y decisiones internas del equipo. **17 bloqueantes 
 | #4 | Pénsum y códigos reales de asignaturas | Sin datos reales no se diseña la validación de S1. **URGENTE** — pedir antes del inicio de S1. |
 | #9 | SSO institucional | Define si la auth provisional con cookie-session se sostiene o se migra antes de la primera demo institucional. |
 | #7 | Normativa institucional aplicable | Sin marcos normativos confirmados, las reglas del motor se diseñan sobre supuestos del equipo. |
-| #21 | Captura por el estudiante en el MVP | Cambia el alcance del journey de adición/novedad si la coord prefiere abrir captura al estudiante. |
+| #21 | ~~Captura por el estudiante en el MVP~~ | **RESUELTA en E3-p2 (Q21–Q23)**: la coordinación captura la solicitud en nombre del estudiante. El estudiante no accede al sistema; la coordinación rechazó el portal/login de auto-consulta. Solo aviso de finalización al estudiante (correo automático al completarse). |
 
 **Regla operativa**: ningún diseño técnico que dependa de uno de los 17 bloqueantes se ejecuta antes de la entrevista 3. Lo que sí se puede avanzar en paralelo: motor de workflow genérico, schema de auditoría, formularios con campos genéricos (no específicos de asignaturas reales).
 

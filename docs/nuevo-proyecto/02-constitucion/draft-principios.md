@@ -36,7 +36,7 @@
 
 ### IV. Trazabilidad inmutable como invariante, no como feature
 
-**Regla**: toda transición de estado y toda aprobación generan un evento de auditoría **inmutable**. El histórico de una solicitud se reconstruye en cualquier momento y es consultable por estudiante, coordinador y auditor. El sistema combate **tres variables del árbol §6** — tiempo de ciclo, re-trabajo y opacidad — y la trazabilidad inmutable es el mecanismo que las tres requieren para poder medirse.
+**Regla**: toda transición de estado y toda aprobación generan un evento de auditoría **inmutable**. El histórico de una solicitud se reconstruye en cualquier momento y es consultable por la **coordinación y la auditoría**; el estudiante recibe el aviso de cierre. El sistema combate **tres variables del árbol §6** — tiempo de ciclo, re-trabajo y opacidad — y la trazabilidad inmutable es el mecanismo que las tres requieren para poder medirse.
 
 **Mecanismo**: tabla `solicitud_event` append-only con columnas mínimas `(solicitud_id, event_type, actor_id, occurred_at, payload_json, comment)`. UPDATE y DELETE revocados a nivel SQL para que ni el código de aplicación pueda modificar el histórico. Toda transición del motor de workflow escribe una fila — la invariante se concentra en el motor (Principio III), no se duplica en cada service. **No se usa Hibernate Envers** porque importa un modelo de "snapshot de entidad por revisión" cuando lo que necesitamos es un timeline de eventos de dominio explícitos; resolver con martillo lo que pide destornillador.
 
@@ -98,7 +98,7 @@ Cambios al stack requieren **enmienda formal de la constitución** con justifica
 El MVP tiene exactamente **dos roles** (decisión cerrada en sesión 2026-05-19; ver `project-mvp-scope-decisions.md` y árbol §8). Aplicado por **[I4]** del reporte.
 
 - **Coordinadora Académica de la Sede Cali** — única usuaria que **actúa** sobre solicitudes: las recibe, valida, aprueba o devuelve, persigue firmas y reenvía a Registro Medellín. Es la **usuaria primaria** del MVP; el sistema vive o muere por su adopción. Perfil **no técnico**: experiencia con Word, correo, Class y QF como herramientas operativas, no con software de oficina avanzado.
-- **Estudiante** — rol de **consulta exclusiva**. Ve el estado de **sus propias** solicitudes (no de otros estudiantes). **No actúa**: no aprueba, no edita estados ajenos, no carga documentos en nombre de terceros.
+- **Estudiante** — **destinatario notificado**. Sin login ni vista en el sistema. Recibe un aviso institucional al **completarse** su trámite; sus consultas de estado las responde la coordinación con el timeline del cockpit (**visibilidad mediada**).
 
 **Fuera del MVP** (a evaluar tras feedback de la coordinadora): rol Docente, rol Registro Medellín como usuario del sistema, rol Auditor académico, rol Admin del sistema. **No se agregan proactivamente** — solo si la coordinadora los pide explícitamente o una entrevista futura los justifica con evidencia. Coherente con KISS: ningún recurso se gasta en roles que la usuaria no pidió.
 
