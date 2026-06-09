@@ -12,7 +12,7 @@
 
 **Para quién**: la **Coordinadora Académica de la Sede Cali** (usuaria primaria, no técnica). El **estudiante** recibe un aviso al completarse su trámite; no accede al sistema.
 
-**Qué resuelve**: hoy los trámites de **adición de créditos** y **novedad de notas** toman entre **una semana y dos meses**. La mezcla de formatos manuales sin validación, firmas escaneadas, bandejas dispersas y ausencia de timeline produce trámites perdidos, re-trabajo y opacidad para el estudiante. Trámita le da al ciclo un **cauce explícito**: captura validada en origen, bandeja por rol, trazabilidad inmutable y PDF formal generado al cierre, listo para asentar en QF.
+**Qué resuelve**: hoy los trámites de **adición de créditos** y **novedad de notas** toman entre **una semana y dos meses**. La mezcla de formatos manuales sin validación, firmas escaneadas, bandejas dispersas y ausencia de timeline produce trámites perdidos, re-trabajo y opacidad para el estudiante. Trámita le da al ciclo un **cauce explícito**: captura validada en origen, trazabilidad inmutable y PDF formal generado al cierre, listo para asentar en QF.
 
 **Cómo se mide** (referencia árbol §9):
 
@@ -20,7 +20,7 @@
 - **Re-trabajo** — devoluciones por solicitud.
 - **Opacidad** — capacidad de reconstruir el histórico de una solicitud en menos de un minuto.
 
-**Entregable del MVP**: demo presentable de los **dos trámites end-to-end con el mismo motor parametrizado**, validada por la coordinadora al cierre de cada sprint y defendida ante el tutor cuando sea asignado. Plazo: ~2,5 meses desde 2026-05-19 (ver constitución § Governance).
+**Entregable del MVP**: demo presentable de los **dos trámites end-to-end con el mismo motor parametrizado**, validada por la coordinadora al cierre de cada sprint y defendida ante el tutor cuando sea asignado. Plazo: ~2 meses desde 2026-06-09 (ver constitución § Governance).
 
 ---
 
@@ -37,7 +37,7 @@
 **Goals**:
 
 - Que ningún trámite se pierda en una bandeja de correo.
-- Saber en cualquier momento en qué etapa está cada solicitud y quién debe actuar.
+- Saber en cualquier momento **en qué etapa está cada solicitud.**
 - Cerrar el ciclo con un **PDF formal** que pueda asentar en QF.
 - Reducir el tiempo de respuesta al estudiante (hoy: 1 semana – 2 meses).
 
@@ -45,12 +45,12 @@
 
 - Re-trabajo por formatos Word mal llenados (códigos de asignatura mal escritos, periodos inconsistentes).
 - Perseguir firmas que se escanean, vuelven a imprimir, se vuelven a firmar.
-- Estudiantes preguntando "¿en qué va mi trámite?" y depender de la memoria para responder.
+- **Estudiantes preguntando "¿en qué va mi trámite?" y depender de la memoria para responder.**
 - Trámites que "se quedan ahí dos meses" en algún inbox.
 
 **Perfil técnico**: usuaria de software de oficina como herramienta operativa. **No técnica**. El sistema vive o muere por su adopción — si no lo usa por incomodidad, Trámita falla aunque esté bien implementado.
 
-**Frecuencia de uso esperada**: diaria. Trámita es su bandeja de trabajo.
+**Frecuencia de uso esperada**: Antes y despues de iniciar un semestre, máximo una semana despues (Adición de créditos, **PENDIENTE**) y todo el año educativo para novedad de notas. Trámita es su bandeja de trabajo.
 
 **Implicación de diseño**: cada fricción reducida importa más que cualquier feature avanzada. KISS no es estilo de código — es supervivencia del producto.
 
@@ -91,7 +91,7 @@ Cada journey describe el camino del trámite **desde la perspectiva del usuario*
 | 1 | Estudiante | Presenta la solicitud por el canal actual (correo a la coord). | — (fuera de Trámita en el MVP). |
 | 2 | Coordinadora | Captura la solicitud en Trámita y llena el formulario validado. | Pantalla "Nueva solicitud — Adición de créditos" con campos del estudiante, asignatura y motivo. |
 | 3 | Trámita | Valida los campos en origen (código de asignatura, periodo, restricciones). | Errores en línea si la validación falla; estado **Borrador** mientras no se envíe. |
-| 4 | Coordinadora | Revisa los datos, aprueba o devuelve con comentario. | Detalle de solicitud + botones "Aprobar" / "Devolver". |
+| 4 | Coordinadora | Revisa los datos, aprueba o devuelve con comentario. | Detalle de solicitud + botones "Aprobar" / "Denegar". |
 | 5 | Trámita | Al aprobarse, genera el PDF formal de adición de créditos. | PDF descargable + estado **Aprobado por Coord**. |
 | 6 | Coordinadora | Descarga el PDF, lo asienta en QF (fuera de Trámita) y marca la solicitud como **asentada**. | Acción "Marcar como asentado" + confirmación final → estado **Finalizado**. |
 | 7 | Trámita | Al llegar al estado **Finalizado**, el sistema envía el **aviso de cierre** al correo institucional del estudiante. La coordinación puede además disparar una notificación de chat con plantilla desde el cockpit. El timeline registra el evento "aviso enviado". | — (sin interacción del estudiante con el sistema). |
@@ -114,7 +114,7 @@ El **esqueleto es idéntico** al de adición de créditos. Lo que cambia:
 |---------|-------------------------------|
 | Quién origina | Puede originarla el docente. En el MVP, la coord captura igual (Docente no es usuario del sistema todavía). |
 | Formulario | Plantilla distinta: datos de asignatura + nota original + nota corregida + motivo de la corrección. |
-| Aprobaciones | Requiere doble paso: Coord + Registro Medellín. En el MVP, Registro Medellín NO es usuario; la coord marca "enviado a Registro" y "respuesta recibida" como hitos del trámite. *Pendiente de validar con coordi: ¿este modelo manual funciona o necesitamos Registro como usuario directo del sistema?* |
+| Aprobaciones | Requiere doble paso: Coord + Registro Medellín. En el MVP, Registro Medellín NO es usuario; la coord marca "enviado a Registro" y "respuesta recibida" como hitos del trámite. **Pendiente de validar con coordi: ¿este modelo manual funciona o necesitamos Registro como usuario directo del sistema?** |
 | PDF generado | Plantilla distinta (formato institucional de novedad de notas). |
 | Estados | Los mismos nombres conceptuales (Borrador, Enviado, Aprobado por Coord, Finalizado) pero la transición intermedia incluye el ciclo de Registro. |
 
@@ -138,8 +138,7 @@ Es **el aporte académico del proyecto**, y por eso aparece visible en este PRD 
 
 - 2 trámites: adición de créditos + novedad de notas.
 - 1 sede: Cali.
-- **1 actor del sistema: Coordinadora** (acción). Estudiante = **notificado** (sin login; recibe aviso de finalización).
-- Despliegue local con `docker-compose`.
+- **actor del sistema: Coordinadora** (acción). Estudiante = **notificado** (sin login; recibe aviso de finalización).
 
 **Fuera del alcance del MVP**:
 
@@ -148,7 +147,7 @@ Es **el aporte académico del proyecto**, y por eso aparece visible en este PRD 
 - Otras sedes de la Universidad Remington.
 - App móvil nativa.
 - Producción institucional (la entrega esperada es demo presentable, no piloto institucional).
-- Otros roles distintos a los dos del MVP.
+- Otros roles distintos del MVP.
 
 ---
 
@@ -185,15 +184,15 @@ Mapeo de los sub-problemas SP1–SP7 del árbol §7 a épicas con su Definition 
 
 **Funcionalidad observable al cierre**:
 
-- Al aprobarse una solicitud, Trámita genera el PDF formal automáticamente.
-- Cada aprobación queda registrada con actor, timestamp y comentario (Principio IV).
-- El PDF lleva un **sello electrónico verificable** (hash + timestamp + actor). Decisión cerrada como fallback frente a firma digital institucional, sujeta a confirmación en entrevista 3 pregunta #1.
+- Al aprobarse una solicitud, Trámita genera el PDF formal manualmente.
+- Cada aprobación queda registrada con timestamp y comentario (Principio IV).
+- El PDF lleva un **sello electrónico verificable** (hash + timestamp). Decisión cerrada como fallback frente a firma digital institucional, sujeta a confirmación en entrevista 3 pregunta #1.
 
 **Demo a la coord**: aprobar una solicitud, descargar el PDF generado, verificar que el sello existe y es verificable. Preguntas de validación: *"¿Este PDF es asentable en QF tal como está? ¿Le falta algún campo, sello o pie de firma para que Registro lo acepte?"*
 
 **Definition of Done**:
 
-- Generador de PDF funcional con plantilla institucional vigente (pendiente de obtener — Anexo B de `guia-entrevista-3.md`).
+- Generador de PDF funcional con plantilla institucional vigente.
 - Mecanismo de sello electrónico verificable.
 - Tests del generador y del sellador.
 - Coord aprueba la demo.
@@ -207,7 +206,7 @@ Mapeo de los sub-problemas SP1–SP7 del árbol §7 a épicas con su Definition 
 **Funcionalidad observable al cierre**:
 
 - Bandeja de trabajo de la coordinación con solicitudes pendientes ordenadas por SLA.
-- **Puerto de notificación** al estudiante, activado **solo al completarse** el trámite (estado FINALIZADO): correo institucional automático (adaptador canónico) + acción opcional de chat con plantilla desde el cockpit. Las transiciones intermedias generan únicamente entradas en el timeline interno.
+- **Puerto de notificación** al estudiante, activado **solo al completarse** el trámite (estado FINALIZADO): correo institucional manual (adaptador canónico) + acción **opcional** de chat con plantilla desde el cockpit. Las transiciones intermedias generan únicamente entradas en el timeline interno.
 - **El motor soporta novedad de notas con la misma maquinaria** — solo cambia configuración. Esto es la prueba viva de la genericidad.
 
 > **Nota de riesgo — adaptador email**: el chasis no incluye infraestructura de correo (sin `spring-boot-starter-mail`, sin `JavaMailSender`). El adaptador email es el canónico del puerto de notificación, pero depende de SMTP (dependencia externa; derivar a profe Diego, Q34). El camino crítico del MVP usa el **chat-template como fallback** si SMTP no está disponible a tiempo. Diseñar el puerto como interfaz swappable desde el inicio.
@@ -254,8 +253,8 @@ Registro auditable de decisiones tomadas **antes de implementar**. Cada bloque a
 Memoria: `project-mvp-scope-decisions`.
 
 1. Single-tenant explícito.
-2. **1 actor del sistema: Coordinadora** (acción). Estudiante = **notificado** (sin login), confirmado en E3-p2 Q22–Q23.
-3. Frontend en React.
+2. **actor del sistema: Coordinadora** (acción). Estudiante = **notificado** (sin login), confirmado en E3-p2 Q22–Q23.
+3. Frontend en Angular.
 4. Sprints de 2 semanas con demo a la coord al cierre.
 5. Despliegue inicial con `docker-compose` local.
 6. Convenia como **inspirar y reescribir**, no fork ni dependencia.
@@ -313,9 +312,7 @@ El catálogo principal vive en el árbol §10. Riesgo nuevo identificado durante
 
 1. **Materializar la constitución** vía `/speckit-constitution` para ratificar v1.0.0 con Trámita como nombre.
 2. **Enviar correo formal** en español a la coord solicitando el material del Anexo B de `guia-entrevista-3.md` (hilos de correo reales de los dos trámites, formatos Word vigentes, pénsum con códigos).
-3. **Agendar la entrevista N.º 3** cuando el material haya llegado y se haya analizado.
-4. **Aplicar respuestas** de la entrevista 3 al PRD (versión 1.1.0 o 2.0.0 según impacto en hipótesis estructurales).
-5. **Iniciar Sprint 1** con `/speckit-specify` para la primera épica de SP1 (motor de workflow + captura validada).
+3. **Iniciar Sprint 1** con `/speckit-specify` para la primera épica de SP1 (motor de workflow + captura validada).
 
 ---
 
