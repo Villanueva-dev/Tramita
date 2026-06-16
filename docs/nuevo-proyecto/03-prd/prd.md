@@ -254,7 +254,7 @@ Memoria: `project-mvp-scope-decisions`.
 
 1. Single-tenant explícito.
 2. **actor del sistema: Coordinadora** (acción). Estudiante = **notificado** (sin login), confirmado en E3-p2 Q22–Q23.
-3. Frontend en Angular.
+3. Frontend en React. (corregido 2026-06-15: la constitución ya fijaba React; decisión del equipo, frontend en React con tooling de IA de Vercel)
 4. Sprints de 2 semanas con demo a la coord al cierre.
 5. Despliegue inicial con `docker-compose` local.
 6. Convenia como **inspirar y reescribir**, no fork ni dependencia.

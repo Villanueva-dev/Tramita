@@ -11,7 +11,7 @@
 
 **Versión:** 1.0.0  
 **Fecha:** 15 de junio de 2026  
-**Estado:** Línea base — Aprobado para Sprint 1  
+**Estado:** Borrador — pendiente de validación con tutor (no asignado) y con la Coordinación Académica  
 **Autores:** Equipo de Proyecto de Grado — Programa de Ingeniería de Sistemas
 
 ---
@@ -66,13 +66,23 @@ La **Coordinación Académica de la Sede Cali de la Universidad Remington** gest
 - **Equipo:** 2 personas.
 - **Entregable:** Demo presentable + defensa académica.
 
+## Volumetría (síntesis E3 Q24)
+
+El sistema opera en un contexto de **volumen bajo y predecible; no es un sistema de alto tráfico**:
+
+- **Adiciones de créditos:** aproximadamente 30–40 solicitudes por semestre (E3: *"30, 40, no sé. Por semestre."*). Distribución no uniforme durante el período (E3: *"no hay gente que manda el formato en enero, otros en febrero, otros en marzo."*).
+- **Tasa de aprobación:** muy alta — prácticamente la totalidad se aprueba (E3: *"La mayoría. Todos. Todos se aprueban."*).
+- **Orden de procesamiento:** FIFO — por orden de recepción, sin priorización formal (E3: *"orden de que reciben"*).
+- **Docentes firmantes (novedad de notas):** 9 (E3: *"Nueve."*).
+- **Volumen de novedad de notas:** no cuantificado — la coordinación no proporcionó número.
+
 ## Métricas de Éxito
 
 | Variable | Línea Base | Meta MVP | Medición |
 |----------|-----------|----------|----------|
-| **Re-trabajo (devoluciones/solicitud)** | ~2-3 | < 1 | Conteo en demo |
-| **Opacidad (tiempo buscar estado)** | ~5-10 min (búsqueda en correos) | < 1 min (timeline en UI) | Demo coordinadora |
-| **Tiempo ciclo coordinadora** | 1-2 semanas (captura + validación manual) | 5-10 min (formulario validado) | Observación |
+| **Re-trabajo (devoluciones/solicitud)** | No medido formalmente (línea base a establecer con el propio sistema) | < 1 | Conteo en demo |
+| **Opacidad (tiempo buscar estado)** | No medido formalmente (línea base a establecer con el propio sistema) | < 1 min (timeline en UI) | Demo coordinadora |
+| **Tiempo ciclo (porción controlable por Trámita)** | No medido formalmente (línea base a establecer con el propio sistema). Nota: el tiempo total del trámite depende de aprobadores externos; Trámita controla solo la porción de captura, validación y notificación. | Reducción de devoluciones y opacidad observable en demo | Observación |
 
 ---
 
@@ -159,9 +169,9 @@ Lo que cambia entre trámites es **puramente configuración:**
 |--------|-------------------|-----------------|
 | **Formulario** | Estudiante + asignatura + motivo | Estudiante + asignatura + nota + justificación |
 | **Validaciones** | Tope de créditos (21), ventana temporal (2-3 meses) | Sin tope, sin plazo |
-| **Aprobadores** | Coordinadora → Facultad → Registro | Coordinadora → Registro (coordinadora marca transiciones) |
-| **Profundidad de automatización** | Alta (transiciones automáticas en segundo plano) | Media (transiciones marcadas manualmente) |
-| **PDF** | Formato adición de créditos (DFR100 v0.1) | Formato novedad de notas |
+| **Aprobadores** | Coordinación → Facultad/Decano → Registro y Control Cali (carga PDF en QF) → Registro y Control Nacional/Medellín (ejecuta matrícula) | Docente → Dirección de CD → Decano (Facultad) → Área Financiera (verifica pago, **no firma**) → Registro y Control. Cuatro casillas de firma: docente, Dirección de CD, Decano, Registro y Control. El sistema **registra** los hitos; **no orquesta** a los aprobadores externos (ninguno es usuario del sistema en el MVP). |
+| **Profundidad de automatización** | La diferencia adición/novedad es de **configuración** (adición = flujo completo; novedad = seguimiento), **no** de automatización en segundo plano. La coordinación **marca manualmente** cada hito externo; el sistema registra que ocurrieron, no los ejecuta. | ← misma aclaración; aplica a ambos trámites |
+| **PDF** | Formato adición de créditos (DO-FR-100 v0.1) | Formato novedad de notas |
 
 **Código compartido:** Motor base + validador + generador PDF + auditador.  
 **Código específico:** Formatos de entrada/salida, plantillas PDF, reglas negocio por tipo.
@@ -171,10 +181,12 @@ Lo que cambia entre trámites es **puramente configuración:**
 Los formularios **validan en backend antes de persistir:**
 
 **Adición de créditos:**
-- Código de asignatura existe en CLASS.
-- Cantidad total ≤ 21 créditos.
-- Dentro de ventana temporal (primeros 2-3 meses).
-- Asignatura está disponible para matricular en CLASS.
+- Campos requeridos completos.
+- Suma de créditos ≤ tope configurable (provisional: 21).
+- Dentro de ventana temporal configurable (primeros 2-3 meses, provisional).
+- Firma presente (escaneada o trazada, no mecanografiada).
+
+La elegibilidad de la materia (existencia en CLASS, prerrequisitos, disponibilidad de cupo) la valida CLASS del lado del estudiante (caja negra); Trámita no la consulta.
 
 **Novedad de notas:**
 - Estudiante existe.
@@ -191,7 +203,7 @@ Los formularios **validan en backend antes de persistir:**
 El PDF:
 - Contiene todos los datos del trámite.
 - Incluye campos para firmas (solicitante + aprobadores).
-- Está codificado según estándar institucional (DFR100 vX.Y).
+- Está codificado según estándar institucional (DO-FR-100 vX.Y).
 - Es listo para asentar en QF sin modificaciones.
 
 **Motor de generación:** Thymeleaf + OpenHTMLToPDF (como en Convenia).
@@ -212,11 +224,10 @@ CREATE TABLE solicitud_event (
 );
 
 -- Protección a nivel SQL
-ALTER TABLE solicitud_event DISABLE TRIGGER ALL;
 REVOKE UPDATE, DELETE ON solicitud_event FROM app_user;
 ```
 
-Cada transición del motor escribe una fila. El timeline es **inmutable e impopular.**
+Cada transición del motor escribe una fila. El timeline es **inmutable e inviolable.**
 
 ### 5. Visibilidad Mediada (Sprint 1 - SP6)
 
@@ -231,7 +242,7 @@ UI muestra:
 
 **Consulta del estudiante:** Via coordinadora → ella busca por nombre + cédula en el timeline → responde al estudiante.
 
-**Notificación final:** Solo al completarse (estado FINALIZADO), correo automático al estudiante: "Tu solicitud ha sido completada. El PDF está disponible para asentar en CLASS."
+**Notificación final:** Solo al completarse (estado FINALIZADO), correo automático al estudiante: "Tu solicitud ha sido completada."
 
 ---
 
@@ -248,17 +259,18 @@ UI muestra:
 - Nombre estudiante.
 - Correo institucional.
 - Código asignatura (a adicionar).
-- Nombre asignatura (auto-relleno desde CLASS).
+- Nombre asignatura.
 - Créditos asignatura.
 - Motivo solicitud (texto libre).
-- Firma solicitante (escaneada o digital).
+- Firma solicitante (escaneada o trazada).
 
 **Validaciones:**
-- Campo requerido si está marcado.
-- Código de asignatura existe en CLASS.
-- Suma de créditos ≤ 21.
-- Dentro de ventana de 2-3 meses desde inicio semestre.
-- Firma presente (no mecánica).
+- Campos requeridos completos.
+- Suma de créditos ≤ tope configurable (provisional: 21).
+- Dentro de ventana temporal configurable (primeros 2-3 meses desde inicio del semestre, provisional).
+- Firma presente (no mecanografiada).
+
+La elegibilidad de la materia (existencia en CLASS, prerrequisitos, disponibilidad de cupo) la valida CLASS del lado del estudiante (caja negra); Trámita no la consulta.
 
 **Resultado:**
 - Solicitud creada en estado `BORRADOR`.
@@ -290,6 +302,8 @@ UI muestra:
 - Asignatura existe.
 - Nota en escala válida (0.0-5.0).
 - Firma presente.
+
+> *Nota: la escala 0.0–5.0 es el estándar de calificación universitaria en Colombia, asumido por el equipo; ninguna entrevista lo confirma formalmente para Remington (indicio indirecto en E2). Es una **validación de integridad del dato** —evita cargas absurdas por error de tipeo—, no una regla de negocio: la novedad de notas se aprueba de forma **manual** (árbol: "NO hay rechazo definitivo… siempre termina si hay soporte"). Pendiente de confirmar con la coordinación.*
 
 **Resultado:**
 - Solicitud creada en estado `BORRADOR`.
@@ -384,7 +398,7 @@ UI muestra:
 - Tipo de solicitud.
 - Estado actual.
 - Fecha de creación.
-- Días en estado actual (SLA rojo si > X días).
+- Días en estado actual (SLA rojo si > X días — umbral configurable; la normativa institucional de tiempos de respuesta está pendiente de obtener: existe pero la coordinación no supo indicar dónde está — E3 Q4).
 
 **Acciones:**
 - Clic → ir a detalle.
@@ -454,7 +468,6 @@ UI muestra:
 
 ## RNF6: Escalabilidad (Futuro, no MVP)
 
-- **Multi-tenancy:** Diseño preparado (columna `sede_id` en tablas), no implementado en MVP.
 - **Performance:** Índices en BD para búsquedas comunes.
 
 ---
@@ -479,8 +492,8 @@ UI muestra:
 - Docker + docker-compose (local).
 
 **Integración con externos:**
-- CLASS: Caja negra (consultas de existencia de asignaturas, validación de prerrequisitos). API expuesta por Remington (asumimos disponible).
-- QF: Caja negra (coordinadora asiente manualmente el PDF).
+- CLASS: Caja negra (Principio VI). Trámita NO consume su API ni valida contra él. La elegibilidad de la materia (tope automático, prerrequisitos, disponibilidad de cupo) la resuelve CLASS del lado del estudiante; Trámita no la consulta. El sistema se sitúa aguas arriba de CLASS en el flujo institucional.
+- QF: Caja negra (coordinadora asienta manualmente el PDF generado por Trámita).
 
 ## Capas de Arquitectura
 
@@ -508,7 +521,7 @@ UI muestra:
 ```
 - id: Long
 - tipo_solicitud: ENUM (ADICION_CREDITOS, NOVEDAD_NOTAS)
-- estado: ENUM (BORRADOR, ENVIADO, APROBADO_COORD, FINALIZADO, RECHAZADO)
+- estado: ENUM (BORRADOR, ENVIADO, APROBADO_POR_COORD, FINALIZADO, RECHAZADO_FINAL)
 - estudiante_id: String (cédula)
 - estudiante_nombre: String
 - estudiante_correo: String
@@ -580,19 +593,20 @@ UI muestra:
      │
      └──► Notificación al estudiante
      
-┌────────────┐
-│ RECHAZADO  │ (terminal)
-└────────────┘
+┌─────────────────┐
+│ RECHAZADO_FINAL │ (terminal, solo adición por exceder plazo)
+└─────────────────┘
 ```
 
 ## Validaciones de Negocio
 
 **En formulario (backend):**
 - Campos requeridos completos.
-- Código de asignatura existe en CLASS.
 - Créditos totales ≤ tope máximo (parámetro configurable).
 - Fecha dentro de ventana (parámetro configurable).
-- Firma no es mecánica (detectar si es solo nombre escrito).
+- Firma presente (no mecanografiada).
+
+La elegibilidad de la materia (existencia en CLASS, prerrequisitos, disponibilidad de cupo) la valida CLASS del lado del estudiante (caja negra); Trámita no la consulta.
 
 **Manual (coordinadora):**
 - Asistencia del estudiante (verificar en archivo).
@@ -738,7 +752,7 @@ UI muestra:
 | **R1** | Tutor no asignado / pide pivot arquitectónico tardío | Alta | Alto | Validar scope en próxima reunión académica. Documentar decisiones arquitectónicas hoy. | Equipo + Coordinadora académica |
 | **R2** | Plantilla PDF no llega a tiempo (Sprint 2) | Media | Alto | Usar template placeholder en Sprint 1. Iterar cuando llegue oficial. | Equipo + Coordinadora |
 | **R3** | Plazo se reduce por causas externas | Media | Alto | Priorizar Sprint 1 (columna vertebral). Sprint 2-3 son iteraciones. | Equipo + Coordinadora |
-| **R4** | Dependencia con CLASS (consultas API) | Baja | Medio | CLASS es caja negra. Mockear en desarrollo. Validar integración tarde. | Equipo + TI Remington |
+| **R4** | ~~Dependencia con CLASS (consultas API)~~ | N/A | N/A | CLASS es caja negra (Principio VI). Trámita no consume su API ni valida contra él. Riesgo eliminado por diseño. | — |
 | **R5** | Firma digital no viable (costo/complejidad) | Baja | Medio | Fallback: sello electrónico + hash verificable (ya diseñado). | Equipo |
 | **R6** | Estudiante intenta acceso a portal (fuera de alcance) | Media | Bajo | Educación clara de coordinadora. Sistema no tiene login estudiantil. | Coordinadora |
 
@@ -778,7 +792,7 @@ UI muestra:
 
 ✅ **Coordinadora aprueba:**
 - "Este sistema me sirve."
-- "Recortó el trabajo manual en un 70%."
+- "El sistema reduce el re-trabajo y el tiempo que dedico a buscar el estado de un trámite."
 - "Los estudiantes ya no me preguntarán en qué va su trámite."
 
 ✅ **Completitud del MVP:**
@@ -809,7 +823,7 @@ UI muestra:
 - [arbol-de-problemas.md](docs/nuevo-proyecto/01-planteamiento/arbol-de-problemas.md) — Descomposición del problema (Marco Lógico).
 - [draft-principios.md](docs/nuevo-proyecto/02-constitucion/draft-principios.md) — 6 principios de diseño + stack.
 - [prd.md](docs/nuevo-proyecto/03-prd/prd.md) — Personas, journeys, roadmap.
-- [entrevista3-limpia.md](docs/nuevo-proyecto/03-prd/entrevista3-limpia.md) — Requerimientos validados con coordinadora.
+- Entrevista 3 — material de coordinación, no versionado por confidencialidad (disponible en `material-coord/`, gitignored).
 - [auditoria.md](docs/auditoria.md) — Referencia de Convenia (stack similar, lecciones).
 
 ---
@@ -821,7 +835,7 @@ UI muestra:
 | Término | Definición |
 |---------|-----------|
 | **CLASS** | Sistema académico institucional de Remington. Caja negra para Trámita. |
-| **QF** | Gestor documental de firmas de Remington. Almacena PDFs asentados. |
+| **QF** | Banco documental de Remington. Solo almacena los PDFs asentados; no valida firmas ni contenido (E3 Q8). |
 | **Adición de Créditos** | Proceso de excepción para matricular más créditos del tope permitido. |
 | **Novedad de Notas** | Proceso de registro de calificación faltante o no cargada. |
 | **Coordinadora** | Usuaria primaria: gestiona solicitudes administrativas. |
@@ -863,4 +877,4 @@ _________________________________________
 
 **Documento preparado para exportación a Word/PDF.**  
 **Última actualización:** 15 de junio de 2026.  
-**Versión:** 1.0.0 — Línea base aprobada.
+**Versión:** 1.0.0 — Borrador, pendiente de validación.
