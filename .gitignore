@@ -16,8 +16,6 @@ secrets/
 .DS_Store
 Thumbs.db
 
-.specify
-
 # Editores
 .idea/
 .vscode/
@@ -55,3 +53,4 @@ material-coord/*
 .atl
 .pi
 openspec
+.engram
