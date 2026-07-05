@@ -48,6 +48,23 @@ Ejemplos:
 - `2026-07-01-coord-pensum-ingenieria-sistemas.pdf`
 - `2026-07-10-coord-calendario-academico-2026-2.pdf`
 
+### Excepción: archivos de nombre fijo (no renombrar)
+
+Estos archivos están referenciados por **ruta fija** desde el repositorio versionado y desde la
+skill de auditoría (`.claude/skills/auditar-vs-entrevistas/`, que los toma como fuentes
+canónicas). **No deben renombrarse**; hacerlo rompe esas referencias:
+
+- `transcript-entrevista-coordi.md`, `transcript-entrevista-coordi-2.md` — Entrevista 1 y su
+  continuación. Fuentes canónicas de la skill; citadas en `arbol-de-problemas.md` y
+  `guia-entrevista-3.md`.
+- `entrevista-Coordi-3.txt`, `parte2-entrevista3.md` — Entrevista 3 (transcripción cruda y
+  tramo final).
+- `2026-06-04-entrevista3-sintesis-analitica.md` — síntesis de la Entrevista 3 (esta sí sigue el
+  patrón de fecha).
+
+Los cuatro primeros **no siguen** el patrón `YYYY-MM-DD-…` por preceder a esta convención; se
+conservan así a propósito. El patrón aplica solo al material **nuevo** que llegue.
+
 ## Cómo referenciar este material desde el repositorio versionado
 
 Al citar un artefacto de esta carpeta desde el PRD, las especificaciones o cualquier otro documento del repo, usar la ruta relativa:

@@ -22,7 +22,7 @@ Thumbs.db
 *.swp
 *~
 
-CLAUDE.md
+CLAUDE.local.md
 
 # Entornos virtuales / dependencias (a expandir cuando se defina el stack)
 .venv/

@@ -11,6 +11,25 @@ Fuentes base:
 
 ---
 
+## D0 — Origen y encuadre de la feature: login solicitado por la tutora asignada
+
+- **Origen del requisito**: la autenticación no formaba parte del alcance original del MVP.
+  El árbol de problemas modela el motor de workflow (SP1–SP7) y no contempla un módulo de
+  login. La feature se incorpora como **requerimiento solicitado por la tutora asignada
+  durante la primera sesión de asesoría (Sprint 1)**; esta es su traza de procedencia
+  (Principio IV — decisiones defendibles y trazables).
+- **Encuadre de diseño (Principio I — KISS + YAGNI)**: se adopta la opción segura más simple
+  que satisface el requerimiento —sesión del lado del servidor con cookie, sin SSO ni
+  infraestructura especulativa—. El encuadre es consistente, además, con la postura que la
+  Coordinación expresó sobre autenticación: preferencia por un mecanismo simple, sin
+  autenticación estricta (Entrevista 3, Q9), y correo institucional como identificador mínimo
+  (Entrevista 3, Q11).
+- **Diferimiento de SSO (decisión sobre información pendiente)**: la integración con SSO
+  institucional (Microsoft 365 / Entra ID) queda **diferida** a su confirmación con el área de
+  tecnología (Entrevista 3, pendiente #4). La sesión con cookie se adopta como solución
+  **provisional y migrable** a SSO una vez se confirme dicha integración; no se implementa en
+  esta entrega (Principio I — YAGNI).
+
 ## D1 — Mecanismo de autenticación: sesión server-side, NO JWT
 
 - **Decisión**: sesión HTTP del lado del servidor identificada por cookie opaca. El backend
@@ -94,9 +113,19 @@ Fuentes base:
 - **Trade-off**: BCrypt (no Argon2) por estar ya en el chasis Spring Security y ser suficiente
   para el modelo de amenaza del MVP; el límite de 72 bytes es su costo conocido y aquí se
   convierte en la regla FR-006.
+- **Tensión resuelta (E3 Q9 «sin autenticación estricta»)**: el pedido de la Coordinación de
+  "algo simple, sin autenticación estricta" se interpreta como **no construir autenticación
+  institucional pesada** (SSO, identidad estricta, doble factor), no como relajar la higiene de
+  seguridad. El diseño respeta ese pedido en el **mecanismo** (sesión-cookie, factor único, sin
+  SSO — ver D0/D1); las defensas restantes (throttling, CSRF, mensaje genérico) son invisibles
+  para la usuaria y no añaden fricción. El único parámetro con fricción real —el mínimo de 15
+  caracteres— es el **piso de NIST para contraseña como factor único** (SHALL, SP 800-63B-4
+  §3.1.1.2, verificado), no rigidez adicional: bajarlo a 8 exigiría sumar un segundo factor
+  (MFA), lo que aumentaría la complejidad en dirección contraria a KISS y al propio pedido.
 - **Fuera de alcance (v2)**: blocklist de contraseñas filtradas (documentado en el spec). La
   política se concentra en `PasswordPolicy` para que incorporarla luego sea local.
-- **Fuente**: NIST SP 800-63B-4 §3.1.1 — https://pages.nist.gov/800-63-4/sp800-63b.html ;
+- **Fuente**: NIST SP 800-63B-4 §3.1.1.2 (mínimo 15 para factor único, SHALL) —
+  https://pages.nist.gov/800-63-4/sp800-63b.html ;
   OWASP Authentication Cheat Sheet (password storage / BCrypt 72-byte limit).
 
 ## D7 — Throttling anti fuerza bruta (FR-010)

@@ -4,8 +4,8 @@
 > **Fecha**: 2026-05-18.
 > **Autores**: equipo de trabajo de grado — Programa de Ingeniería de Sistemas, Universidad Remington (modalidad Distancia, SNIES 53112, Resolución 015939 del 1 de septiembre de 2023).
 > **Método**: árbol de problemas según el enfoque de **Marco Lógico** (Metodología del Marco Lógico para la planificación, el seguimiento y la evaluación de proyectos y programas, CEPAL/ILPES — Edgar Ortegón, Juan Francisco Pacheco y Adriana Prieto, 2005).
-> **Insumos primarios**: tres entrevistas semi-estructuradas a la Coordinación Académica de la Sede Cali — Entrevista 1 (`transcript-entrevista-coordi.md`), su continuación (`transcript-entrevista-coordi-2.md`) y Entrevista 3 (`material-coord/entrevista-Coordi-3.txt`, material confidencial no versionado).
-> **Convención de fuentes (para las citas de este documento)**: «entrevista 1» = `transcript-entrevista-coordi.md`; «entrevista 2» = `transcript-entrevista-coordi-2.md` (continuación de la misma sesión; su encabezado se titula «Continuación de entrevista 1»); «Entrevista 3» = `material-coord/entrevista-Coordi-3.txt`.
+> **Insumos primarios**: tres entrevistas semi-estructuradas a la Coordinación Académica de la Sede Cali — Entrevista 1 (`material-coord/transcript-entrevista-coordi.md`), su continuación (`material-coord/transcript-entrevista-coordi-2.md`) y Entrevista 3 (`material-coord/entrevista-Coordi-3.txt`, material confidencial no versionado).
+> **Convención de fuentes (para las citas de este documento)**: «entrevista 1» = `material-coord/transcript-entrevista-coordi.md`; «entrevista 2» = `material-coord/transcript-entrevista-coordi-2.md` (continuación de la misma sesión; su encabezado se titula «Continuación de entrevista 1»); «Entrevista 3» = `material-coord/entrevista-Coordi-3.txt`.
 
 ---
 
@@ -171,7 +171,7 @@ Cada causa raíz se traduce en un sub-problema **MECE** (mutuamente excluyente, 
 
 > **Nota de riesgo — adaptador email**: el chasis (Convenia) no incluye infraestructura de correo (`pom.xml` sin `spring-boot-starter-mail`, sin `JavaMailSender`, sin `spring.mail`). El adaptador email es el canónico del puerto de notificación, pero **depende de un servidor SMTP** (dependencia externa; derivar a profe Diego, Q34). El camino crítico del MVP usa el **chat-template como fallback** si SMTP no está disponible a tiempo.
 
-> **Nota de consistencia**: la decisión «sesión por cookie, no JWT» está registrada en `docs/nuevo-proyecto/02-constitucion/draft-principios.md` (§ Stack mandatorio); **falta materializarla** en `.specify/memory/constitution.md` vía `/speckit-constitution` (hoy ese archivo sigue siendo plantilla vacía).
+> **Nota de consistencia (actualizada 2026-07-04)**: la decisión «sesión por cookie, no JWT» quedó **materializada** en la constitución (`.specify/memory/constitution.md`, Principio III, ratificada v1.0.0 el 2026-07-02). Ya no es solo `draft-principios.md`. La feature que la implementa es `001-auth-login` (encuadre provisional/SSO en su `research.md` D0).
 
 ---
 
@@ -229,4 +229,4 @@ Las tres variables de la pregunta de investigación se operacionalizan así:
 - Ortegón, E., Pacheco, J. F. y Prieto, A. (2005). *Metodología del marco lógico para la planificación, el seguimiento y la evaluación de proyectos y programas*. Serie Manuales N.º 42, CEPAL/ILPES. Naciones Unidas.
 - Anderson, L. W. y Krathwohl, D. R. (eds.) (2001). *A Taxonomy for Learning, Teaching, and Assessing: A Revision of Bloom's Taxonomy of Educational Objectives*. Longman.
 - Universidad Remington. Resolución 015939 del 1 de septiembre de 2023 (renovación del registro calificado del programa de Ingeniería de Sistemas, modalidad Distancia, SNIES 53112).
-- Entrevistas a la Coordinación Académica de la Sede Cali: Entrevista 1 (`transcript-entrevista-coordi.md`) y su continuación (`transcript-entrevista-coordi-2.md`); Entrevista 3 (`material-coord/entrevista-Coordi-3.txt`) y su síntesis analítica (`material-coord/2026-06-04-entrevista3-sintesis-analitica.md`). La Entrevista 3 y su síntesis son material confidencial no versionado: se citan por referencia, sin reproducir contenido literal ni datos personales.
+- Entrevistas a la Coordinación Académica de la Sede Cali: Entrevista 1 (`material-coord/transcript-entrevista-coordi.md`) y su continuación (`material-coord/transcript-entrevista-coordi-2.md`); Entrevista 3 (`material-coord/entrevista-Coordi-3.txt`) y su síntesis analítica (`material-coord/2026-06-04-entrevista3-sintesis-analitica.md`). La Entrevista 3 y su síntesis son material confidencial no versionado: se citan por referencia, sin reproducir contenido literal ni datos personales.

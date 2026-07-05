@@ -20,7 +20,9 @@ DB_URL=jdbc:postgresql://localhost:5433/tramita-db
 DB_USER=postgres
 DB_PASSWORD=postgres
 
-# Semilla de la cuenta de la Coordinación (provisión sin hash en git — research.md D8)
+# Semilla de la cuenta de la Coordinación (provisión sin hash en git — research.md D8).
+# El email es ILUSTRATIVO: reemplazar por el correo institucional real de la Coordinación
+# al desplegar (los correos de sede son públicos en la web institucional — Entrevista 3, Q10).
 SEED_COORD_EMAIL=coordinacion.cali@uniremington.edu.co
 SEED_COORD_PASSWORD=<una-frase-de-paso-de-al-menos-15-chars>
 
