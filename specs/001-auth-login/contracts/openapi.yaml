@@ -50,6 +50,13 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
+        '403':
+          description: >
+            Token CSRF ausente o inválido (header X-XSRF-TOKEN faltante o que no coincide).
+            El cliente debe refrescar el token (releer la cookie XSRF-TOKEN) y reintentar.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
         '429':
           description: Demasiados intentos fallidos. Throttling temporal auto-reparable (FR-010).
           headers:
@@ -66,13 +73,22 @@ paths:
       summary: Cerrar sesión (US4)
       description: Invalida la sesión del servidor y limpia la cookie. Requiere sesión activa y CSRF.
       security:
+        # Un solo objeto = AND (sesión Y CSRF); objetos separados significarían OR
+        # (OpenAPI 3.1 — Security Requirement Object).
         - sessionCookie: []
-        - csrfToken: []
+          csrfToken: []
       responses:
         '204':
           description: Sesión invalidada. La cookie deja de ser válida.
         '401':
           description: No hay sesión activa.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '403':
+          description: >
+            Token CSRF ausente o inválido (header X-XSRF-TOKEN faltante o que no coincide).
+            El cliente debe refrescar el token (releer la cookie XSRF-TOKEN) y reintentar.
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -84,10 +100,14 @@ paths:
       description: >
         La Coordinación autenticada cambia su contraseña. Exige la contraseña actual correcta
         (FR-005). La nueva se valida contra la política en el servidor (FR-006) y debe diferir de
-        la actual. Requiere sesión activa y CSRF.
+        la actual. Requiere sesión activa y CSRF. Sujeto al mismo throttling del login (FR-010).
+        Mapa un-código-una-causa: 401 sesión · 403 CSRF · 422 negocio · 429 throttling.
+        Tras el cambio exitoso se rota el id de sesión (la sesión sigue activa).
       security:
+        # Un solo objeto = AND (sesión Y CSRF); objetos separados significarían OR
+        # (OpenAPI 3.1 — Security Requirement Object).
         - sessionCookie: []
-        - csrfToken: []
+          csrfToken: []
       requestBody:
         required: true
         content:
@@ -102,14 +122,37 @@ paths:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
         '401':
-          description: Sin sesión activa, o contraseña actual incorrecta (genérico).
+          description: >
+            Sesión ausente o expirada — única causa de 401 en este endpoint (mapa
+            un-código-una-causa). Los rechazos de negocio del body van por 422: la credencial
+            de la request (cookie de sesión) es válida (RFC 9110 §15.5.2).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '403':
+          description: >
+            Token CSRF ausente o inválido (header X-XSRF-TOKEN faltante o que no coincide).
+            El cliente debe refrescar el token (releer la cookie XSRF-TOKEN) y reintentar.
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
         '422':
           description: >
-            La nueva contraseña no cumple la política (longitud 15..72, o es igual a la actual).
-            El detail indica el motivo (FR-006, edge case "igual a la actual").
+            Rechazo de negocio del body, con tres causas distinguibles por el campo detail:
+            (a) contraseña actual incorrecta (FR-005), (b) la nueva no cumple la política
+            (FR-006), (c) la nueva es igual a la actual. La usuaria ya está autenticada, así
+            que el mensaje genérico anti-enumeración del login no aplica aquí.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '429':
+          description: >
+            Demasiados intentos fallidos de verificación de la contraseña actual. Mismo
+            throttling del login (FR-010, servicio compartido), temporal y auto-reparable.
+          headers:
+            Retry-After:
+              schema: { type: integer }
+              description: Segundos hasta poder reintentar.
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -162,8 +205,9 @@ components:
           example: coordinacion.cali@uniremington.edu.co
         password:
           type: string
-          # El mínimo/máximo NO se documenta como 15..72 aquí porque el login acepta lo que sea
-          # y el servidor decide; la política aplica a la CREACIÓN/CAMBIO, no al intento de login.
+          # La política (15+ caracteres, máx 72 bytes UTF-8) NO se documenta aquí porque el
+          # login acepta lo que sea y el servidor decide; aplica a la CREACIÓN/CAMBIO de la
+          # contraseña, no al intento de login.
           example: "una-frase-de-paso-larga"
 
     ChangePasswordRequest:
@@ -174,14 +218,19 @@ components:
           type: string
         newPassword:
           type: string
-          minLength: 15
-          maxLength: 72
+          # Sin minLength/maxLength a propósito: la única fuente de verdad de la política es
+          # PasswordPolicy en el servidor (violación → 422 con motivo). Dos validadores para la
+          # misma regla (Bean Validation → 400 vs PasswordPolicy → 422) derivarían con el tiempo.
           description: >
-            Política NIST SP 800-63B-4: 15..72 caracteres, sin composición forzada. El cliente
-            espeja longitud + coincidencia con confirmación (US3); el servidor re-valida (FR-003).
+            Política (NIST SP 800-63B-4): mínimo 15 caracteres, máximo 72 bytes en UTF-8 —
+            límite real de BCrypt; los caracteres fuera de ASCII cuentan más de uno —, sin
+            composición forzada, y distinta de la actual. La validación autoritativa del máximo
+            es en bytes UTF-8 y la hace el servidor (FR-003, FR-006 → 422 con motivo); el
+            cliente puede espejarla exacta con TextEncoder (US3).
 
     CurrentUserResponse:
       type: object
+      required: [email, active]
       properties:
         email:
           type: string
@@ -191,7 +240,10 @@ components:
 
     Problem:
       type: object
-      description: RFC 7807 (application/problem+json).
+      description: >
+        RFC 7807 (application/problem+json). Solo title y status son requeridos; los demás
+        miembros son opcionales, fiel a la especificación.
+      required: [title, status]
       properties:
         type: { type: string, format: uri, example: about:blank }
         title: { type: string, example: Unauthorized }

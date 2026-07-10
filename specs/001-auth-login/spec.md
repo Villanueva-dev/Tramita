@@ -90,12 +90,12 @@ La Coordinación cierra su sesión de forma segura al terminar de usar el sistem
 - **FR-003**: El sistema MUST validar las credenciales de forma autoritativa en el servidor; la validación del cliente es únicamente orientativa (UX).
 - **FR-004**: El sistema MUST permitir a la Coordinación autenticada cambiar su propia contraseña.
 - **FR-005**: El cambio de contraseña MUST exigir la contraseña actual correcta antes de aceptar la nueva.
-- **FR-006**: El sistema MUST aplicar en el servidor una política de contraseñas con longitud mínima de 15 caracteres (la contraseña es el único factor de autenticación; NIST SP 800-63B-4), longitud máxima de 72, sin reglas de composición obligatorias (mayúsculas/números/símbolos) y sin rotación periódica forzada. Las reglas verificables en el cliente (longitud y coincidencia con la confirmación) MUST reflejarse en la retroalimentación en tiempo real del frontend; el servidor MUST re-validar de forma autoritativa (ver FR-003).
+- **FR-006**: El sistema MUST aplicar en el servidor una política de contraseñas con longitud mínima de 15 caracteres (la contraseña es el único factor de autenticación; NIST SP 800-63B-4), máximo de **72 bytes en UTF-8** (los caracteres fuera de ASCII cuentan más de uno; es el límite real de BCrypt), sin reglas de composición obligatorias (mayúsculas/números/símbolos) y sin rotación periódica forzada. Las reglas verificables en el cliente (longitud y coincidencia con la confirmación) MUST reflejarse en la retroalimentación en tiempo real del frontend; el servidor MUST re-validar de forma autoritativa (ver FR-003).
 - **FR-007**: El sistema MUST establecer una sesión tras un login exitoso y MUST permitir cerrarla (logout).
 - **FR-008**: La credencial de sesión MUST ser inaccesible para los scripts del navegador y MUST transmitirse solo por conexión segura.
 - **FR-009**: El sistema MUST expirar las sesiones tras un período de inactividad (ver Supuestos: 30 minutos por defecto).
 - **FR-010**: El sistema MUST mitigar los intentos automatizados de fuerza bruta limitando temporalmente los intentos fallidos repetidos (throttling que se auto-repara tras una ventana de tiempo), SIN bloquear la cuenta de forma permanente.
-- **FR-011**: Solo las cuentas marcadas como activas MUST poder autenticarse.
+- **FR-011**: Solo las cuentas marcadas como activas MUST poder autenticarse. *Nota (ventana aceptada)*: la desactivación surte efecto en el **próximo intento de login**; una sesión ya establecida sobrevive hasta su cierre o expiración por inactividad (≤30 min, FR-009). La revocación inmediata de sesiones vivas se reevaluará cuando exista gestión de cuentas dentro de la app.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -115,7 +115,7 @@ La Coordinación cierra su sesión de forma segura al terminar de usar el sistem
 
 - La cuenta de la Coordinación se provisiona por fuera de la aplicación (semilla/migración): no hay auto-registro ni alta de usuarios desde la app.
 - La recuperación de contraseña olvidada queda FUERA del alcance del MVP: no hay flujo de "olvidé mi contraseña". Si la Coordinación pierde el acceso, se re-provisiona su contraseña por script/migración. Una vista de administración para gestionar cuentas se documenta como enhancement de una versión posterior.
-- La verificación contra listas de contraseñas comunes o filtradas (blocklist) queda fuera del MVP; se documenta como enhancement de v2. La política de contraseñas se concentra en un único punto para que incorporarla luego sea una extensión localizada.
+- La verificación contra listas de contraseñas comunes o filtradas (blocklist) es un requisito **SHALL** de NIST SP 800-63B-4 §3.1.1.2 que este MVP **difiere como no-conformidad consciente y documentada** (no como enhancement opcional). El riesgo residual es bajo: una única cuenta, provisionada por seed con frase de paso de 15+ caracteres y rotada por la propia Coordinación. La política de contraseñas se concentra en un único punto (`PasswordPolicy`) para que incorporarla luego sea una extensión localizada.
 - Alcance de un único actor (la Coordinación) y una única sede; sin roles ni gestión de sedes.
 - El frontend y el backend viven en orígenes distintos; el intercambio de la credencial de sesión se realiza con soporte de credenciales de origen cruzado.
 - Timeout de sesión por inactividad: 30 minutos (valor por defecto razonable; ajustable en el plan).

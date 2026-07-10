@@ -32,8 +32,14 @@ APP_CORS_ALLOWED_ORIGINS=http://localhost:5173
 
 ## Levantar
 
+El flujo local corre con el **perfil `dev`** (`application-dev.yml`), que setea
+`server.servlet.session.cookie.secure: false`: una cookie con flag `Secure` no viaja por
+`http://localhost` y el flujo curl se rompería en el paso 2 (`/me`). En prod la cookie
+**siempre** lleva `Secure` (FR-008 intacto; la desviación dev está declarada en `research.md` D3).
+
 ```bash
-./mvnw spring-boot:run     # aplica Flyway (crea tabla users) y corre el seeder idempotente
+SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run   # aplica Flyway (crea tabla users) y corre el seeder idempotente
+# equivalente: ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
 Al primer arranque, `CoordinationUserSeeder` crea la cuenta si no existe, hasheando
@@ -43,7 +49,9 @@ Al primer arranque, `CoordinationUserSeeder` crea la cuenta si no existe, hashea
 
 > El SPA real usará `fetch` con `credentials: 'include'`. Con curl usamos un cookie-jar.
 > CSRF (`csrf.spa()`): primero un GET para recibir la cookie `XSRF-TOKEN`, luego reenviarla en el
-> header `X-XSRF-TOKEN` en cada POST.
+> header `X-XSRF-TOKEN` en cada POST. **Ojo**: el token **rota al autenticar**
+> (`CsrfAuthenticationStrategy`) y el `CsrfCookieFilter` re-emite la cookie — hay que
+> **re-leer** `XSRF-TOKEN` del jar después del login; el valor capturado antes queda obsoleto.
 
 ```bash
 # 0) Obtener cookie CSRF (y guardar cookies en jar)
@@ -56,6 +64,9 @@ curl -i -c jar.txt -b jar.txt \
   -d '{"email":"coordinacion.cali@uniremington.edu.co","password":"<clave-semilla>"}' \
   http://localhost:8080/api/auth/login
 
+# 1bis) Re-leer el token CSRF: rotó con el login (research.md D4); sin esto, los pasos 3 y 4 dan 403
+XSRF=$(grep XSRF-TOKEN jar.txt | awk '{print $7}')
+
 # 2) Sesión actual (GET /me) → 200 {email, active}
 curl -b jar.txt http://localhost:8080/api/auth/me
 
@@ -66,7 +77,8 @@ curl -i -c jar.txt -b jar.txt \
   http://localhost:8080/api/auth/password
 
 # 4) Logout (US4) → 204; luego /me da 401
-curl -i -c jar.txt -b jar.txt -H "X-XSRF-TOKEN: $XSRF" \
+# (-X POST explícito: sin body, curl haría GET; el contrato y el LogoutFilter exigen POST)
+curl -i -X POST -c jar.txt -b jar.txt -H "X-XSRF-TOKEN: $XSRF" \
   http://localhost:8080/api/auth/logout
 ```
 
@@ -76,7 +88,7 @@ curl -i -c jar.txt -b jar.txt -H "X-XSRF-TOKEN: $XSRF" \
 |-----------|------|-----------|
 | Credenciales incorrectas → 401 genérico | login con clave mala → mismo mensaje que email inexistente | FR-002, SC-002 |
 | Cuenta inactiva → acceso denegado | marcar `active=false` en BD, intentar login → 401 genérico | FR-011 |
-| Cookie con flags de seguridad | inspeccionar `Set-Cookie`: `HttpOnly; Secure; SameSite=Strict` | FR-008 |
+| Cookie con flags de seguridad | inspeccionar `Set-Cookie`: `HttpOnly; SameSite=Strict` (+ `Secure` fuera del perfil `dev`, que lo omite a propósito — ver «Levantar») | FR-008 |
 | Nueva clave < 15 o = actual → rechazo | `POST /password` → 422 con motivo | FR-006, edge case |
 | Throttling | repetir login fallido > umbral → 429 + `Retry-After`; esperar la ventana → vuelve a permitir | FR-010 |
 | Expiración por inactividad | sesión ociosa > 30 min → `/me` da 401 | FR-009 |
