@@ -44,7 +44,7 @@ futuro y NO forma parte de estas tareas (plan.md — backend-first).
 **Purpose**: crear el esqueleto Spring Boot desde cero (no existe código todavía), heredando
 el patrón del chasis de Convenia — solo el patrón, no las entidades.
 
-- [ ] T001 Generar el esqueleto Maven en la raíz del repo con **Spring Initializr**
+- [x] T001 Generar el esqueleto Maven en la raíz del repo con **Spring Initializr**
       (`start.spring.io`, vía web o `curl https://start.spring.io/starter.zip -d ...`):
       `type=maven-project`, `javaVersion=21`, `bootVersion=4.0.5` (si Initializr ya no ofrece
       esa patch, tomar la 4.0.x disponible y fijar el parent a 4.0.5 en el `pom.xml`),
@@ -58,9 +58,20 @@ el patrón del chasis de Convenia — solo el patrón, no las entidades.
       crear la estructura `src/main/java/com/uniremington/api/tramita/{auth,shared}` y
       `src/main/resources/db/migration`.
       **Sin** `jjwt` (no hay JWT — research.md D1) y **sin** MapStruct en auth (plan.md).
-- [ ] T002 [P] Verificar la clase principal generada por Initializr en
+      **Ejecutada (2026-07-11)**: generado vía curl con Boot **4.0.7** (la 4.0.5 salió del
+      catálogo de Initializr; misma minor, solo patches). Boot 4 usa starters de test
+      modulares (`spring-boot-starter-{webmvc,security,data-jpa,validation,flyway}-test`) en
+      lugar de `spring-boot-starter-test`/`spring-security-test`; `flyway-database-postgresql`
+      y `db/migration/` vinieron incluidos; JaCoCo 0.8.13 agregado a mano;
+      `springdoc-openapi` **DIFERIDO** — su última versión (2.8.6, Maven Central al
+      2026-07-11) solo soporta Boot 3.x; agregarlo cuando haya release compatible con Boot 4.
+      Se descartaron del esqueleto: `HELP.md`, `templates/`, `static/` y el
+      `TramitaApplicationTests` (`contextLoads` — redundante con la IT única y exigiría
+      Docker en todo `mvnw test`); se conservan `TestcontainersConfiguration` y
+      `TestTramitaApplication` para la IT y el arranque dev con Postgres efímero.
+- [x] T002 [P] Verificar la clase principal generada por Initializr en
       `src/main/java/com/uniremington/api/tramita/TramitaApplication.java`
-      (nombre, paquete raíz y anotación `@SpringBootApplication`).
+      (nombre, paquete raíz y anotación `@SpringBootApplication`) — verificada 2026-07-11.
 - [ ] T003 [P] Crear `src/main/resources/application.yml`: datasource por variables de entorno
       `DB_URL`/`DB_USER`/`DB_PASSWORD` **sin defaults para secretos** (fail-fast, patrón Convenia),
       `spring.jpa.hibernate.ddl-auto=validate` (Flyway-valida-Hibernate), Flyway habilitado,
@@ -173,7 +184,9 @@ genérico idéntico. Verificable con quickstart.md pasos 0–2 y con `AuthContro
 - [ ] T017 [P] [US1] Escribir la prueba de integración `AuthControllerIT` en
       `src/test/java/com/uniremington/api/tramita/auth/AuthControllerIT.java`
       (`@SpringBootTest` + MockMvc con filtros de seguridad + Testcontainers PostgreSQL + Flyway;
-      única IT de la feature) con los escenarios US1: (a) login exitoso → 204 + `Set-Cookie`
+      única IT de la feature; reusar `TestcontainersConfiguration` del esqueleto **fijando la
+      imagen a una versión concreta** — Initializr la generó con `postgres:latest`, no
+      reproducible) con los escenarios US1: (a) login exitoso → 204 + `Set-Cookie`
       `TRAMITA_SESSION` **y rotación del id de sesión** (id previo ≠ id posterior al autenticar);
       (b) credenciales inválidas → **401 genérico**: mismo body `problem+json` para clave
       incorrecta, email inexistente y cuenta inactiva (FR-002/FR-011/SC-002); (c) POST de login

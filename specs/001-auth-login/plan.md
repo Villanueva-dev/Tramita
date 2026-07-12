@@ -23,9 +23,11 @@ de contraseña como contrato que el cliente deberá espejar para la validación 
 
 **Language/Version**: Java 21
 
-**Primary Dependencies**: Spring Boot 4.0.5 (`spring-boot-starter-web`, `-security`,
-`-data-jpa`, `-validation`), Flyway (`spring-boot-starter-flyway` + `flyway-database-postgresql`),
-driver PostgreSQL, Lombok (boilerplate), springdoc-openapi. **MapStruct NO se usa en esta
+**Primary Dependencies**: Spring Boot 4.0.7 (última patch del minor 4.0.x planeado; en Boot 4
+el starter web se llama `spring-boot-starter-webmvc`), `-security`, `-data-jpa`, `-validation`,
+Flyway (`spring-boot-starter-flyway` + `flyway-database-postgresql`), driver PostgreSQL, Lombok
+(boilerplate). springdoc-openapi **diferido**: su última release (2.8.6) solo soporta Boot 3.x;
+se agregará cuando exista versión compatible con Boot 4 (tasks.md T001). **MapStruct NO se usa en esta
 feature** (solo 3 DTOs → mapeo a mano, YAGNI; queda disponible en el chasis para features con
 muchos mapeos). **Se descartan** las tres dependencias `jjwt` de Convenia (no hay JWT).
 

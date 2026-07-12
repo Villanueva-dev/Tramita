@@ -63,7 +63,7 @@ Al citar literatura o normativa institucional, **incluir la referencia exacta** 
 Feature activa: `001-auth-login` (autenticación de la Coordinación por sesión + cookie, sin JWT).
 Plan e insumos técnicos: `specs/001-auth-login/plan.md` (+ `research.md`, `data-model.md`,
 `contracts/openapi.yaml`, `quickstart.md`).
-Stack: Java 21 · Spring Boot 4.0.5 (Security 7, Data JPA, Validation, Web) · PostgreSQL + Flyway
+Stack: Java 21 · Spring Boot 4.0.7 (Security 7, Data JPA, Validation, WebMVC) · PostgreSQL + Flyway
 (validate) · BCrypt · Lombok (sin MapStruct en auth) · Testcontainers (test).
 Paquete `com.uniremington.api.tramita`, estructura package-by-feature (`auth/`, `shared/`).
 Para más contexto de tecnologías, estructura y comandos, leer el plan actual.
