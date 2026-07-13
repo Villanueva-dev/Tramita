@@ -337,14 +337,14 @@ incumplida(s). Confirma que la validación del servidor es la autoritativa (SC-0
 
 ### Implementation for User Story 3
 
-- [ ] T033 [US3] Garantizar la retroalimentación por regla end-to-end: revisar
+- [X] T033 [US3] Garantizar la retroalimentación por regla end-to-end: revisar
       `src/main/java/com/uniremington/api/tramita/auth/PasswordPolicy.java` y
       `src/main/java/com/uniremington/api/tramita/shared/exception/GlobalExceptionHandler.java`
       para que el `detail` del 422 enumere **cada** regla incumplida con su mensaje (mínimo 15
       caracteres · máximo 72 bytes UTF-8 · distinta de la actual), de modo que el SPA pueda
       espejar las reglas y mostrar los motivos exactos del rechazo (US3, FR-003). Ajustar solo si
       T010/T031 no lo dejaron cubierto.
-- [ ] T034 [US3] Verificar la coherencia del contrato espejable: comparar la política implementada
+- [X] T034 [US3] Verificar la coherencia del contrato espejable: comparar la política implementada
       con la descripción de `newPassword` en
       `specs/001-auth-login/contracts/openapi.yaml` (mín. 15 **caracteres**, máx. 72 **bytes
       UTF-8** medibles en el cliente con `TextEncoder`, ≠ actual, sin composición forzada) y
@@ -366,7 +366,7 @@ exactamente las reglas que el servidor aplica.
 
 ### Tests for User Story 4
 
-- [ ] T035 [US4] Extender `AuthControllerIT` en
+- [X] T035 [US4] Extender `AuthControllerIT` en
       `src/test/java/com/uniremington/api/tramita/auth/AuthControllerIT.java` (RED — hoy el
       default de logout redirige) con el escenario de logout: con sesión activa y header CSRF,
       `POST /api/auth/logout` → **204 sin redirect**; a continuación `GET /api/auth/me` → 401
@@ -375,17 +375,19 @@ exactamente las reglas que el servidor aplica.
 
 ### Implementation for User Story 4
 
-- [ ] T036 [US4] Configurar el logout en
+- [X] T036 [US4] Configurar el logout en
       `src/main/java/com/uniremington/api/tramita/shared/config/SecurityConfig.java` (GREEN de
       T035): `http.logout()` con `logoutUrl("/api/auth/logout")` y
       `HttpStatusReturningLogoutSuccessHandler` (204) — **JD2-001**: el default de `http.logout()`
       responde con redirect 302, incompatible con el contrato —, más `invalidateHttpSession(true)`
       y `deleteCookies("TRAMITA_SESSION")`. El logout queda protegido por CSRF (POST) como exige
       el contrato. **JD3-004**: el logout **sí** borra la cookie `XSRF-TOKEN`
-      (`CsrfLogoutHandler`) y el 204 terminal no la re-emite — decidir al implementar: re-emitir
-      el token en la respuesta del logout o documentar que el SPA repita el GET inicial antes del
-      próximo login. (El login NO tiene este problema: verificado 2026-07-13 contra la fuente
-      7.0.6 + IT de evidencia — el token no rota al autenticar.)
+      (`CsrfLogoutHandler`) y el 204 terminal no la re-emite — **RESUELTO (2026-07-13): contrato
+      documentado**, el SPA repite el GET inicial antes del próximo login (quickstart.md nota
+      CSRF + comentario en `SecurityConfig`); re-emitir en la respuesta del logout se descartó
+      por exigir acceso al repository interno de `csrf.spa()`. (El login NO tiene este problema:
+      verificado 2026-07-13 contra la fuente 7.0.6 + IT de evidencia — el token no rota al
+      autenticar.)
 
 **Checkpoint**: `AuthControllerIT` completa en verde; quickstart.md pasos 0–4 completos.
 

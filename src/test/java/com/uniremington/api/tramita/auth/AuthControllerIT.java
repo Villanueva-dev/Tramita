@@ -171,6 +171,25 @@ class AuthControllerIT {
                 .andExpect(status().isUnauthorized());
     }
 
+    // --- (f) logout (T035, RED antes de T036) --------------------------------------------
+
+    @Test
+    @DisplayName("logout: 204 sin redirect, la sesión queda invalidada y /me responde 401")
+    void logoutReturns204AndInvalidatesSession() throws Exception {
+        MockHttpSession session = new MockHttpSession();
+        mockMvc.perform(loginRequest(SEED_EMAIL, SEED_PASSWORD).session(session))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/api/auth/logout").with(csrf()).session(session))
+                .andExpect(status().isNoContent());
+
+        // La sesión del servidor murió con el logout (FR-007)
+        assertThat(session.isInvalid()).isTrue();
+
+        mockMvc.perform(get("/api/auth/me").session(session))
+                .andExpect(status().isUnauthorized());
+    }
+
     // --- helpers -----------------------------------------------------------------------
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder rawLoginRequest(

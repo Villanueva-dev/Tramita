@@ -27,6 +27,7 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -109,6 +110,16 @@ public class SecurityConfig {
                 // sin sesión → 401 problem+json (RFC 7807, D10)
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(problemJsonEntryPoint(problemJsonWriter)))
+                // Logout por filter chain, sin controller (T036). JD2-001: el default
+                // redirige 302 y el contrato exige 204 terminal. JD3-004: CsrfLogoutHandler
+                // borra aquí la cookie XSRF-TOKEN y este 204 no la re-emite — el SPA repite
+                // el GET inicial antes del próximo login (contrato en quickstart.md)
+                .logout(logout -> logout
+                        .logoutUrl("/api/auth/logout")
+                        .logoutSuccessHandler(
+                                new HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT))
+                        .invalidateHttpSession(true)
+                        .deleteCookies("TRAMITA_SESSION"))
                 // el 429 corta ANTES de intentar autenticar (D7); el CSRF filter corre
                 // antes que ambos por orden estándar del chain, preservando el 403
                 .addFilterBefore(
