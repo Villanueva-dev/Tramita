@@ -441,7 +441,7 @@ tarea de esta fase cambia el comportamiento del backend.
       (`LocalDateTime.now(ZoneOffset.UTC)` en `@PrePersist`/`@PreUpdate`), coherentes con el
       `Clock` UTC de la app (columnas `TIMESTAMP` sin zona).
       Cierre: `./mvnw verify` en verde.
-- [ ] T044 **JD3-002: eviction en `LoginAttemptService`** — ejecutar junto a T043, antes de US2
+- [X] T044 **JD3-002: eviction en `LoginAttemptService`** — ejecutar junto a T043, antes de US2
       (T028). RED primero en `LoginAttemptServiceTest` (con el `Clock` inyectable): una clave
       cuyo último fallo superó la ventana de 15 min desaparece del mapa tras el barrido. GREEN:
       barrido `@Scheduled` con el período de la ventana que remueva las deques expiradas

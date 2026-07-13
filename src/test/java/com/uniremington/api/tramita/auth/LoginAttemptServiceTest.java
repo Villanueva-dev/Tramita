@@ -101,6 +101,36 @@ class LoginAttemptServiceTest {
         assertThat(service.retryAfterSeconds(KEY)).isZero();
     }
 
+    // --- eviction (T044, JD3-002): las claves abandonadas no viven para siempre ---------
+
+    @Test
+    @DisplayName("el barrido libera las claves cuya ventana expiró y conserva las vigentes")
+    void evictExpiredKeysRemovesOnlyExpiredEntries() {
+        recordFailures(KEY, 5);
+        clock.advance(Duration.ofMinutes(16));
+        recordFailures(OTHER_KEY, 2);
+
+        // Solo KEY expiró; el barrido es idempotente
+        assertThat(service.evictExpiredKeys()).isEqualTo(1);
+        assertThat(service.evictExpiredKeys()).isZero();
+
+        // La clave vigente conserva sus fallos: 3 más completan el umbral
+        recordFailures(OTHER_KEY, 3);
+        assertThat(service.isBlocked(OTHER_KEY)).isTrue();
+    }
+
+    @Test
+    @DisplayName("retryAfterSeconds sobre una clave expirada libera su entrada")
+    void retryAfterSecondsEvictsExpiredEntry() {
+        recordFailures(KEY, 5);
+        clock.advance(Duration.ofMinutes(16));
+
+        assertThat(service.retryAfterSeconds(KEY)).isZero();
+
+        // La entrada quedó liberada ahí mismo: el barrido ya no encuentra nada
+        assertThat(service.evictExpiredKeys()).isZero();
+    }
+
     private void recordFailures(String key, int times) {
         for (int i = 0; i < times; i++) {
             service.recordFailure(key);

@@ -7,6 +7,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
@@ -76,12 +77,39 @@ public class LoginAttemptService {
         }
         synchronized (failures) {
             purgeExpired(failures);
+            if (failures.isEmpty()) {
+                failuresByKey.remove(key, failures);
+                return 0;
+            }
             if (failures.size() < MAX_FAILURES) {
                 return 0;
             }
             Instant oldestExpiresAt = failures.peekFirst().plus(WINDOW);
             return Math.max(0, Duration.between(clock.instant(), oldestExpiresAt).getSeconds());
         }
+    }
+
+    /**
+     * Barrido de claves abandonadas (T044, JD3-002): una clave que nadie re-consulta
+     * jamás se liberaba — spray de un intento por email distinto = memoria sin techo
+     * en el path permitAll. Corre con el período de la propia ventana (nada expira
+     * antes) y devuelve cuántas claves liberó (observable para los tests). La race
+     * con recordFailure es la misma benigna documentada de isBlocked (JD3-003):
+     * a lo sumo se pierde un fallo (undercount), jamás bloquea de más.
+     */
+    @Scheduled(fixedDelayString = "PT15M")
+    public int evictExpiredKeys() {
+        int evicted = 0;
+        for (Map.Entry<String, Deque<Instant>> entry : failuresByKey.entrySet()) {
+            Deque<Instant> failures = entry.getValue();
+            synchronized (failures) {
+                purgeExpired(failures);
+                if (failures.isEmpty() && failuresByKey.remove(entry.getKey(), failures)) {
+                    evicted++;
+                }
+            }
+        }
+        return evicted;
     }
 
     // Ventana deslizante: cada fallo expira individualmente a los 15 minutos
