@@ -98,43 +98,43 @@ Independent Test de la US1 y la política valida el seed (research.md D8).
 
 **CRITICAL**: ninguna fase de user story arranca hasta completar esta fase.
 
-- [ ] T006 Crear la migración Flyway `src/main/resources/db/migration/V1.0.0__Create_users_table.sql`
-      con el SQL exacto de data-model.md: tabla `users` (`id BIGINT GENERATED ALWAYS AS IDENTITY
-      PRIMARY KEY`, `email VARCHAR(255) NOT NULL`, `password_hash VARCHAR(255) NOT NULL`,
+- [X] T006 Crear la migración Flyway `src/main/resources/db/migration/V1.0.0__Create_users_table.sql`
+      con el SQL exacto de data-model.md: tabla `users` (`id UUID PRIMARY KEY` — generado por la
+      app, `email VARCHAR(255) NOT NULL`, `password_hash VARCHAR(255) NOT NULL`,
       `active BOOLEAN NOT NULL DEFAULT TRUE`, `created_at`/`updated_at TIMESTAMP NOT NULL`) +
       índice único funcional `CREATE UNIQUE INDEX uq_users_email_lower ON users (LOWER(email));`.
       **Sin** migración de seed (la cuenta se provisiona por seeder env-driven, D8).
-- [ ] T007 [P] Crear la entity `User` en
+- [X] T007 [P] Crear la entity `User` en
       `src/main/java/com/uniremington/api/tramita/auth/User.java`: campos `id`, `email`,
       `passwordHash`, `active`, `createdAt`, `updatedAt` mapeados a la tabla `users`;
       timestamps poblados por callbacks `@PrePersist`/`@PreUpdate` en la propia entity
       (data-model.md); Lombok para boilerplate. La entity **nunca** se expone en la API.
-- [ ] T008 [P] Crear `UserRepository` en
+- [X] T008 [P] Crear `UserRepository` en
       `src/main/java/com/uniremington/api/tramita/auth/UserRepository.java`:
-      `extends JpaRepository<User, Long>` con `Optional<User> findByEmail(String email)` y
+      `extends JpaRepository<User, UUID>` con `Optional<User> findByEmail(String email)` y
       `boolean existsByEmail(String email)` (el caller normaliza el email a minúsculas).
-- [ ] T009 [P] Escribir el unit test `PasswordPolicyTest` en
+- [X] T009 [P] Escribir el unit test `PasswordPolicyTest` en
       `src/test/java/com/uniremington/api/tramita/auth/PasswordPolicyTest.java` (RED antes de
       implementar): mínimo **15 caracteres**; máximo **72 bytes en UTF-8** — incluir un caso con
       caracteres no ASCII donde el conteo de caracteres pasa pero el de bytes no (p. ej. una frase
       con `ñ`/tildes: cada uno ocupa 2 bytes); nueva contraseña igual a la actual → rechazada;
       cada regla incumplida produce un mensaje propio identificable.
-- [ ] T010 Implementar `PasswordPolicy` en
+- [X] T010 Implementar `PasswordPolicy` en
       `src/main/java/com/uniremington/api/tramita/auth/PasswordPolicy.java` hasta poner en verde
       T009: mínimo 15 caracteres (NIST SP 800-63B-4 §3.1.1.2), máximo
       `password.getBytes(UTF_8).length <= 72` (límite real de BCrypt, research.md D6), nueva ≠
       actual, sin reglas de composición ni rotación forzada. Reportar **cada regla incumplida con
       su propio mensaje** (lo consumirán el 422 y la retroalimentación del SPA — US3). Punto único
       de extensión para la futura blocklist (no construirla — no-conformidad documentada).
-- [ ] T011 [P] Crear `CorsProperties` en
+- [X] T011 [P] Crear `CorsProperties` en
       `src/main/java/com/uniremington/api/tramita/shared/config/CorsProperties.java`: allowlist de
       orígenes del SPA leída de `APP_CORS_ALLOWED_ORIGINS` (coma-separada, sin comodín — D9).
-- [ ] T012 [P] Crear `CsrfCookieFilter` en
+- [X] T012 [P] Crear `CsrfCookieFilter` en
       `src/main/java/com/uniremington/api/tramita/shared/config/CsrfCookieFilter.java`:
       `OncePerRequestFilter` (~10 líneas) que lee el `CsrfToken` del request para forzar el
       `Set-Cookie` de `XSRF-TOKEN` en cada respuesta (deferred loading de `csrf.spa()` — el token
       rota al autenticar y la cookie no se re-emite sola; research.md D4).
-- [ ] T013 Crear `SecurityConfig` base en
+- [X] T013 Crear `SecurityConfig` base en
       `src/main/java/com/uniremington/api/tramita/shared/config/SecurityConfig.java`:
       bean `PasswordEncoder` (`DelegatingPasswordEncoder` con BCrypt por defecto — D6);
       `http.csrf(csrf -> csrf.spa())` + registro de `CsrfCookieFilter` (D4); CORS con
@@ -143,11 +143,11 @@ Independent Test de la US1 y la política valida el seed (research.md D8).
       permitAll, el resto de `/api/**` autenticado; `AuthenticationEntryPoint` que responde **401
       `application/problem+json`** (RFC 7807) cuando no hay sesión. El wiring del login (filtros,
       handlers) se agrega en la US1; el logout en la US4.
-- [ ] T014 [P] Crear `GlobalExceptionHandler` base en
+- [X] T014 [P] Crear `GlobalExceptionHandler` base en
       `src/main/java/com/uniremington/api/tramita/shared/exception/GlobalExceptionHandler.java`:
       respuestas `application/problem+json` (RFC 7807) con `title` y `status` (D10). Los mapeos
       específicos del cambio de clave (422/429) se agregan en la US2.
-- [ ] T015 Crear `CoordinationUserSeeder` en
+- [X] T015 Crear `CoordinationUserSeeder` en
       `src/main/java/com/uniremington/api/tramita/shared/seed/CoordinationUserSeeder.java`:
       provisión boot-time **idempotente** de la cuenta de la Coordinación desde
       `SEED_COORD_EMAIL`/`SEED_COORD_PASSWORD` (sin secretos en git — D8); **normaliza** el email a

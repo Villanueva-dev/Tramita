@@ -16,6 +16,12 @@ spring:
   flyway:
     enabled: true
 
+# Allowlist de orígenes del SPA (research.md D9): coma-separada, sin comodín;
+# sin default — si falta la variable, el arranque falla (fail-fast)
+app:
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS}
+
 server:
   servlet:
     session:

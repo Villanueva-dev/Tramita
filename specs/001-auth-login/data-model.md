@@ -10,7 +10,7 @@ ni sede (un único actor, una única sede).
 
 | Campo | Tipo Java | Columna | Tipo SQL | Reglas |
 |-------|-----------|---------|----------|--------|
-| `id` | `Long` | `id` | `BIGINT GENERATED ALWAYS AS IDENTITY` | PK. **Nunca se expone** en la API (el identificador de negocio es el email). |
+| `id` | `UUID` | `id` | `UUID` | PK generada por la app (`GenerationType.UUID`, UUIDv4). **Nunca se expone** en la API (el identificador de negocio es el email). |
 | `email` | `String` | `email` | `VARCHAR(255)` | `UNIQUE NOT NULL`. Identificador de login. Se **normaliza a minúsculas** al escribir y al buscar (login case-insensitive). |
 | `passwordHash` | `String` | `password_hash` | `VARCHAR(255)` | `NOT NULL`. Hash con prefijo `{bcrypt}` del `DelegatingPasswordEncoder` (68 chars). Nunca en texto plano, nunca en un DTO de respuesta. |
 | `active` | `boolean` | `active` | `BOOLEAN NOT NULL DEFAULT true` | Solo `true` puede autenticarse (FR-011). La desactivación **no** revoca una sesión ya establecida (ver «Estados / transiciones»). |
@@ -19,9 +19,17 @@ ni sede (un único actor, una única sede).
 
 ### Decisiones de modelado (trazables)
 
-- **PK `BIGINT IDENTITY`, no UUID**: el id no sale nunca del servidor (el email es el identificador
-  público), así que no hay riesgo de enumeración por id secuencial → gana la simplicidad. Si más
-  adelante un id se expusiera en URLs, se reevaluaría a UUID.
+- **PK `UUID`, no `BIGINT IDENTITY`** (decisión del equipo, 2026-07-12 — revierte la elección
+  inicial): aunque el id no sale del servidor hoy (el email es el identificador público), el
+  equipo prefiere eliminar de raíz la clase de riesgo de enumeración ante una futura exposición
+  del id (nuevas URLs, logs, integraciones), en lugar de depender de que esa invariante se
+  sostenga al crecer el sistema. El costo es ~cero en este contexto (tabla de una fila: índice,
+  tamaño y legibilidad no pesan). Trade-off aceptado: id no legible en debugging y sin orden de
+  inserción. Generación **UUIDv4 en la app** (`@GeneratedValue(strategy = GenerationType.UUID)`
+  de JPA/Hibernate) y no `DEFAULT gen_random_uuid()` en la DB: una sola fuente de generación —
+  la app es la única que inserta (seeder vía JPA) — y la entity conoce su id antes del INSERT.
+  UUIDv7 (ordenado por tiempo) se descartó: exigiría una librería externa y su beneficio
+  (localidad de índice B-tree) es irrelevante con este volumen.
 - **Email normalizado a minúsculas** en vez de extensión `citext`: KISS, sin depender de una
   extensión de PostgreSQL. La normalización vive en el service/repository.
 - **`password_hash VARCHAR(255)`**: el límite de 72 bytes de BCrypt aplica al **plaintext** que
@@ -73,7 +81,7 @@ chequear la BD en cada request o un `SessionRegistry` (maquinaria contra amenaza
 
 ```sql
 CREATE TABLE users (
-    id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id            UUID PRIMARY KEY,
     email         VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     active        BOOLEAN      NOT NULL DEFAULT TRUE,
@@ -96,7 +104,7 @@ CREATE UNIQUE INDEX uq_users_email_lower ON users (LOWER(email));
 ## Repositorio
 
 ```java
-public interface UserRepository extends JpaRepository<User, Long> {
+public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email); // email ya normalizado a minúsculas por el caller
     boolean existsByEmail(String email);
 }
