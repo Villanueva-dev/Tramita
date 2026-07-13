@@ -136,7 +136,50 @@ class AuthControllerIT {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
     }
 
+    // --- (e) body inválido → 400 (T045, JD3-008) ----------------------------------------
+
+    @Test
+    @DisplayName("body malformado o campos vacíos: 400 problem+json, no 401")
+    void malformedBodyReturns400ProblemJson() throws Exception {
+        var invalidBodies = java.util.List.of(
+                "{\"email\":\"rota@uniremington.edu.co\",\"password\":", // JSON roto
+                "{\"email\":\"\",\"password\":\"\"}",                    // campos vacíos
+                "{}");                                                   // campos ausentes
+
+        for (String body : invalidBodies) {
+            mockMvc.perform(rawLoginRequest(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+        }
+    }
+
+    @Test
+    @DisplayName("los bodies inválidos no cuentan para la ventana de throttling")
+    void malformedBodiesDoNotCountTowardThrottling() throws Exception {
+        // Email propio del escenario (higiene JD3-010): no contamina otras claves
+        String email = "bodyrota@uniremington.edu.co";
+
+        // 5 bodies inválidos con email extraíble: 400 cada uno y ninguno debe contar
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(rawLoginRequest("{\"email\":\"" + email + "\",\"password\":\"\"}"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        // El sexto intento, ya bien formado, NO encuentra la clave bloqueada:
+        // 401 de credenciales — si los 400 hubieran contado, aquí habría un 429
+        mockMvc.perform(loginRequest(email, "clave bien formada pero incorrecta"))
+                .andExpect(status().isUnauthorized());
+    }
+
     // --- helpers -----------------------------------------------------------------------
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder rawLoginRequest(
+            String body) {
+        return post("/api/auth/login")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body);
+    }
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder loginRequest(
             String email, String password) {

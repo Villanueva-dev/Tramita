@@ -451,7 +451,7 @@ tarea de esta fase cambia el comportamiento del backend.
       Nota oportunista: si la sincronización se reescribe con `Map.compute(...)`, la race
       benigna JD3-003 (fallo perdido por *check-then-act*, solo *undercount*) se cierra de
       paso — documentarlo si ocurre.
-- [ ] T045 **JD3-008: cobertura del branch 400 del login** — test-only, en el batch pre-US2
+- [X] T045 **JD3-008: cobertura del branch 400 del login** — test-only, en el batch pre-US2
       junto a T043/T044. Dos métodos nuevos en `AuthControllerIT` (email propio por test —
       ver higiene JD3-010 en las notas): (1) JSON malformado y campos vacíos →
       **400 `problem+json`** (no 401); (2) varios bodies malformados seguidos **no** cuentan
