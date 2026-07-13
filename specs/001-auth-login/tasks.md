@@ -280,7 +280,7 @@ quickstart.md paso 3 + re-login.
 
 ### Tests for User Story 2
 
-- [ ] T028 [P] [US2] Escribir el unit test `AuthServiceImplTest` en
+- [X] T028 [P] [US2] Escribir el unit test `AuthServiceImplTest` en
       `src/test/java/com/uniremington/api/tramita/auth/AuthServiceImplTest.java` (RED), acotado a
       la lógica sensible: contraseña actual **incorrecta** → excepción de negocio que mapea a
       **422** (no 401 — la cookie de sesión es válida; research.md D10, RFC 9110 §15.5.2) y
@@ -289,11 +289,11 @@ quickstart.md paso 3 + re-login.
 
 ### Implementation for User Story 2
 
-- [ ] T029 [P] [US2] Crear el DTO `ChangePasswordRequest` en
+- [X] T029 [P] [US2] Crear el DTO `ChangePasswordRequest` en
       `src/main/java/com/uniremington/api/tramita/auth/dto/ChangePasswordRequest.java`:
       `currentPassword`, `newPassword`, con `@NotBlank` (aquí sí corre `@Valid` → 400 del
       contrato para campos vacíos).
-- [ ] T030 [US2] Crear `AuthService` (interface) en
+- [X] T030 [US2] Crear `AuthService` (interface) en
       `src/main/java/com/uniremington/api/tramita/auth/AuthService.java` y `AuthServiceImpl` en
       `src/main/java/com/uniremington/api/tramita/auth/AuthServiceImpl.java` hasta poner en verde
       T028. Orden del cambio de clave: (1) consultar `LoginAttemptService` (misma clave email+IP
