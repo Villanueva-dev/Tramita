@@ -11,7 +11,7 @@ ni sede (un único actor, una única sede).
 | Campo | Tipo Java | Columna | Tipo SQL | Reglas |
 |-------|-----------|---------|----------|--------|
 | `id` | `UUID` | `id` | `UUID` | PK generada por la app (`GenerationType.UUID`, UUIDv4). **Nunca se expone** en la API (el identificador de negocio es el email). |
-| `email` | `String` | `email` | `VARCHAR(255)` | `UNIQUE NOT NULL`. Identificador de login. Se **normaliza a minúsculas** al escribir y al buscar (login case-insensitive). |
+| `email` | `String` | `email` | `VARCHAR(255)` | `NOT NULL`. Unicidad case-insensitive por **índice único funcional sobre `LOWER(email)`** (no hay constraint `UNIQUE` de columna — ver «Decisiones de modelado»). Identificador de login; se **normaliza a minúsculas** al escribir y al buscar. |
 | `passwordHash` | `String` | `password_hash` | `VARCHAR(255)` | `NOT NULL`. Hash con prefijo `{bcrypt}` del `DelegatingPasswordEncoder` (68 chars). Nunca en texto plano, nunca en un DTO de respuesta. |
 | `active` | `boolean` | `active` | `BOOLEAN NOT NULL DEFAULT true` | Solo `true` puede autenticarse (FR-011). La desactivación **no** revoca una sesión ya establecida (ver «Estados / transiciones»). |
 | `createdAt` | `LocalDateTime` | `created_at` | `TIMESTAMP NOT NULL` | Auditoría. Poblado por `@PrePersist` en la entity. |

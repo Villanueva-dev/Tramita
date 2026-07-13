@@ -39,7 +39,10 @@ paths:
               schema: { type: string }
               description: 'TRAMITA_SESSION=<opaco>; HttpOnly; Secure; SameSite=Strict; Path=/'
         '400':
-          description: Body inválido (email mal formado o campos vacíos).
+          description: >
+            Body inválido (JSON malformado o campos ausentes/vacíos). Un email sintácticamente
+            inválido NO produce 400: se trata como credencial desconocida y devuelve el 401
+            genérico (anti-enumeración, FR-002).
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }

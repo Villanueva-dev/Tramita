@@ -87,15 +87,20 @@ Fuentes base:
   fricción en Security 7.
 - **Trade-off**: el SPA debe hacer un GET inicial para recibir la cookie del token y reenviar el
   header. Costo mínimo frente a la garantía de doble verificación.
-- **Carga diferida del token y `CsrfCookieFilter` (cierra F02 del triage)**: `csrf.spa()` usa
-  *deferred loading* del token. Tras autenticar, la `CsrfAuthenticationStrategy` **rota el token
-  pero la cookie `XSRF-TOKEN` no se re-escribe sola** en la respuesta: el token que el cliente
-  cacheó antes del login queda obsoleto y los POST siguientes (cambio de clave, logout)
-  fallarían con 403. El diseño incorpora por eso un **`CsrfCookieFilter`** propio: un
-  `OncePerRequestFilter` de ~10 líneas que lee el `CsrfToken` del request para forzar el
-  `Set-Cookie` de `XSRF-TOKEN` en cada respuesta, como muestra la guía de Spring Security para
-  SPAs. Correlato del lado cliente: re-leer la cookie **después** del login antes de los POST
-  siguientes (el quickstart lo refleja).
+- **Carga diferida del token y `CsrfCookieFilter` (cierra F02 del triage; precisado por
+  JD3-004)**: `csrf.spa()` usa *deferred loading*: la cookie `XSRF-TOKEN` solo se escribe cuando
+  algo lee el token. El diseño incorpora por eso un **`CsrfCookieFilter`** propio: un
+  `OncePerRequestFilter` de ~10 líneas que lee el `CsrfToken` en cada request y fuerza la emisión
+  de la cookie en las respuestas que atraviesan el chain — el SPA la recibe con su **primer GET**
+  (p. ej. el 401 de `/api/auth/me`), como muestra la guía de Spring Security para SPAs.
+  **Precisión verificada (2026-07-13, fuente `AuthenticationFilter` 7.0.6 + IT de evidencia)**: a
+  diferencia del form login que describe la referencia, el login por filtro (D5) **no ejecuta
+  `CsrfAuthenticationStrategy`** — el token **ni rota ni se borra al autenticar** y el valor
+  pre-login sigue válido tras el 204. El *fixation* residual (el token cruza la frontera de
+  autenticación) se **acepta documentado**: explotarlo exigiría XSS o un subdominio comprometido,
+  riesgo ≈ nulo en este despliegue. Quien **sí** borra la cookie es el logout
+  (`CsrfLogoutHandler`, US4): la re-emisión post-logout depende del siguiente request que pase
+  por el filtro (nota operativa en T036).
 - **Fuente**: `CsrfConfigurer.spa()` —
   https://docs.spring.io/spring-security/reference/7.0/api/java/org/springframework/security/config/annotation/web/configurers/CsrfConfigurer.html ;
   CSRF — Single Page Applications (deferred loading, `CsrfCookieFilter`) —

@@ -9,13 +9,15 @@ import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Fuerza el Set-Cookie de XSRF-TOKEN en cada respuesta (research.md D4).
+ * Materializa el CsrfToken diferido de csrf.spa() para que la cookie XSRF-TOKEN se emita
+ * en las respuestas que atraviesan el chain: el SPA la recibe con su primer GET (p. ej.
+ * el 401 de /api/auth/me) — research.md D4.
  *
- * csrf.spa() usa carga diferida del token: tras autenticar, la CsrfAuthenticationStrategy
- * rota el token pero la cookie NO se re-escribe sola — el token que el SPA cacheó antes
- * del login queda obsoleto y sus POST siguientes fallarían con 403. Leer el token aquí
- * materializa el DeferredCsrfToken y provoca la re-emisión de la cookie, como muestra la
- * guía de Spring Security para SPAs (docs: servlet/exploits/csrf.html).
+ * Precisión (JD3-004, verificado contra la fuente 7.0.6 + IT, 2026-07-13): el login por
+ * filtro (AuthenticationFilter, D5) NO ejecuta CsrfAuthenticationStrategy — el token ni
+ * rota ni se borra al autenticar y el valor pre-login sigue válido tras el 204 (fixation
+ * residual aceptado). El logout (US4) es distinto: CsrfLogoutHandler SÍ borra la cookie
+ * y la re-emisión depende del siguiente request que pase por este filtro (nota en T036).
  */
 public class CsrfCookieFilter extends OncePerRequestFilter {
 

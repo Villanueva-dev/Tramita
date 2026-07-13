@@ -49,9 +49,10 @@ Al primer arranque, `CoordinationUserSeeder` crea la cuenta si no existe, hashea
 
 > El SPA real usará `fetch` con `credentials: 'include'`. Con curl usamos un cookie-jar.
 > CSRF (`csrf.spa()`): primero un GET para recibir la cookie `XSRF-TOKEN`, luego reenviarla en el
-> header `X-XSRF-TOKEN` en cada POST. **Ojo**: el token **rota al autenticar**
-> (`CsrfAuthenticationStrategy`) y el `CsrfCookieFilter` re-emite la cookie — hay que
-> **re-leer** `XSRF-TOKEN` del jar después del login; el valor capturado antes queda obsoleto.
+> header `X-XSRF-TOKEN` en cada POST. **Precisión (JD3-004, verificado 2026-07-13)**: con el
+> login por filtro (D5) el token **no rota al autenticar** — el valor capturado antes del login
+> sigue siendo válido. Quien **sí** borra la cookie es el **logout** (`CsrfLogoutHandler`): tras
+> el paso 4, un nuevo login exige repetir el paso 0.
 
 ```bash
 # 0) Obtener cookie CSRF (y guardar cookies en jar)
@@ -64,8 +65,7 @@ curl -i -c jar.txt -b jar.txt \
   -d '{"email":"coordinacion.cali@uniremington.edu.co","password":"<clave-semilla>"}' \
   http://localhost:8080/api/auth/login
 
-# 1bis) Re-leer el token CSRF: rotó con el login (research.md D4); sin esto, los pasos 3 y 4 dan 403
-XSRF=$(grep XSRF-TOKEN jar.txt | awk '{print $7}')
+# (el token CSRF NO rota con el login — JD3-004 verificado; el mismo $XSRF sigue sirviendo)
 
 # 2) Sesión actual (GET /me) → 200 {email, active}
 curl -b jar.txt http://localhost:8080/api/auth/me

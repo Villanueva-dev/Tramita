@@ -98,8 +98,9 @@ public class SecurityConfig {
         http
                 // CSRF para SPA: cookie XSRF-TOKEN legible por JS + deferred loading (D4)
                 .csrf(csrf -> csrf.spa())
-                // re-emite la cookie XSRF-TOKEN en cada respuesta; sin esto, el token
-                // rotado al autenticar dejaría los POST post-login en 403 (D4)
+                // materializa el token diferido → la cookie XSRF-TOKEN se emite en las
+                // respuestas del chain (la primera, en el GET inicial del SPA). El login
+                // NO rota el token — ver javadoc de CsrfCookieFilter (D4/JD3-004)
                 .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeHttpRequests(auth -> auth

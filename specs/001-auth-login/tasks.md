@@ -186,8 +186,10 @@ genérico idéntico. Verificable con quickstart.md pasos 0–2 y con `AuthContro
       (`@SpringBootTest` + MockMvc con filtros de seguridad + Testcontainers PostgreSQL + Flyway;
       única IT de la feature; reusar `TestcontainersConfiguration` del esqueleto **fijando la
       imagen a una versión concreta** — Initializr la generó con `postgres:latest`, no
-      reproducible) con los escenarios US1: (a) login exitoso → 204 + `Set-Cookie`
-      `TRAMITA_SESSION` **y rotación del id de sesión** (id previo ≠ id posterior al autenticar);
+      reproducible) con los escenarios US1: (a) login exitoso → **204 y rotación del id de sesión**
+      (id previo ≠ id posterior al autenticar); la cookie `TRAMITA_SESSION` y sus atributos
+      (`HttpOnly`/`Secure`/`SameSite`) no son observables en MockMvc — se verifican manualmente
+      vía quickstart (curl);
       (b) credenciales inválidas → **401 genérico**: mismo body `problem+json` para clave
       incorrecta, email inexistente y cuenta inactiva (FR-002/FR-011/SC-002); (c) POST de login
       **sin token CSRF → 403**; (d) throttling: superar el umbral de fallos → **429 con header
@@ -379,7 +381,11 @@ exactamente las reglas que el servidor aplica.
       `HttpStatusReturningLogoutSuccessHandler` (204) — **JD2-001**: el default de `http.logout()`
       responde con redirect 302, incompatible con el contrato —, más `invalidateHttpSession(true)`
       y `deleteCookies("TRAMITA_SESSION")`. El logout queda protegido por CSRF (POST) como exige
-      el contrato.
+      el contrato. **JD3-004**: el logout **sí** borra la cookie `XSRF-TOKEN`
+      (`CsrfLogoutHandler`) y el 204 terminal no la re-emite — decidir al implementar: re-emitir
+      el token en la respuesta del logout o documentar que el SPA repita el GET inicial antes del
+      próximo login. (El login NO tiene este problema: verificado 2026-07-13 contra la fuente
+      7.0.6 + IT de evidencia — el token no rota al autenticar.)
 
 **Checkpoint**: `AuthControllerIT` completa en verde; quickstart.md pasos 0–4 completos.
 
@@ -387,8 +393,9 @@ exactamente las reglas que el servidor aplica.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-**Purpose**: cerrar las notas documentales del triage judgment-day Ronda 2 (JD2) y validar el
-flujo completo. Ninguna tarea de esta fase cambia el comportamiento del backend.
+**Purpose**: cerrar las notas documentales de los triages judgment-day (JD2 sobre artefactos,
+JD3 sobre código) y validar el flujo completo. Salvo T043 (hardening menor adelantado), ninguna
+tarea de esta fase cambia el comportamiento del backend.
 
 - [ ] T037 [P] **JD2-003 (documental)**: corregir el comentario desalineado en
       `specs/001-auth-login/plan.md` (línea ~99): `AuthServiceImpl.java` ya no «rota id de sesión»
@@ -404,7 +411,10 @@ flujo completo. Ninguna tarea de esta fase cambia el comportamiento del backend.
       decisión en la descripción de `CurrentUserResponse` en
       `specs/001-auth-login/contracts/openapi.yaml` y ajustar
       `src/main/java/com/uniremington/api/tramita/auth/AuthController.java` solo si la decisión
-      difiere de lo implementado en T027.
+      difiere de lo implementado en T027. **JD3-009 (fusionada aquí)**: la misma decisión debe
+      cubrir el edge de sesión huérfana — hoy un usuario autenticado ausente en BD produce
+      `IllegalStateException` → 500; semánticamente correspondería 401 (inalcanzable mientras
+      no exista borrado de usuarios, pero decidirlo aquí evita heredarlo).
 - [ ] T040 [P] **JD2-008 (documental)**: añadir en `specs/001-auth-login/research.md` (sección
       D10) una nota sobre el diferencial de timing del fail-fast de `DaoAuthenticationProvider`
       (cuenta inactiva responde sin computar BCrypt vs credenciales malas que sí lo computan):
@@ -418,6 +428,37 @@ flujo completo. Ninguna tarea de esta fase cambia el comportamiento del backend.
       recorrer el flujo curl completo de `specs/001-auth-login/quickstart.md` (pasos 0–4 + tabla
       de verificaciones: 401 genérico, cuenta inactiva, flags de cookie, 422 de política, 429 con
       `Retry-After`, logout). Registrar cualquier desviación antes de dar por cerrada la feature.
+- [ ] T043 **Hardening menor post-JD3 (JD3-001 + JD3-007 + JD3-012)** — se adelanta: ejecutar
+      **antes de US2 (T028)**; a diferencia del resto de la fase, sí cambia comportamiento:
+      (1) **JD3-001**: exponer `Retry-After` al SPA cross-origin en
+      `src/main/java/com/uniremington/api/tramita/shared/config/SecurityConfig.java`
+      (`config.setExposedHeaders(List.of(HttpHeaders.RETRY_AFTER))`) — sin esto, `fetch` no
+      puede leer el header del 429 en el deploy por subdominios (D3/D9);
+      (2) **JD3-007**: `LoginThrottlingFilter.shouldNotFilter` con `PathPatternRequestMatcher`
+      context-path-aware, alineado con el matcher del login — hoy compara `getRequestURI()`
+      crudo y un context-path configurado saltearía el throttling en silencio;
+      (3) **JD3-012**: timestamps de auditoría de `User` en UTC
+      (`LocalDateTime.now(ZoneOffset.UTC)` en `@PrePersist`/`@PreUpdate`), coherentes con el
+      `Clock` UTC de la app (columnas `TIMESTAMP` sin zona).
+      Cierre: `./mvnw verify` en verde.
+- [ ] T044 **JD3-002: eviction en `LoginAttemptService`** — ejecutar junto a T043, antes de US2
+      (T028). RED primero en `LoginAttemptServiceTest` (con el `Clock` inyectable): una clave
+      cuyo último fallo superó la ventana de 15 min desaparece del mapa tras el barrido. GREEN:
+      barrido `@Scheduled` con el período de la ventana que remueva las deques expiradas
+      (requiere `@EnableScheduling`) y remoción de deques vacías también en
+      `retryAfterSeconds()`. Motivo: hoy una clave que no se re-consulta nunca se libera —
+      crecimiento de memoria sin techo ante spray de emails distintos en el path `permitAll`.
+      Nota oportunista: si la sincronización se reescribe con `Map.compute(...)`, la race
+      benigna JD3-003 (fallo perdido por *check-then-act*, solo *undercount*) se cierra de
+      paso — documentarlo si ocurre.
+- [ ] T045 **JD3-008: cobertura del branch 400 del login** — test-only, en el batch pre-US2
+      junto a T043/T044. Dos métodos nuevos en `AuthControllerIT` (email propio por test —
+      ver higiene JD3-010 en las notas): (1) JSON malformado y campos vacíos →
+      **400 `problem+json`** (no 401); (2) varios bodies malformados seguidos **no** cuentan
+      para la ventana de throttling (no producen 429 ni contaminan el contador). Motivo: la
+      rama `InvalidLoginRequestException` → 400 decide «400 vs 401 vs contar intento» y hoy
+      no tiene cobertura — una regresión que contara los malformados podría auto-bloquear a
+      la usuaria vía throttling sin que ningún test lo detecte.
 
 ---
 
@@ -445,6 +486,8 @@ flujo completo. Ninguna tarea de esta fase cambia el comportamiento del backend.
 - T030 requiere T028 en RED y reutiliza T010/T021; T032 requiere T030/T031.
 - T036 requiere T035 en RED.
 - T041 corre después de T038 y T040 (mismos archivos).
+- T043–T045 (hardening post-JD3) se ejecutan antes de T028 (US2); T044 requiere su RED en
+  `LoginAttemptServiceTest`; T045 es test-only sobre `AuthControllerIT`.
 
 ### User Story Dependencies
 
@@ -514,5 +557,16 @@ con las historias (US1 la crea, US4 la completa) y actúa como red de regresión
 - Las notas JD2 de la Ronda 2 están integradas: JD2-001 → T036 · JD2-002 → T025 · JD2-003 →
   T032 (código) + T037 (doc) · JD2-004 → T022/T024 · JD2-005 → T038 · JD2-006 → T041 ·
   JD2-007 → T039 · JD2-008 → T040.
+- Las notas JD3 (código, triage 2026-07-13) están integradas: JD3-001/007/012 → T043 ·
+  JD3-002 → T044 (JD3-003 se cierra de paso si se reescribe la sincronización) · JD3-008 →
+  T045 · JD3-004 → **refutado con evidencia** (docs honestas en research D4/quickstart/código
+  + nota en T036) · JD3-005 → openapi (400 solo JSON/campos vacíos) · JD3-006 → ya cubierta
+  por T040 · JD3-009 → T039 · JD3-010 → higiene de la IT (línea siguiente) · JD3-011 → T017
+  reescrita · JD3-013 → data-model.md · JD3-003/014 → aceptadas documentadas (traza en
+  Notion/engram).
+- Higiene de la IT (JD3-010): `AuthControllerIT` comparte estado entre métodos (singleton del
+  throttling + fila `users` sin rollback automático). Cada test nuevo usa un **email propio**
+  (patrón del escenario de throttling) y restaura lo que mute (patrón try/finally del
+  escenario de cuenta inactiva).
 - Commit al cierre de cada tarea o grupo lógico (el auto-commit de Spec Kit cubre el cierre de
   fase); detenerse en cualquier checkpoint deja un incremento demostrable.
