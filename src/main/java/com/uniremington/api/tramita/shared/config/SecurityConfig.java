@@ -136,6 +136,9 @@ public class SecurityConfig {
         config.setAllowedOrigins(corsProperties.allowedOrigins());
         config.setAllowedMethods(List.of(HttpMethod.GET.name(), HttpMethod.POST.name()));
         config.setAllowedHeaders(List.of(HttpHeaders.CONTENT_TYPE, "X-XSRF-TOKEN"));
+        // Retry-After no es CORS-safelisted: sin exponerlo, el fetch del SPA no puede
+        // leerlo del 429 en el deploy cross-origin por subdominios (D3, JD3-001)
+        config.setExposedHeaders(List.of(HttpHeaders.RETRY_AFTER));
         config.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", config);

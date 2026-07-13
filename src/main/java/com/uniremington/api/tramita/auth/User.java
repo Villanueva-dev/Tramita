@@ -9,6 +9,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -51,14 +52,16 @@ public class User {
 
     // Timestamps por callbacks JPA locales (data-model.md): cero configuración global;
     // las columnas son NOT NULL, así que sin esto el INSERT explotaría en runtime.
+    // En UTC explícito (JD3-012): las columnas son TIMESTAMP sin zona y el default de
+    // now() usaría la zona del JVM — incoherente con el Clock UTC del resto de la app.
     @PrePersist
     void onCreate() {
-        createdAt = LocalDateTime.now();
+        createdAt = LocalDateTime.now(ZoneOffset.UTC);
         updatedAt = createdAt;
     }
 
     @PreUpdate
     void onUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 }

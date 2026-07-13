@@ -17,6 +17,8 @@ import java.nio.charset.StandardCharsets;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -35,6 +37,11 @@ import tools.jackson.databind.json.JsonMapper;
  */
 public class LoginThrottlingFilter extends OncePerRequestFilter {
 
+    // Mismo matcher context-path-aware que registra el login en SecurityConfig (JD3-007):
+    // getRequestURI() incluye el context-path y un despliegue con contexto saltearía el filtro
+    private static final RequestMatcher LOGIN_MATCHER =
+            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/auth/login");
+
     private final LoginAttemptService loginAttemptService;
     private final JsonMapper jsonMapper;
     private final ProblemJsonWriter problemJsonWriter;
@@ -48,8 +55,7 @@ public class LoginThrottlingFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !(HttpMethod.POST.matches(request.getMethod())
-                && "/api/auth/login".equals(request.getRequestURI()));
+        return !LOGIN_MATCHER.matches(request);
     }
 
     @Override

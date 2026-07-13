@@ -428,7 +428,7 @@ tarea de esta fase cambia el comportamiento del backend.
       recorrer el flujo curl completo de `specs/001-auth-login/quickstart.md` (pasos 0–4 + tabla
       de verificaciones: 401 genérico, cuenta inactiva, flags de cookie, 422 de política, 429 con
       `Retry-After`, logout). Registrar cualquier desviación antes de dar por cerrada la feature.
-- [ ] T043 **Hardening menor post-JD3 (JD3-001 + JD3-007 + JD3-012)** — se adelanta: ejecutar
+- [X] T043 **Hardening menor post-JD3 (JD3-001 + JD3-007 + JD3-012)** — se adelanta: ejecutar
       **antes de US2 (T028)**; a diferencia del resto de la fase, sí cambia comportamiento:
       (1) **JD3-001**: exponer `Retry-After` al SPA cross-origin en
       `src/main/java/com/uniremington/api/tramita/shared/config/SecurityConfig.java`
