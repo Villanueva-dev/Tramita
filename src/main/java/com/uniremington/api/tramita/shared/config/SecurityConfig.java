@@ -1,6 +1,7 @@
 package com.uniremington.api.tramita.shared.config;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.util.List;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -39,6 +40,12 @@ public class SecurityConfig {
     @Bean
     PasswordEncoder passwordEncoder() {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
+    }
+
+    /** Reloj único de la app: el throttling (D7) lo recibe inyectado y los tests lo simulan. */
+    @Bean
+    Clock clock() {
+        return Clock.systemUTC();
     }
 
     @Bean
