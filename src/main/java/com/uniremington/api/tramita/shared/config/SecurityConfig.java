@@ -1,6 +1,12 @@
 package com.uniremington.api.tramita.shared.config;
 
-import java.nio.charset.StandardCharsets;
+import com.uniremington.api.tramita.auth.AppUserDetailsService;
+import com.uniremington.api.tramita.auth.AuthFailureHandler;
+import com.uniremington.api.tramita.auth.AuthSuccessHandler;
+import com.uniremington.api.tramita.auth.JsonAuthenticationConverter;
+import com.uniremington.api.tramita.auth.LoginAttemptService;
+import com.uniremington.api.tramita.auth.LoginThrottlingFilter;
+import com.uniremington.api.tramita.shared.exception.ProblemJsonWriter;
 import java.time.Clock;
 import java.util.List;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -9,23 +15,31 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AuthenticationFilter;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Plumbing de seguridad base (T013). El wiring del login (AuthenticationFilter,
- * converter, handlers — research.md D5) se agrega en la US1; el logout en la US4.
+ * Seguridad de la app. El login corre DENTRO del filter chain (research.md D5):
+ * AuthenticationFilter + JsonAuthenticationConverter + handlers — así la rotación del
+ * id de sesión (anti session-fixation) y la persistencia del contexto las provee el
+ * framework, no código propio. El logout se agrega en la US4.
  */
 @Configuration
 @EnableWebSecurity
@@ -48,12 +62,39 @@ public class SecurityConfig {
         return Clock.systemUTC();
     }
 
+    /**
+     * DaoAuthenticationProvider con hideUserNotFoundExceptions en su default true:
+     * el email inexistente ya llega como BadCredentialsException — primera capa del
+     * 401 genérico anti-enumeración (D10).
+     */
     @Bean
-    // JsonMapper y no ObjectMapper: Boot 4 auto-configura Jackson 3 (features/json.adoc);
-    // el ObjectMapper de Jackson 2 quedó deprecated y su bean ya no existe por defecto
+    AuthenticationManager authenticationManager(AppUserDetailsService userDetailsService,
+            PasswordEncoder passwordEncoder) {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
+        provider.setPasswordEncoder(passwordEncoder);
+        return new ProviderManager(provider);
+    }
+
+    @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http,
-            CorsConfigurationSource corsConfigurationSource, JsonMapper jsonMapper)
-            throws Exception {
+            CorsConfigurationSource corsConfigurationSource,
+            AuthenticationManager authenticationManager,
+            JsonAuthenticationConverter jsonAuthenticationConverter,
+            AuthSuccessHandler authSuccessHandler,
+            AuthFailureHandler authFailureHandler,
+            LoginAttemptService loginAttemptService,
+            JsonMapper jsonMapper,
+            ProblemJsonWriter problemJsonWriter) throws Exception {
+
+        AuthenticationFilter loginFilter =
+                new AuthenticationFilter(authenticationManager, jsonAuthenticationConverter);
+        loginFilter.setRequestMatcher(
+                PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/auth/login"));
+        loginFilter.setSuccessHandler(authSuccessHandler);
+        loginFilter.setFailureHandler(authFailureHandler);
+        // La sesión queda en la HttpSession, no en el request (D5) — sin guardado manual
+        loginFilter.setSecurityContextRepository(new HttpSessionSecurityContextRepository());
+
         http
                 // CSRF para SPA: cookie XSRF-TOKEN legible por JS + deferred loading (D4)
                 .csrf(csrf -> csrf.spa())
@@ -66,18 +107,21 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 // sin sesión → 401 problem+json (RFC 7807, D10)
                 .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint(problemJsonEntryPoint(jsonMapper)));
+                        .authenticationEntryPoint(problemJsonEntryPoint(problemJsonWriter)))
+                // el 429 corta ANTES de intentar autenticar (D7); el CSRF filter corre
+                // antes que ambos por orden estándar del chain, preservando el 403
+                .addFilterBefore(
+                        new LoginThrottlingFilter(loginAttemptService, jsonMapper, problemJsonWriter),
+                        UsernamePasswordAuthenticationFilter.class)
+                .addFilterAt(loginFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
-    private AuthenticationEntryPoint problemJsonEntryPoint(JsonMapper jsonMapper) {
+    private AuthenticationEntryPoint problemJsonEntryPoint(ProblemJsonWriter problemJsonWriter) {
         return (request, response, authException) -> {
             ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.UNAUTHORIZED);
             problem.setTitle("Autenticación requerida");
-            response.setStatus(HttpStatus.UNAUTHORIZED.value());
-            response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-            jsonMapper.writeValue(response.getWriter(), problem);
+            problemJsonWriter.write(response, problem);
         };
     }
 

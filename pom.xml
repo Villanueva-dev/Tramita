@@ -182,6 +182,20 @@
 					</execution>
 				</executions>
 			</plugin>
+			<!-- Surefire solo corre *Test; las *IT (Testcontainers) las corre Failsafe
+			     en ./mvnw verify (T042). Versión gestionada por el parent de Boot. -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<executions>
+					<execution>
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
 	</build>
 

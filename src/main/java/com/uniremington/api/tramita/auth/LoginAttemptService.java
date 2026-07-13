@@ -32,6 +32,15 @@ public class LoginAttemptService {
         this.clock = clock;
     }
 
+    /**
+     * Clave canónica del contador (email normalizado + IP). Único punto de armado:
+     * la usan el filtro de throttling y los handlers de éxito/fallo — si divergieran,
+     * el bloqueo y la limpieza operarían sobre contadores distintos.
+     */
+    public static String key(String normalizedEmail, String clientIp) {
+        return normalizedEmail + "|" + clientIp;
+    }
+
     public void recordFailure(String key) {
         Deque<Instant> failures = failuresByKey.computeIfAbsent(key, k -> new ArrayDeque<>());
         synchronized (failures) {

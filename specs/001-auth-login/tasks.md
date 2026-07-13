@@ -176,12 +176,12 @@ genérico idéntico. Verificable con quickstart.md pasos 0–2 y con `AuthContro
 > Escribir primero y comprobar que FALLAN antes de implementar (TDD). `AuthControllerIT` solo
 > referencia URLs y MockMvc, así que compila desde ya; quedará en verde al cerrar T026–T027.
 
-- [ ] T016 [P] [US1] Escribir el unit test `LoginAttemptServiceTest` en
+- [X] T016 [P] [US1] Escribir el unit test `LoginAttemptServiceTest` en
       `src/test/java/com/uniremington/api/tramita/auth/LoginAttemptServiceTest.java` (RED):
       ventana deslizante por clave `(email normalizado + IP)` — bloquea al superar 5 fallos en
       15 min; se **auto-repara** al vencer la ventana (usar `Clock` inyectable, no `sleep`);
       un éxito limpia el contador; calcula los segundos restantes para `Retry-After`.
-- [ ] T017 [P] [US1] Escribir la prueba de integración `AuthControllerIT` en
+- [X] T017 [P] [US1] Escribir la prueba de integración `AuthControllerIT` en
       `src/test/java/com/uniremington/api/tramita/auth/AuthControllerIT.java`
       (`@SpringBootTest` + MockMvc con filtros de seguridad + Testcontainers PostgreSQL + Flyway;
       única IT de la feature; reusar `TestcontainersConfiguration` del esqueleto **fijando la
@@ -195,25 +195,25 @@ genérico idéntico. Verificable con quickstart.md pasos 0–2 y con `AuthContro
 
 ### Implementation for User Story 1
 
-- [ ] T018 [P] [US1] Crear el DTO `LoginRequest` en
+- [X] T018 [P] [US1] Crear el DTO `LoginRequest` en
       `src/main/java/com/uniremington/api/tramita/auth/dto/LoginRequest.java`: `email`, `password`
       (record o clase simple; las anotaciones Bean Validation son documentales aquí — en el path
       del filtro no corre `@Valid`, la validación real la hace el converter, ver T022).
-- [ ] T019 [P] [US1] Crear el DTO `CurrentUserResponse` en
+- [X] T019 [P] [US1] Crear el DTO `CurrentUserResponse` en
       `src/main/java/com/uniremington/api/tramita/auth/dto/CurrentUserResponse.java`: solo
       `email` y `active` — **sin** id ni hash (data-model.md).
-- [ ] T020 [P] [US1] Crear `AppUserDetailsService` en
+- [X] T020 [P] [US1] Crear `AppUserDetailsService` en
       `src/main/java/com/uniremington/api/tramita/auth/AppUserDetailsService.java`: implementa
       `UserDetailsService`; normaliza el email a minúsculas, busca vía `UserRepository.findByEmail`
       y mapea `active` → `enabled` del `UserDetails` (una cuenta inactiva produce
       `DisabledException` en el provider — FR-011).
-- [ ] T021 [P] [US1] Implementar `LoginAttemptService` en
+- [X] T021 [P] [US1] Implementar `LoginAttemptService` en
       `src/main/java/com/uniremington/api/tramita/auth/LoginAttemptService.java` hasta poner en
       verde T016: `ConcurrentHashMap`, ventana deslizante 5 fallos / 15 min por
       `(email normalizado + IP)`, auto-reparación al vencer la ventana, limpieza en éxito, cálculo
       de segundos para `Retry-After`, `Clock` inyectable. **Nunca** bloqueo permanente (D7).
       Se reutilizará en el cambio de clave (US2).
-- [ ] T022 [P] [US1] Crear `JsonAuthenticationConverter` en
+- [X] T022 [P] [US1] Crear `JsonAuthenticationConverter` en
       `src/main/java/com/uniremington/api/tramita/auth/JsonAuthenticationConverter.java`:
       `AuthenticationConverter` que lee el body JSON `{email, password}` (deserializa a
       `LoginRequest`), normaliza el email y produce `UsernamePasswordAuthenticationToken` (D5).
@@ -222,11 +222,11 @@ genérico idéntico. Verificable con quickstart.md pasos 0–2 y con `AuthContro
       el **400 `problem+json`**: lanzar una excepción dedicada (p. ej.
       `InvalidLoginRequestException extends AuthenticationException`) que `AuthFailureHandler`
       (T024) mapea a 400, separada del 401 genérico.
-- [ ] T023 [P] [US1] Crear `AuthSuccessHandler` en
+- [X] T023 [P] [US1] Crear `AuthSuccessHandler` en
       `src/main/java/com/uniremington/api/tramita/auth/AuthSuccessHandler.java`:
       `AuthenticationSuccessHandler` que responde **204 sin body** y **limpia el contador** de
       `LoginAttemptService` para la clave email+IP (D5/D7).
-- [ ] T024 [P] [US1] Crear `AuthFailureHandler` en
+- [X] T024 [P] [US1] Crear `AuthFailureHandler` en
       `src/main/java/com/uniremington/api/tramita/auth/AuthFailureHandler.java`:
       `AuthenticationFailureHandler` que **aplana TODAS** las fallas de autenticación
       (`BadCredentialsException`, `DisabledException`, etc.) a **un único 401 genérico**
@@ -234,7 +234,7 @@ genérico idéntico. Verificable con quickstart.md pasos 0–2 y con `AuthContro
       **registra el fallo** en `LoginAttemptService`. Única excepción: la excepción dedicada de
       body inválido del converter (T022) mapea a **400** `problem+json` (JD2-004) y no cuenta como
       intento fallido.
-- [ ] T025 [P] [US1] Crear `LoginThrottlingFilter` en
+- [X] T025 [P] [US1] Crear `LoginThrottlingFilter` en
       `src/main/java/com/uniremington/api/tramita/auth/LoginThrottlingFilter.java`: filtro propio
       que corre ANTES del `AuthenticationFilter`; extrae el email del body para armar la clave
       `(email + IP)` y, si está bloqueada, corta con **429 `problem+json` + header `Retry-After`**
@@ -243,7 +243,7 @@ genérico idéntico. Verificable con quickstart.md pasos 0–2 y con `AuthContro
       en `getInputStream()`/`getReader()` para el resto de la cadena (p. ej.
       `ContentCachingRequestWrapper` si se verifica que permite la relectura downstream — su cache
       solo guarda lo ya leído —, o un wrapper propio de ~20 líneas que garantice la relectura).
-- [ ] T026 [US1] Completar el wiring del login en
+- [X] T026 [US1] Completar el wiring del login en
       `src/main/java/com/uniremington/api/tramita/shared/config/SecurityConfig.java`:
       `DaoAuthenticationProvider` con `AppUserDetailsService` + `PasswordEncoder`
       (`hideUserNotFoundExceptions` en su default `true` — el email inexistente ya llega como
@@ -253,7 +253,7 @@ genérico idéntico. Verificable con quickstart.md pasos 0–2 y con `AuthContro
       (persistencia del contexto en la `HttpSession`, D5); registrar `LoginThrottlingFilter` con
       `addFilterBefore(..., AuthenticationFilter.class)`. Al autenticar dentro del chain, la
       rotación del id de sesión la hace el framework (`ChangeSessionIdAuthenticationStrategy`).
-- [ ] T027 [US1] Crear `AuthController` en
+- [X] T027 [US1] Crear `AuthController` en
       `src/main/java/com/uniremington/api/tramita/auth/AuthController.java` con **solo**
       `GET /api/auth/me`: devuelve 200 `CurrentUserResponse` (`email`, `active`) de la sesión
       activa, con mapeo **a mano** (sin MapStruct) y sin exponer id/hash; el 401 sin sesión lo
