@@ -1,0 +1,8 @@
+# Perfil dev — desviación declarada (research.md D3): una cookie con flag Secure
+# no viaja por http://localhost y el flujo curl del quickstart se rompería.
+# En prod el flag Secure queda siempre activo (application.yml, FR-008).
+server:
+  servlet:
+    session:
+      cookie:
+        secure: false

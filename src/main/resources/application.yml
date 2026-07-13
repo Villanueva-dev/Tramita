@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: tramita
+
+  # Sin defaults para secretos: si falta una variable, el arranque falla (fail-fast, patrón Convenia)
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+
+  # Flyway es el dueño del schema; Hibernate solo valida (Flyway-valida-Hibernate)
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+
+server:
+  servlet:
+    session:
+      # Expiración por inactividad (FR-009)
+      timeout: 30m
+      # Cookie de sesión endurecida (FR-008, research.md D3);
+      # en el perfil dev se desactiva solo el flag Secure (application-dev.yml)
+      cookie:
+        name: TRAMITA_SESSION
+        http-only: true
+        secure: true
+        same-site: strict

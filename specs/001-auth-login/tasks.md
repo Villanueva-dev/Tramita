@@ -72,21 +72,21 @@ el patrón del chasis de Convenia — solo el patrón, no las entidades.
 - [x] T002 [P] Verificar la clase principal generada por Initializr en
       `src/main/java/com/uniremington/api/tramita/TramitaApplication.java`
       (nombre, paquete raíz y anotación `@SpringBootApplication`) — verificada 2026-07-11.
-- [ ] T003 [P] Crear `src/main/resources/application.yml`: datasource por variables de entorno
+- [x] T003 [P] Crear `src/main/resources/application.yml`: datasource por variables de entorno
       `DB_URL`/`DB_USER`/`DB_PASSWORD` **sin defaults para secretos** (fail-fast, patrón Convenia),
       `spring.jpa.hibernate.ddl-auto=validate` (Flyway-valida-Hibernate), Flyway habilitado,
       timeout de sesión por inactividad `server.servlet.session.timeout=30m` (FR-009) y cookie de
       sesión `server.servlet.session.cookie.{name=TRAMITA_SESSION, http-only=true, secure=true,
       same-site=strict}` (FR-008, research.md D3).
-- [ ] T004 [P] Crear `src/main/resources/application-dev.yml` (perfil `dev`):
+- [x] T004 [P] Crear `src/main/resources/application-dev.yml` (perfil `dev`):
       `server.servlet.session.cookie.secure=false` para poder probar con curl sobre
       `http://localhost` (desviación declarada en research.md D3; en prod `Secure` siempre activo).
-- [ ] T005 [P] Crear `.env.example` en la raíz con `DB_URL`, `DB_USER`, `DB_PASSWORD`,
+- [x] T005 [P] Crear `.env.example` en la raíz con `DB_URL`, `DB_USER`, `DB_PASSWORD`,
       `SEED_COORD_EMAIL`, `SEED_COORD_PASSWORD`, `APP_CORS_ALLOWED_ORIGINS` (valores ilustrativos
       del quickstart.md, sin secretos reales) y completar el `.gitignore` generado por
       Initializr (ya excluye `target/`) añadiendo `.env`.
 
-**Checkpoint**: `./mvnw compile` pasa; el proyecto arranca en vacío (aún sin DB schema).
+**Checkpoint**: `./mvnw compile` pasa; el proyecto arranca en vacío (aún sin DB schema) — verificado 2026-07-12 (Flyway crea `flyway_schema_history` sobre schema vacío contra Postgres 16 en Docker, `localhost:5433`).
 
 ---
 
