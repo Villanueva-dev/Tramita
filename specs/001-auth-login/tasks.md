@@ -304,13 +304,13 @@ quickstart.md paso 3 + re-login.
       persistir (`updated_at` lo cubre `@PreUpdate`); (5) limpiar el contador.
       **JD2-003**: `AuthServiceImpl` NO rota el id de sesión — la rotación es responsabilidad de
       la capa web (T032); el service no toca `HttpServletRequest`.
-- [ ] T031 [US2] Extender `GlobalExceptionHandler` en
+- [X] T031 [US2] Extender `GlobalExceptionHandler` en
       `src/main/java/com/uniremington/api/tramita/shared/exception/GlobalExceptionHandler.java`:
       excepciones de negocio del cambio de clave → **422 `problem+json`** con `detail`
       distinguible por causa (actual incorrecta · nueva viola la política · nueva igual a la
       actual — contrato `/auth/password`); excepción de throttling → **429** con header
       `Retry-After` (segundos restantes de la ventana).
-- [ ] T032 [US2] Agregar `POST /api/auth/password` a
+- [X] T032 [US2] Agregar `POST /api/auth/password` a
       `src/main/java/com/uniremington/api/tramita/auth/AuthController.java`: body `@Valid
       ChangePasswordRequest`, delega en `AuthService` y, tras el cambio exitoso, llama
       `request.changeSessionId()` **en el controller** (capa web — JD2-003; OWASP Session
