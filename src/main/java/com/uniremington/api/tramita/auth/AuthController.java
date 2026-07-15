@@ -43,7 +43,9 @@ public class AuthController {
             @Valid @RequestBody ChangePasswordRequest body, HttpServletRequest request) {
         authService.changePassword(authentication.getName(), body, request.getRemoteAddr());
         // Solo en éxito (cualquier excepción propaga antes): rotar el id de sesión
-        // tras el cambio de credencial — OWASP Session Management, capa web (JD2-003/F12)
+        // tras el cambio de credencial — OWASP Session Management, capa web (JD2-003/F12).
+        // Rota SOLO la sesión actual; no invalidar las concurrentes es aceptable en el MVP
+        // (una sola cuenta, sesión en memoria, sin multi-dispositivo real).
         request.changeSessionId();
     }
 }

@@ -37,6 +37,10 @@ public class AuthServiceImpl implements AuthService {
             throw new TooManyAttemptsException(loginAttemptService.retryAfterSeconds(key));
         }
 
+        // Sesión huérfana (JD3-009): inalcanzable en el MVP (una sola cuenta seed, sin
+        // borrado ni panel admin). A diferencia de /me —que lee del snapshot de sesión—
+        // aquí SÍ se necesita la fila para el hash, así que el orElseThrow se queda: el 500
+        // resultante es un edge aceptado como inalcanzable, no un flujo esperado.
         User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new IllegalStateException(
                         "La sesión referencia una cuenta que ya no existe"));
@@ -55,7 +59,10 @@ public class AuthServiceImpl implements AuthService {
             throw new UnprocessableRequestException(String.join("; ", violations));
         }
 
-        // (4) Persistir (updated_at lo cubre @PreUpdate) y (5) limpiar el contador
+        // (4) Persistir (updated_at lo cubre @PreUpdate) y (5) limpiar el contador.
+        // save() explícito a propósito: aunque el dirty-checking de @Transactional ya
+        // bastaría, dejarlo evita que un futuro retiro de @Transactional pierda el UPDATE
+        // en silencio — un cambio de credencial jamás debe fallar sin avisar.
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         userRepository.save(user);
         loginAttemptService.recordSuccess(key);
