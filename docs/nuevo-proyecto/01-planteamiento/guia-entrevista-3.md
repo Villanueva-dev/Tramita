@@ -4,7 +4,7 @@
 > **Próxima entrevista**: por agendar
 > **Entrevistador(es)**: equipo de trabajo de grado — Programa de Ingeniería de Sistemas, Universidad Remington (modalidad Distancia, SNIES 53112, Resolución 015939 del 1 de septiembre de 2023).
 > **Entrevistada**: Coordinación Académica de la Sede Cali.
-> **Propósito**: validar y profundizar la información recogida en las dos entrevistas previas (`transcript-entrevista-coordi.md` y `transcript-entrevista-coordi-2.md`) para cerrar los puntos que aún quedan ambiguos y permitir el avance hacia las fases de especificación (Spec Kit) y arquitectura del MVP.
+> **Propósito**: validar y profundizar la información recogida en las dos entrevistas previas (`material-coord/transcript-entrevista-coordi.md` y `material-coord/transcript-entrevista-coordi-2.md`) para cerrar los puntos que aún quedan ambiguos y permitir el avance hacia las fases de especificación (Spec Kit) y arquitectura del MVP.
 > **Duración estimada**: 60 a 75 minutos.
 > **Modalidad sugerida**: presencial o vía Microsoft Teams (grabada, con autorización previa).
 
@@ -27,7 +27,7 @@ Antes de iniciar el cuestionario, el entrevistador debe:
 Cada pregunta se presenta con la siguiente estructura:
 
 - **Pregunta** — enunciado tal como se debe formular durante la entrevista.
-- **Referencia en entrevistas previas** — cita textual o paráfrasis del fragmento donde el tema apareció (entrevista 1 = `transcript-entrevista-coordi.md`; entrevista 2 = `transcript-entrevista-coordi-2.md`).
+- **Referencia en entrevistas previas** — cita textual o paráfrasis del fragmento donde el tema apareció (entrevista 1 = `material-coord/transcript-entrevista-coordi.md`; entrevista 2 = `material-coord/transcript-entrevista-coordi-2.md`).
 - **Motivo de la consulta** — explica qué quedó ambiguo, incompleto o no abordado.
 - **Lo que se busca confirmar** — puntos concretos que la respuesta debe permitir cerrar.
 
@@ -727,8 +727,8 @@ Al concluir el cuestionario, el entrevistador debe:
 
 | Referencia | Documento | Ubicación en el repositorio |
 |------------|-----------|-----------------------------|
-| Entrevista 1 | Transcripción de la primera entrevista a la Coordinación Académica de la Sede Cali | `../../../../transcript-entrevista-coordi.md` |
-| Entrevista 2 | Transcripción de la segunda entrevista (continuación) | `../../../../transcript-entrevista-coordi-2.md` |
+| Entrevista 1 | Transcripción de la primera entrevista a la Coordinación Académica de la Sede Cali | `../../../material-coord/transcript-entrevista-coordi.md` |
+| Entrevista 2 | Transcripción de la segunda entrevista (continuación) | `../../../material-coord/transcript-entrevista-coordi-2.md` |
 | Árbol de problemas | Marco Lógico — CEPAL/ILPES (Ortegón, Pacheco y Prieto, 2005) | `./arbol-de-problemas.md` |
 | Ley 1581 de 2012 | Régimen general de protección de datos personales en Colombia | Norma externa |
 

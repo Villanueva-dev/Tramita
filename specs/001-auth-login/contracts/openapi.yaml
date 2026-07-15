@@ -1,0 +1,260 @@
+openapi: 3.1.0
+info:
+  title: Trámita — Auth API (Coordinación Académica)
+  version: 0.1.0
+  description: >
+    Contrato REST framework-agnóstico de autenticación por sesión (cookie HttpOnly).
+    Único actor: la Coordinación. Errores en application/problem+json (RFC 7807).
+    Toda falla de autenticación devuelve un 401 genérico (anti-enumeración, FR-002).
+
+servers:
+  - url: /api
+
+tags:
+  - name: auth
+    description: Login, logout, cambio de contraseña y sesión actual.
+
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Iniciar sesión (US1)
+      description: >
+        Valida email + contraseña de forma autoritativa en el servidor. En éxito establece la
+        sesión (cookie Set-Cookie: TRAMITA_SESSION; HttpOnly; Secure; SameSite=Strict) y hace
+        rotación del id de sesión (protección contra session fixation). Requiere el header CSRF
+        (X-XSRF-TOKEN) obtenido previamente. Sujeto a throttling (FR-010).
+      security:
+        - csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '204':
+          description: Autenticación correcta. Sesión establecida vía cookie.
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+              description: 'TRAMITA_SESSION=<opaco>; HttpOnly; Secure; SameSite=Strict; Path=/'
+        '400':
+          description: >
+            Body inválido (JSON malformado o campos ausentes/vacíos). Un email sintácticamente
+            inválido NO produce 400: se trata como credencial desconocida y devuelve el 401
+            genérico (anti-enumeración, FR-002).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '401':
+          description: >
+            Credenciales inválidas. Mensaje genérico: no revela si falló el email, la contraseña
+            o si la cuenta está inactiva (FR-002, FR-011, SC-002).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '403':
+          description: >
+            Token CSRF ausente o inválido (header X-XSRF-TOKEN faltante o que no coincide).
+            El cliente debe refrescar el token (releer la cookie XSRF-TOKEN) y reintentar.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '429':
+          description: Demasiados intentos fallidos. Throttling temporal auto-reparable (FR-010).
+          headers:
+            Retry-After:
+              schema: { type: integer }
+              description: Segundos hasta poder reintentar.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Cerrar sesión (US4)
+      description: Invalida la sesión del servidor y limpia la cookie. Requiere sesión activa y CSRF.
+      security:
+        # Un solo objeto = AND (sesión Y CSRF); objetos separados significarían OR
+        # (OpenAPI 3.1 — Security Requirement Object).
+        - sessionCookie: []
+          csrfToken: []
+      responses:
+        '204':
+          description: Sesión invalidada. La cookie deja de ser válida.
+        '401':
+          description: No hay sesión activa.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '403':
+          description: >
+            Token CSRF ausente o inválido (header X-XSRF-TOKEN faltante o que no coincide).
+            El cliente debe refrescar el token (releer la cookie XSRF-TOKEN) y reintentar.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /auth/password:
+    post:
+      tags: [auth]
+      summary: Cambiar la propia contraseña (US2)
+      description: >
+        La Coordinación autenticada cambia su contraseña. Exige la contraseña actual correcta
+        (FR-005). La nueva se valida contra la política en el servidor (FR-006) y debe diferir de
+        la actual. Requiere sesión activa y CSRF. Sujeto al mismo throttling del login (FR-010).
+        Mapa un-código-una-causa: 401 sesión · 403 CSRF · 422 negocio · 429 throttling.
+        Tras el cambio exitoso se rota el id de sesión (la sesión sigue activa).
+      security:
+        # Un solo objeto = AND (sesión Y CSRF); objetos separados significarían OR
+        # (OpenAPI 3.1 — Security Requirement Object).
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePasswordRequest' }
+      responses:
+        '204':
+          description: Contraseña actualizada. El próximo login exige la nueva.
+        '400':
+          description: Body inválido (campos vacíos).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '401':
+          description: >
+            Sesión ausente o expirada — única causa de 401 en este endpoint (mapa
+            un-código-una-causa). Los rechazos de negocio del body van por 422: la credencial
+            de la request (cookie de sesión) es válida (RFC 9110 §15.5.2).
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '403':
+          description: >
+            Token CSRF ausente o inválido (header X-XSRF-TOKEN faltante o que no coincide).
+            El cliente debe refrescar el token (releer la cookie XSRF-TOKEN) y reintentar.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422':
+          description: >
+            Rechazo de negocio del body, con tres causas distinguibles por el campo detail:
+            (a) contraseña actual incorrecta (FR-005), (b) la nueva no cumple la política
+            (FR-006), (c) la nueva es igual a la actual. La usuaria ya está autenticada, así
+            que el mensaje genérico anti-enumeración del login no aplica aquí.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '429':
+          description: >
+            Demasiados intentos fallidos de verificación de la contraseña actual. Mismo
+            throttling del login (FR-010, servicio compartido), temporal y auto-reparable.
+          headers:
+            Retry-After:
+              schema: { type: integer }
+              description: Segundos hasta poder reintentar.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Identidad de la sesión actual
+      description: >
+        Devuelve la identidad de la sesión activa. Útil para que el SPA verifique la sesión al
+        cargar. No expone id ni hash.
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Sesión activa.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CurrentUserResponse' }
+        '401':
+          description: No hay sesión activa.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: TRAMITA_SESSION
+      description: Cookie de sesión opaca, HttpOnly; Secure; SameSite=Strict.
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-XSRF-TOKEN
+      description: >
+        Token CSRF (double-submit). El SPA lo lee de la cookie XSRF-TOKEN (legible por JS) y lo
+        reenvía en este header en peticiones que cambian estado. Config Spring Security: csrf.spa().
+
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: coordinacion.cali@uniremington.edu.co
+        password:
+          type: string
+          # La política (15+ caracteres, máx 72 bytes UTF-8) NO se documenta aquí porque el
+          # login acepta lo que sea y el servidor decide; aplica a la CREACIÓN/CAMBIO de la
+          # contraseña, no al intento de login.
+          example: "una-frase-de-paso-larga"
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+          # Sin minLength/maxLength a propósito: la única fuente de verdad de la política es
+          # PasswordPolicy en el servidor (violación → 422 con motivo). Dos validadores para la
+          # misma regla (Bean Validation → 400 vs PasswordPolicy → 422) derivarían con el tiempo.
+          description: >
+            Política (NIST SP 800-63B-4): mínimo 15 caracteres, máximo 72 bytes en UTF-8 —
+            límite real de BCrypt; los caracteres fuera de ASCII cuentan más de uno —, sin
+            composición forzada, y distinta de la actual. La validación autoritativa del máximo
+            es en bytes UTF-8 y la hace el servidor (FR-003, FR-006 → 422 con motivo); el
+            cliente puede espejarla exacta con TextEncoder (US3).
+
+    CurrentUserResponse:
+      type: object
+      required: [email, active]
+      properties:
+        email:
+          type: string
+          format: email
+        active:
+          type: boolean
+          description: >
+            Estado de la cuenta capturado como snapshot en el momento del login
+            (se lee del UserDetails de la sesión, no de la BD en cada request — JD2-007).
+            En el MVP no hay desactivación en caliente, así que su valor no cambia durante
+            la vida de la sesión (máx. 30 min); coherente con la ventana aceptada de FR-011.
+
+    Problem:
+      type: object
+      description: >
+        RFC 7807 (application/problem+json). Solo title y status son requeridos; los demás
+        miembros son opcionales, fiel a la especificación.
+      required: [title, status]
+      properties:
+        type: { type: string, format: uri, example: about:blank }
+        title: { type: string, example: Unauthorized }
+        status: { type: integer, example: 401 }
+        detail: { type: string, example: Credenciales inválidas. }
+        instance: { type: string, format: uri }

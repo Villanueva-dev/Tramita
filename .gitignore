@@ -22,7 +22,7 @@ Thumbs.db
 *.swp
 *~
 
-CLAUDE.md
+CLAUDE.local.md
 
 # Entornos virtuales / dependencias (a expandir cuando se defina el stack)
 .venv/
@@ -43,6 +43,23 @@ logs.*.json
 
 # Índices semánticos / cachés de herramientas (codegraph los regenera)
 .codegraph/
+
+# Maven wrapper — el jar no se versiona, mvnw lo descarga solo
+.mvn/wrapper/maven-wrapper.jar
+
+# Eclipse / STS
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+# IntelliJ — archivos sueltos (.idea/ ya está arriba)
+*.iws
+*.iml
+*.ipr
 
 # Material aportado por la Coordinación Académica (política de habeas data)
 # Ver docs/nuevo-proyecto/01-planteamiento/guia-entrevista-3.md Anexo B
