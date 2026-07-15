@@ -7,6 +7,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -25,16 +27,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final UserRepository userRepository;
     private final AuthService authService;
 
     @GetMapping("/me")
-    public CurrentUserResponse me(Authentication authentication) {
-        // Mapeo a mano (sin MapStruct): solo los campos permitidos, jamás id ni hash
-        User user = userRepository.findByEmail(authentication.getName())
-                .orElseThrow(() -> new IllegalStateException(
-                        "La sesión referencia una cuenta que ya no existe"));
-        return new CurrentUserResponse(user.getEmail(), user.isActive());
+    public CurrentUserResponse me(@AuthenticationPrincipal UserDetails principal) {
+        // Snapshot de la sesión (JD2-007/JD3-009): email y active salen del UserDetails
+        // capturado al autenticar, sin tocar BD. Sin query no hay sesión huérfana ni 500;
+        // en el MVP la cuenta no se desactiva en caliente (una sola cuenta seed).
+        return new CurrentUserResponse(principal.getUsername(), principal.isEnabled());
     }
 
     @PostMapping("/password")

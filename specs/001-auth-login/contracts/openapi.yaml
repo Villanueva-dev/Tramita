@@ -240,6 +240,11 @@ components:
           format: email
         active:
           type: boolean
+          description: >
+            Estado de la cuenta capturado como snapshot en el momento del login
+            (se lee del UserDetails de la sesión, no de la BD en cada request — JD2-007).
+            En el MVP no hay desactivación en caliente, así que su valor no cambia durante
+            la vida de la sesión (máx. 30 min); coherente con la ventana aceptada de FR-011.
 
     Problem:
       type: object
