@@ -98,7 +98,7 @@ src/main/java/com/uniremington/api/tramita/
 ├── auth/                              # FEATURE: autenticación
 │   ├── AuthController.java             # POST /password, GET /me (login/logout van por el filter chain)
 │   ├── AuthService.java               # interface
-│   ├── AuthServiceImpl.java           # cambio de clave: verifica actual, aplica política, rota id de sesión (D10)
+│   ├── AuthServiceImpl.java           # cambio de clave: verifica actual, aplica política; NO rota sesión (eso lo hace AuthController, capa web — JD2-003)
 │   ├── AppUserDetailsService.java     # carga User por email → UserDetails
 │   ├── JsonAuthenticationConverter.java # body JSON {email,password} → UsernamePasswordAuthenticationToken (D5)
 │   ├── AuthSuccessHandler.java        # AuthenticationSuccessHandler: 204 sin body + limpia contador (D5/D7)

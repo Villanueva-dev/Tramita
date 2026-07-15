@@ -279,6 +279,12 @@ Fuentes base:
   `DaoAuthenticationProvider`) para que el email inexistente ya llegue como `BadCredentialsException`.
   El **cambio de clave** (US2) sigue siendo un endpoint de controller —no pasa por el filtro de
   login— y conserva su manejo vía `GlobalExceptionHandler`.
+- **Timing side-channel (residual, documentado — JD2-008)**: el 401 genérico iguala el *mensaje* de
+  todas las fallas, pero no necesariamente el *tiempo de respuesta*. `DaoAuthenticationProvider`
+  corta la cuenta inactiva por `DisabledException` **sin computar BCrypt**, mientras que unas
+  credenciales malas sí ejecutan el hash — un atacante con medición fina podría distinguir ambos
+  casos por latencia. Aceptado como riesgo residual bajo (una sola cuenta, sin registro público) y
+  se documenta para **no sobre-vender** el anti-enumeración ante el jurado.
 - **Mapa de códigos en `/auth/password` (decisión cerrada 2026-07-10, cierra F08 del triage)**:
   «contraseña actual incorrecta» devuelve **422**, no 401. La credencial de la *request* (la
   cookie de sesión) es válida, así que `401 Unauthorized` sería semánticamente falso

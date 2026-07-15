@@ -399,15 +399,15 @@ exactamente las reglas que el servidor aplica.
 JD3 sobre código) y validar el flujo completo. Salvo T043 (hardening menor adelantado), ninguna
 tarea de esta fase cambia el comportamiento del backend.
 
-- [ ] T037 [P] **JD2-003 (documental)**: corregir el comentario desalineado en
+- [X] T037 [P] **JD2-003 (documental)**: corregir el comentario desalineado en
       `specs/001-auth-login/plan.md` (línea ~99): `AuthServiceImpl.java` ya no «rota id de sesión»
       — la rotación tras el cambio de clave vive en la **capa web** (`AuthController`, T032).
       Ajustar el comentario del árbol de estructura para reflejarlo.
-- [ ] T038 [P] **JD2-005 (documental)**: corregir `specs/001-auth-login/quickstart.md`
+- [X] T038 [P] **JD2-005 (documental)**: corregir `specs/001-auth-login/quickstart.md`
       (líneas 110–111): «longitud (15..72)» mezcla unidades — debe decir mínimo **15 caracteres**
       y máximo **72 bytes UTF-8** (espejo cliente con `TextEncoder`), consistente con FR-006 y el
       contrato OpenAPI.
-- [ ] T039 [P] **JD2-007 (decisión + documental)**: definir la semántica del campo `active` de
+- [X] T039 [P] **JD2-007 (decisión + documental)**: definir la semántica del campo `active` de
       `GET /api/auth/me` bajo la ventana aceptada de FR-011: fuente del valor (snapshot de la
       sesión al autenticar vs lectura fresca de BD en cada `/me`) y su refresco. Documentar la
       decisión en la descripción de `CurrentUserResponse` en
@@ -417,16 +417,16 @@ tarea de esta fase cambia el comportamiento del backend.
       cubrir el edge de sesión huérfana — hoy un usuario autenticado ausente en BD produce
       `IllegalStateException` → 500; semánticamente correspondería 401 (inalcanzable mientras
       no exista borrado de usuarios, pero decidirlo aquí evita heredarlo).
-- [ ] T040 [P] **JD2-008 (documental)**: añadir en `specs/001-auth-login/research.md` (sección
+- [X] T040 [P] **JD2-008 (documental)**: añadir en `specs/001-auth-login/research.md` (sección
       D10) una nota sobre el diferencial de timing del fail-fast de `DaoAuthenticationProvider`
       (cuenta inactiva responde sin computar BCrypt vs credenciales malas que sí lo computan):
       el 401 genérico iguala el mensaje pero no el tiempo de respuesta — no sobre-vender el
       anti-enumeration ante el jurado.
-- [ ] T041 **JD2-006 (documental, opcional)**: uniformar la redacción de los requisitos SHALL de
+- [X] T041 **JD2-006 (documental, opcional)**: uniformar la redacción de los requisitos SHALL de
       NIST SP 800-63B-4 entre `specs/001-auth-login/spec.md`, `specs/001-auth-login/research.md` y
       `specs/001-auth-login/quickstart.md` (misma forma de citar §3.1.1.2, mínimo de 15 y
       blocklist diferida). Se ejecuta después de T038/T040 porque toca los mismos archivos.
-- [ ] T042 Validación final: ejecutar `./mvnw clean verify` (unit + IT + reporte JaCoCo) y
+- [X] T042 Validación final: ejecutar `./mvnw clean verify` (unit + IT + reporte JaCoCo) y
       recorrer el flujo curl completo de `specs/001-auth-login/quickstart.md` (pasos 0–4 + tabla
       de verificaciones: 401 genérico, cuenta inactiva, flags de cookie, 422 de política, 429 con
       `Retry-After`, logout). Registrar cualquier desviación antes de dar por cerrada la feature.

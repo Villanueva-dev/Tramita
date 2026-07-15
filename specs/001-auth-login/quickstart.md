@@ -107,7 +107,8 @@ curl -i -X POST -c jar.txt -b jar.txt -H "X-XSRF-TOKEN: $XSRF" \
 El framework lo elegirá el equipo. Contrato que el SPA debe respetar:
 - Llamar con `credentials: 'include'` (para que viaje la cookie de sesión).
 - Leer `XSRF-TOKEN` de cookie y reenviar `X-XSRF-TOKEN` en POSTs.
-- **US3**: espejar en tiempo real longitud (15..72) y coincidencia con la confirmación; el
-  servidor re-valida siempre (FR-003).
+- **US3**: espejar en tiempo real la longitud (mínimo 15 caracteres, máximo 72 bytes UTF-8
+  medibles con `TextEncoder`) y coincidencia con la confirmación; el servidor re-valida siempre
+  (FR-003).
 - En desarrollo, usar dev-proxy (p. ej. Vite) para llamar same-origin y que `SameSite=Strict`
   funcione (research.md D3).
