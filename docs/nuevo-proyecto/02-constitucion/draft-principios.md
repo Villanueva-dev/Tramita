@@ -1,7 +1,7 @@
 # Constitución — borrador de principios (pre-Spec Kit)
 
-> **Estado**: borrador con auditoría aplicada el **2026-06-01** (fixes **[C1]**, **[I1]**, **[I2]**, **[I3]**, **[I4]**, **[M1]**, **[M2]** del reporte del skill `auditar-vs-entrevistas` + revisiones KISS sobre herencia de Convenia confirmadas por el usuario). **Pendiente de materializar** en `.specify/memory/constitution.md` vía `/speckit-constitution`.
-> **Próximo paso**: el usuario aprueba esta versión y se ejecuta el flujo del skill `speckit-constitution` para escribir el archivo final con sync impact report y commit.
+> **Estado**: borrador con auditoría aplicada el **2026-06-01** (fixes **[C1]**, **[I1]**, **[I2]**, **[I3]**, **[I4]**, **[M1]**, **[M2]** del reporte del skill `auditar-vs-entrevistas` + revisiones KISS sobre herencia de Convenia confirmadas por el usuario). **Ya materializado**: la constitución fue ratificada en `.specify/memory/constitution.md` (**v1.0.0, 2026-07-02** vía `/speckit-constitution`), con **5 principios** (este borrador proponía 6).
+> **Rol actual**: registro histórico del borrador previo. La fuente de verdad vigente es `.specify/memory/constitution.md`.
 > **No editar** `.specify/memory/constitution.md` directamente — eso lo hace el flujo del skill.
 
 ---

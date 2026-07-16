@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> Trabajo de grado en curso — Ingeniería de Sistemas, Universidad Remington (modalidad Distancia, SNIES 53112, Resolución 015939 del 1 de septiembre de 2023). Equipo de dos personas, plazo ≈ 2,5 meses. **Hoy no hay código todavía**: este repo contiene fase de planteamiento + andamiaje Spec Kit. La implementación heredará el chasis de `../convenia/`.
+> Trabajo de grado en curso — Ingeniería de Sistemas, Universidad Remington (modalidad Distancia, SNIES 53112, Resolución 015939 del 1 de septiembre de 2023). Equipo de dos personas, plazo ≈ 2,5 meses. **Estado**: el backend ya arrancó — el **Sprint 1 de autenticación (`001-auth-login`) está cerrado y mergeado a `main`** (panorama técnico y arranque en `README.md`); el resto del dominio (trámites) sigue en fase de planteamiento. El chasis Spring Boot 4 / Java 21 se hereda de `../convenia/`.
 
 ## Qué se está construyendo
 
@@ -37,9 +37,9 @@ Comandos complementarios: `speckit-constitution`, `speckit-clarify`, `speckit-ch
 
 ### Estado actual del Spec Kit
 
-- `.specify/memory/constitution.md` **está ratificada (v1.0.0, 2026-07-02)** vía `/speckit-constitution`: 5 principios (KISS+YAGNI · arquitectura por feature · seguridad por defecto · decisiones trazables +Context7 · testing pragmático) + secciones de restricciones tecnológicas, idioma y proceso (Scrum, sprints de 2 semanas). El próximo paso del flujo es `/speckit-specify` para la feature de login/auth.
-- No existe rama de feature ni directorio `specs/` aún — no se ha corrido `/speckit-specify` para este MVP.
-- `arbol-de-problemas.md` es el documento más maduro hasta ahora; según su §11, el próximo paso es **bajar SP1–SP7 a backlog Scrum** y producir requisitos IEEE 830 + arquitectura C4 / 4+1.
+- `.specify/memory/constitution.md` **está ratificada (v1.0.0, 2026-07-02)** vía `/speckit-constitution`: 5 principios (KISS+YAGNI · arquitectura por feature · seguridad por defecto · decisiones trazables +Context7 · testing pragmático) + secciones de restricciones tecnológicas, idioma y proceso (Scrum, sprints de 2 semanas).
+- **Sprint 1 completo**: la feature `001-auth-login` recorrió el ciclo entero (`specify → plan → tasks → implement`). El backend de autenticación está **implementado, testeado y mergeado a `main` (PR #2, 2026-07-15)**; sus artefactos viven en `specs/001-auth-login/` y el arranque/uso está en `README.md`.
+- `arbol-de-problemas.md` sigue siendo la fuente del planteamiento; según su §11, lo que resta es **bajar SP1–SP7 a backlog Scrum** y producir los entregables formales de tesis (requisitos IEEE 830 + arquitectura C4 / 4+1).
 
 ## Reutilización arquitectónica de Convenia
 
