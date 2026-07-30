@@ -254,7 +254,7 @@ Memoria: `project-mvp-scope-decisions`.
 
 1. Single-tenant explícito.
 2. **actor del sistema: Coordinadora** (acción). Estudiante = **notificado** (sin login), confirmado en E3-p2 Q22–Q23.
-3. Frontend en Angular.
+3. Frontend en React (corregido: la decisión original de 2026-05-19 decía Angular; la constitución fijó React y el frontend entregado es Next.js 16 / React 19).
 4. Sprints de 2 semanas con demo a la coord al cierre.
 5. Despliegue inicial con `docker-compose` local.
 6. Convenia como **inspirar y reescribir**, no fork ni dependencia.
