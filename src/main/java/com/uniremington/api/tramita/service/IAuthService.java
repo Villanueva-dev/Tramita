@@ -1,12 +1,13 @@
-package com.uniremington.api.tramita.auth;
+package com.uniremington.api.tramita.service;
 
-import com.uniremington.api.tramita.auth.dto.ChangePasswordRequest;
+import com.uniremington.api.tramita.dto.ChangePasswordRequest;
+import org.springframework.stereotype.Service;
 
 /**
  * Casos de uso de autenticación que viven fuera del filter chain (US2+).
  * El login y el logout NO pasan por aquí: los procesa Spring Security (D5).
  */
-public interface AuthService {
+public interface IAuthService {
 
     /**
      * Cambia la contraseña de la cuenta autenticada (FR-004/FR-005/FR-006).

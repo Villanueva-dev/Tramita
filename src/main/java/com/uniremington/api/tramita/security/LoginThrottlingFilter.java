@@ -1,7 +1,9 @@
-package com.uniremington.api.tramita.auth;
+package com.uniremington.api.tramita.security;
 
-import com.uniremington.api.tramita.auth.dto.LoginRequest;
+import com.uniremington.api.tramita.dto.LoginRequest;
+import com.uniremington.api.tramita.service.impl.LoginAttemptService;
 import com.uniremington.api.tramita.shared.exception.ProblemJsonWriter;
+import com.uniremington.api.tramita.util.EmailNormalizer;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ReadListener;
 import jakarta.servlet.ServletException;
@@ -34,6 +36,12 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * La IP es request.getRemoteAddr() directo: sin proxy delante en el MVP,
  * X-Forwarded-For sería spoofeable por el cliente (trade-off documentado en D7).
+ *
+ * NO LLEVA ESTEREOTIPO A PROPÓSITO. SecurityConfig lo construye con new y lo inserta
+ * en el chain con addFilterBefore. Anotarlo con @Component haría que Spring Boot lo
+ * auto-registre además en la cadena del servlet container: se ejecutaría dos veces por
+ * request y cada intento fallido contaría doble, disparando el 429 a la mitad de los
+ * intentos configurados. No rompe la compilación y los tests unitarios no lo detectan.
  */
 public class LoginThrottlingFilter extends OncePerRequestFilter {
 

@@ -1,6 +1,8 @@
-package com.uniremington.api.tramita.auth;
+package com.uniremington.api.tramita.security;
 
-import com.uniremington.api.tramita.auth.dto.LoginRequest;
+import com.uniremington.api.tramita.dto.LoginRequest;
+import com.uniremington.api.tramita.shared.exception.InvalidLoginRequestException;
+import com.uniremington.api.tramita.util.EmailNormalizer;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;

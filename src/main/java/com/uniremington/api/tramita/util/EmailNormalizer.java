@@ -1,4 +1,4 @@
-package com.uniremington.api.tramita.auth;
+package com.uniremington.api.tramita.util;
 
 import java.util.Locale;
 

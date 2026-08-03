@@ -1,7 +1,8 @@
-package com.uniremington.api.tramita.auth;
+package com.uniremington.api.tramita.controller;
 
-import com.uniremington.api.tramita.auth.dto.ChangePasswordRequest;
-import com.uniremington.api.tramita.auth.dto.CurrentUserResponse;
+import com.uniremington.api.tramita.dto.ChangePasswordRequest;
+import com.uniremington.api.tramita.dto.CurrentUserResponse;
+import com.uniremington.api.tramita.service.IAuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final AuthService authService;
+    private final IAuthService authService;
 
     @GetMapping("/me")
     public CurrentUserResponse me(@AuthenticationPrincipal UserDetails principal) {

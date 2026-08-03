@@ -1,4 +1,4 @@
-package com.uniremington.api.tramita.auth;
+package com.uniremington.api.tramita.shared.exception;
 
 import org.springframework.security.core.AuthenticationException;
 

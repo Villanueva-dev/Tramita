@@ -1,5 +1,7 @@
-package com.uniremington.api.tramita.auth;
+package com.uniremington.api.tramita.security;
 
+import com.uniremington.api.tramita.service.impl.LoginAttemptService;
+import com.uniremington.api.tramita.shared.exception.InvalidLoginRequestException;
 import com.uniremington.api.tramita.shared.exception.ProblemJsonWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

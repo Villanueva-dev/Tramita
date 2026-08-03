@@ -1,4 +1,4 @@
-package com.uniremington.api.tramita.auth;
+package com.uniremington.api.tramita.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -22,9 +22,9 @@ import lombok.Setter;
  */
 @Entity
 @Table(name = "users")
+@NoArgsConstructor
 @Getter
 @Setter
-@NoArgsConstructor
 public class User {
 
     /** PK UUIDv4 generada por la app; nunca sale del servidor (el identificador público es el email). */

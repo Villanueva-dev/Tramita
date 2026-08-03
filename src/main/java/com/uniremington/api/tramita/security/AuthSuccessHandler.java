@@ -1,5 +1,6 @@
-package com.uniremington.api.tramita.auth;
+package com.uniremington.api.tramita.security;
 
+import com.uniremington.api.tramita.service.impl.LoginAttemptService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

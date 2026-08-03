@@ -1,4 +1,4 @@
-package com.uniremington.api.tramita.auth.dto;
+package com.uniremington.api.tramita.dto;
 
 import jakarta.validation.constraints.NotBlank;
 

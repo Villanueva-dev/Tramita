@@ -1,4 +1,4 @@
-package com.uniremington.api.tramita.auth;
+package com.uniremington.api.tramita.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.uniremington.api.tramita.TestcontainersConfiguration;
+import com.uniremington.api.tramita.model.User;
+import com.uniremington.api.tramita.repo.IUserRepo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,7 +55,7 @@ class AuthControllerIT {
     private MockMvc mockMvc;
 
     @Autowired
-    private UserRepository userRepository;
+    private IUserRepo userRepo;
 
     // --- (a) login exitoso -------------------------------------------------------------
 
@@ -92,9 +94,9 @@ class AuthControllerIT {
         String wrongPassword = body401(SEED_EMAIL, "clave equivocada pero larga");
         String unknownEmail = body401("nadie@uniremington.edu.co", SEED_PASSWORD);
 
-        User coord = userRepository.findByEmail(SEED_EMAIL).orElseThrow();
+        User coord = userRepo.findByEmail(SEED_EMAIL).orElseThrow();
         coord.setActive(false);
-        userRepository.save(coord);
+        userRepo.save(coord);
         try {
             String inactiveAccount = body401(SEED_EMAIL, SEED_PASSWORD);
 
@@ -102,7 +104,7 @@ class AuthControllerIT {
             assertThat(wrongPassword).isEqualTo(unknownEmail).isEqualTo(inactiveAccount);
         } finally {
             coord.setActive(true);
-            userRepository.save(coord);
+            userRepo.save(coord);
         }
     }
 

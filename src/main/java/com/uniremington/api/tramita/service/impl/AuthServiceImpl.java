@@ -1,6 +1,12 @@
-package com.uniremington.api.tramita.auth;
+package com.uniremington.api.tramita.service.impl;
 
-import com.uniremington.api.tramita.auth.dto.ChangePasswordRequest;
+import com.uniremington.api.tramita.service.IAuthService;
+import com.uniremington.api.tramita.util.EmailNormalizer;
+import com.uniremington.api.tramita.service.impl.LoginAttemptService;
+import com.uniremington.api.tramita.service.impl.PasswordPolicy;
+import com.uniremington.api.tramita.dto.ChangePasswordRequest;
+import com.uniremington.api.tramita.model.User;
+import com.uniremington.api.tramita.repo.IUserRepo;
 import com.uniremington.api.tramita.shared.exception.TooManyAttemptsException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
 import java.util.List;
@@ -17,11 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 @RequiredArgsConstructor
-public class AuthServiceImpl implements AuthService {
+public class AuthServiceImpl implements IAuthService {
 
     public static final String MSG_CURRENT_PASSWORD_INCORRECT = "La contraseña actual es incorrecta";
 
-    private final UserRepository userRepository;
+    private final IUserRepo userRepo;
     private final PasswordEncoder passwordEncoder;
     private final PasswordPolicy passwordPolicy;
     private final LoginAttemptService loginAttemptService;
@@ -41,7 +47,7 @@ public class AuthServiceImpl implements AuthService {
         // borrado ni panel admin). A diferencia de /me —que lee del snapshot de sesión—
         // aquí SÍ se necesita la fila para el hash, así que el orElseThrow se queda: el 500
         // resultante es un edge aceptado como inalcanzable, no un flujo esperado.
-        User user = userRepository.findByEmail(normalizedEmail)
+        User user = userRepo.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new IllegalStateException(
                         "La sesión referencia una cuenta que ya no existe"));
 
@@ -64,7 +70,7 @@ public class AuthServiceImpl implements AuthService {
         // bastaría, dejarlo evita que un futuro retiro de @Transactional pierda el UPDATE
         // en silencio — un cambio de credencial jamás debe fallar sin avisar.
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
-        userRepository.save(user);
+        userRepo.save(user);
         loginAttemptService.recordSuccess(key);
     }
 }

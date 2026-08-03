@@ -1,10 +1,10 @@
-package com.uniremington.api.tramita.auth;
+package com.uniremington.api.tramita.service.impl;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.util.ArrayList;
 import java.util.List;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 /**
  * Política de contraseñas server-side (research.md D6): mínimo 15 caracteres
@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
  * de clave (US2) y la retroalimentación del SPA (US3). Punto único de extensión
  * para la futura blocklist (no-conformidad consciente documentada en D6).
  */
-@Component
+@Service
 public class PasswordPolicy {
 
     public static final int MIN_CHARS = 15;

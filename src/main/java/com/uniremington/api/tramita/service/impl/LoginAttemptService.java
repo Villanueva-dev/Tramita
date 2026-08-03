@@ -1,4 +1,4 @@
-package com.uniremington.api.tramita.auth;
+package com.uniremington.api.tramita.service.impl;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -8,7 +8,7 @@ import java.util.Deque;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 /**
  * Throttling anti fuerza bruta en memoria (research.md D7, FR-010): ventana deslizante
@@ -20,7 +20,7 @@ import org.springframework.stereotype.Component;
  * verificación de contraseña actual del cambio de clave (US2) — todo punto que
  * verifica una contraseña tiene throttling.
  */
-@Component
+@Service
 public class LoginAttemptService {
 
     public static final int MAX_FAILURES = 5;

@@ -1,6 +1,10 @@
-package com.uniremington.api.tramita.auth;
+package com.uniremington.api.tramita.security;
 
 import java.util.List;
+
+import com.uniremington.api.tramita.model.User;
+import com.uniremington.api.tramita.repo.IUserRepo;
+import com.uniremington.api.tramita.util.EmailNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -16,12 +20,12 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AppUserDetailsService implements UserDetailsService {
 
-    private final UserRepository userRepository;
+    private final IUserRepo userRepo;
 
     @Override
     public UserDetails loadUserByUsername(String email) {
         String normalized = EmailNormalizer.normalize(email);
-        User user = userRepository.findByEmail(normalized)
+        User user = userRepo.findByEmail(normalized)
                 .orElseThrow(() -> new UsernameNotFoundException(
                         "No existe cuenta para el email indicado"));
         // Sin roles: un único actor (la Coordinación) — authorities vacías a propósito

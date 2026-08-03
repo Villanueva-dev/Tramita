@@ -1,4 +1,4 @@
-package com.uniremington.api.tramita.auth.dto;
+package com.uniremington.api.tramita.dto;
 
 /**
  * Body de GET /api/auth/me (contracts/openapi.yaml): solo email y active.

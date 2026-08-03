@@ -18,6 +18,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * rota ni se borra al autenticar y el valor pre-login sigue válido tras el 204 (fixation
  * residual aceptado). El logout (US4) es distinto: CsrfLogoutHandler SÍ borra la cookie
  * y la re-emisión depende del siguiente request que pase por este filtro (nota en T036).
+ *
+ * NO LLEVA ESTEREOTIPO A PROPÓSITO. SecurityConfig lo construye con new y lo inserta en
+ * el chain con addFilterAfter. Anotarlo con @Component haría que Spring Boot lo
+ * auto-registre además en la cadena del servlet container, ejecutándolo dos veces por
+ * request.
  */
 public class CsrfCookieFilter extends OncePerRequestFilter {
 

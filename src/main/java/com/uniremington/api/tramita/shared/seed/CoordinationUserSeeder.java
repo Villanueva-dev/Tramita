@@ -1,9 +1,9 @@
 package com.uniremington.api.tramita.shared.seed;
 
-import com.uniremington.api.tramita.auth.EmailNormalizer;
-import com.uniremington.api.tramita.auth.PasswordPolicy;
-import com.uniremington.api.tramita.auth.User;
-import com.uniremington.api.tramita.auth.UserRepository;
+import com.uniremington.api.tramita.util.EmailNormalizer;
+import com.uniremington.api.tramita.service.impl.PasswordPolicy;
+import com.uniremington.api.tramita.model.User;
+import com.uniremington.api.tramita.repo.IUserRepo;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,17 +22,17 @@ import org.springframework.stereotype.Component;
 @Component
 public class CoordinationUserSeeder implements ApplicationRunner {
 
-    private final UserRepository userRepository;
+    private final IUserRepo userRepo;
     private final PasswordPolicy passwordPolicy;
     private final PasswordEncoder passwordEncoder;
     private final String seedEmail;
     private final String seedPassword;
 
-    public CoordinationUserSeeder(UserRepository userRepository, PasswordPolicy passwordPolicy,
+    public CoordinationUserSeeder(IUserRepo userRepo, PasswordPolicy passwordPolicy,
             PasswordEncoder passwordEncoder,
             @Value("${SEED_COORD_EMAIL}") String seedEmail,
             @Value("${SEED_COORD_PASSWORD}") String seedPassword) {
-        this.userRepository = userRepository;
+        this.userRepo = userRepo;
         this.passwordPolicy = passwordPolicy;
         this.passwordEncoder = passwordEncoder;
         this.seedEmail = seedEmail;
@@ -44,7 +44,7 @@ public class CoordinationUserSeeder implements ApplicationRunner {
         // Misma regla de normalización que usará el login: minúsculas por construcción
         String email = EmailNormalizer.normalize(seedEmail);
 
-        if (userRepository.existsByEmail(email)) {
+        if (userRepo.existsByEmail(email)) {
             log.info("Cuenta de la Coordinación ya provisionada; seeder sin cambios (idempotente)");
             return;
         }
@@ -62,7 +62,7 @@ public class CoordinationUserSeeder implements ApplicationRunner {
         user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(seedPassword));
         user.setActive(true);
-        userRepository.save(user);
+        userRepo.save(user);
         log.info("Cuenta de la Coordinación provisionada para {}", email);
     }
 }

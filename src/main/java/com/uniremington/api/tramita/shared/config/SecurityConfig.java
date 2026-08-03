@@ -1,11 +1,11 @@
 package com.uniremington.api.tramita.shared.config;
 
-import com.uniremington.api.tramita.auth.AppUserDetailsService;
-import com.uniremington.api.tramita.auth.AuthFailureHandler;
-import com.uniremington.api.tramita.auth.AuthSuccessHandler;
-import com.uniremington.api.tramita.auth.JsonAuthenticationConverter;
-import com.uniremington.api.tramita.auth.LoginAttemptService;
-import com.uniremington.api.tramita.auth.LoginThrottlingFilter;
+import com.uniremington.api.tramita.security.AppUserDetailsService;
+import com.uniremington.api.tramita.security.AuthFailureHandler;
+import com.uniremington.api.tramita.security.AuthSuccessHandler;
+import com.uniremington.api.tramita.security.JsonAuthenticationConverter;
+import com.uniremington.api.tramita.service.impl.LoginAttemptService;
+import com.uniremington.api.tramita.security.LoginThrottlingFilter;
 import com.uniremington.api.tramita.shared.exception.ProblemJsonWriter;
 import java.time.Clock;
 import java.util.List;
