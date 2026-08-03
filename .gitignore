@@ -44,6 +44,15 @@ logs.*.json
 # Índices semánticos / cachés de herramientas (codegraph los regenera)
 .codegraph/
 
+# Skills de terceros descargadas: se versiona skills-lock.json (origen + hash),
+# no el contenido — mismo criterio que package.json frente a node_modules
+.agents/
+
+# Documentos .docx: git no puede diferenciar binarios y cada versión sumaría
+# una copia entera al historial. El documento de grado real vive en OneDrive;
+# las salidas de Deep Research quedan auditadas en docs/BASE_DOCUMENTO_TRAMITA.md
+docs/*.docx
+
 # Maven wrapper — el jar no se versiona, mvnw lo descarga solo
 .mvn/wrapper/maven-wrapper.jar
 
