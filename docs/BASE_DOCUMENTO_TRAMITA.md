@@ -118,12 +118,11 @@ Diseñar e implementar un sistema de gestión de solicitudes académicas basado 
 
 ## Objetivos específicos
 
-1. Analizar los procesos actuales de adición de créditos y novedad de notas para identificar sus necesidades, reglas y limitaciones.
-2. Diseñar un modelo de workflow configurable que permita administrar ambos trámites con una misma infraestructura de software.
-3. Implementar formularios validados que reduzcan errores en la captura y mejoren la calidad de los datos ingresados.
-4. Incorporar un módulo de trazabilidad que registre cada transición y decisión del trámite.
-5. Generar de forma automática un documento formal en formato PDF al cerrar cada solicitud.
-6. Diseñar una interfaz operativa para que la coordinadora pueda consultar solicitudes, revisar estados y responder a los estudiantes con mayor seguridad y rapidez.
+1. Analizar los procesos actuales de adición de créditos y novedad de notas para identificar necesidades, reglas de negocio y limitaciones.
+2. Desarrollar un motor de workflow configurable que modele las transiciones de estado, roles y reglas de paso de ambos trámites sobre una misma infraestructura, con profundidad de automatización parametrizable por trámite.
+3. Construir un módulo de formularios validados por backend que reemplace el diligenciamiento manual en Word y detecte errores de captura, con las reglas de negocio de cada trámite.
+4. Generar automáticamente el PDF formal del trámite a partir de los datos validados, con un sello electrónico verificable (hash + sello de tiempo) y el registro auditable de cada aprobación.
+5. Implementar la capa operativa de la coordinación: bandeja de trabajo con pendientes por SLA, timeline de auditoría inmutable y notificación de finalización al estudiante.
 
 ---
 
@@ -180,6 +179,24 @@ La metodología propuesta combina análisis documental, entrevistas, diseño de 
 ## Enfoque de trabajo
 
 El proyecto sigue un enfoque de desarrollo ágil, con foco en la entrega de una demostración funcional y en la mejora continua del producto. La estrategia prioriza la viabilidad del MVP, la claridad del flujo y la capacidad de adaptación a nuevas reglas del proceso institucional.
+
+## Criterios de selección de fuentes bibliográficas
+
+> **PENDIENTE DE REVISIÓN CON LA TUTORA.** Esta subsección declara un criterio metodológico que aún no ha sido validado por la dirección del trabajo. Se somete a revisión antes de darlo por cerrado.
+
+La revisión de literatura de este trabajo aplica dos criterios temporales distintos, según la función que cumple cada fuente dentro del marco de referencia.
+
+**Criterio general: ventana 2020–2026.** Las fuentes que sustentan el estado del arte y los antecedentes se restringen a publicaciones aparecidas entre 2020 y 2026. La razón es que estas fuentes deben responder a la pregunta de qué se ha implementado recientemente en materia de digitalización de trámites académicos, y una respuesta construida sobre trabajos de hace quince años no describiría el estado actual de la práctica. Todas las fuentes se referencian bajo normas APA en su séptima edición.
+
+**Excepción acotada: eje de modelos de proceso configurables.** Se admiten fuentes anteriores a 2020 en dos supuestos, ambos circunscritos al eje de motores de workflow y modelos de proceso configurables: cuando la fuente constituya la formulación original del concepto, o cuando documente una aplicación de ese concepto a procesos administrativos de instituciones de educación superior.
+
+Esta excepción se justifica por cuatro razones. Primera: el concepto de proceso configurable es el núcleo de la pregunta de investigación de este trabajo, y su formulación canónica es anterior a la ventana general; citarlo únicamente a través de revisiones posteriores equivaldría a sustentar el concepto central sobre fuentes secundarias. Segunda: en la teoría del diseño de procesos, la obra fundacional no queda obsoleta por el paso del tiempo del modo en que sí lo queda un reporte de implementación tecnológica, porque describe una construcción conceptual y no un estado de la técnica. Tercera: la búsqueda documental evidenció que la restricción temporal estricta excluía por año —no por pertinencia— trabajos cuyo objeto coincide con el de esta investigación. Cuarta, y en relación con el segundo supuesto: la aplicación específica del modelo configurable a trámites de educación superior está escasamente documentada, y el registro más pertinente localizado es anterior a la ventana; excluirlo obligaría a presentar como no documentado algo que sí lo está, lo cual constituye un defecto de mayor gravedad que citar una fuente fuera de la ventana declarándolo.
+
+**Delimitación de la excepción.** La apertura temporal se aplica exclusivamente al eje de motores de workflow y modelos de proceso configurables. Los demás ejes del marco de referencia —modelado de procesos, validación de datos en origen, documentos electrónicos verificables, trazabilidad y auditoría, y transformación digital en educación superior— se mantienen dentro de la ventana 2020–2026. Cada fuente admitida por la excepción se identifica como tal en el momento de citarla.
+
+**Procedimiento de verificación de fuentes.** Toda referencia empleada en este trabajo se comprueba individualmente contra la fuente primaria antes de incorporarse: se contrasta título completo, lista completa de autores, año, medio de publicación y paginación, consultando el registro del identificador digital de objeto (DOI) en Crossref o, cuando no existe DOI, el documento mismo. Este procedimiento se adoptó tras constatar que las herramientas de búsqueda asistida utilizadas en la fase exploratoria produjeron fichas bibliográficas defectuosas —títulos truncados, autores omitidos, paginación inexistente y, en un caso, la combinación de dos trabajos distintos en una sola referencia—, sin que dichos defectos fueran detectables sin acudir a la fuente.
+
+**Fuentes admitidas por la excepción.** Ingresan por el primer supuesto Rosemann y van der Aalst (2007), Gottschalk et al. (2007), Hallerbach et al. (2010) y La Rosa et al. (2017); por el segundo, Subić y Dimitrijević (2015). Sus fichas completas se relacionan en el apartado de Referencias.
 
 ---
 
@@ -263,11 +280,36 @@ Además, el proyecto aporta un valor académico importante al demostrar cómo un
 
 ## Referencias técnicas y académicas
 
+Las fichas de este apartado fueron verificadas individualmente contra la fuente primaria conforme al procedimiento declarado en la Metodología. Se indica con la marca *(excepción)* toda fuente admitida por la excepción temporal del eje de modelos de proceso configurables.
+
+### Modelos de proceso configurables y motores de workflow
+
+- Calegari, D., Delgado, A., & Peña, L. (2020). Model-driven support for business process families with the Common Variability Language (CVL). *CLEI Electronic Journal, 23*(1). https://doi.org/10.19153/cleiej.23.1.3
+- Gottschalk, F., van der Aalst, W. M. P., & Jansen-Vullers, M. H. (2007). Configurable process models — A foundational approach. En *Reference modeling* (pp. 59–77). Physica-Verlag. https://doi.org/10.1007/978-3-7908-1966-3_3 *(excepción)*
+- Hallerbach, A., Bauer, T., & Reichert, M. (2010). Capturing variability in business process models: The Provop approach. *Journal of Software Maintenance and Evolution: Research and Practice, 22*(6-7), 519–546. https://doi.org/10.1002/smr.491 *(excepción)*
+- La Rosa, M., van der Aalst, W. M. P., Dumas, M., & Milani, F. P. (2017). Business process variability modeling: A survey. *ACM Computing Surveys, 50*(1), 1–45. https://doi.org/10.1145/3041957 *(excepción)*
+- Rosemann, M., & van der Aalst, W. M. P. (2007). A configurable reference modelling language. *Information Systems, 32*(1), 1–23. https://doi.org/10.1016/j.is.2005.05.003 *(excepción)*
+- Subić, N., & Dimitrijević, M. (2015). Modeling flexible configurable processes applied to the enrollment process in higher education institutions. *Online Journal of Applied Knowledge Management, 3*(2), 181–190. http://www.iiakm.org/ojakm/articles/2015/volume3_2/OJAKM_Volume3_2pp181-190.pdf *(excepción)*
+- van der Aalst, W. M. P. (2023). Toward more realistic simulation models using object-centric process mining. En *ECMS 2023 Proceedings*. https://doi.org/10.7148/2023-0005
+
+### Digitalización de procesos administrativos en educación superior
+
+- Almarayeh, T., & Frehat, R. (2026). The role of robotic process automation in improving administrative processes in higher education. *EDPACS*, 1–9. https://doi.org/10.1080/07366981.2026.2635153
+- Sorour, A., Atkins, A. S., Stanier, C. F., & Alharbi, F. D. (2020). Comparative frameworks for monitoring quality assurance in higher education institutions using business intelligence. En *2020 International Conference on Computing and Information Technology (ICCIT-1441)* (pp. 1–5). IEEE. https://doi.org/10.1109/ICCIT-144147971.2020.9213808
+- Tsakalidis, G. (2022). *A framework for systematic evaluation of Business Process Redesign (BPR) initiatives using the notion of model plasticity* [Tesis doctoral, University of Macedonia].
+
+### Normas y referencias de ingeniería de software
+
 - IEEE. (1998). Recommended Practice for Software Requirements Specifications (IEEE 830).
 - ISO/IEC. (2017). Systems and software engineering — Software life cycle processes (ISO/IEC 12207).
 - IEEE. (2009). Software Design Description (IEEE 1016).
 - Sommerville, I. (2016). Software Engineering (10th ed.). Pearson.
 - Weske, M. (2012). Business Process Management: Concepts, Languages, Architectures. Springer.
+
+> **Notas de trabajo (no forman parte del documento final).**
+> 1. **Tsakalidis (2022)**: título y filiación confirmados por fuente secundaria independiente, pero el repositorio institucional (`dspace.lib.uom.gr`) rechazó la conexión al intentar abrir el registro. Falta confirmar la URL directa y el departamento antes de dar la ficha por cerrada.
+> 2. **Hallerbach et al.**: el año se consigna como 2010 siguiendo el volumen impreso 22(6-7); el registro de Crossref fecha el trabajo en 2009 por publicación anticipada en línea. Confirmar en el sitio del editor. Existe además un segundo identificador para el mismo artículo (`10.1002/spip.446`) que corresponde a un registro incompleto y no debe usarse.
+> 3. **Sommerville (2016) y Weske (2012)** quedan fuera de la ventana 2020–2026 y no pertenecen al eje amparado por la excepción: bajo el criterio declarado en la Metodología, hoy son inconsistentes. Decidir si se sustituyen por fuentes dentro de ventana o si se amplía el criterio para las obras de referencia general de la disciplina.
 
 ---
 
