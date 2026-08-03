@@ -1,0 +1,53 @@
+
+# ─────────────────────────────────────────────────────────────────────────
+# <tipo>(<alcance>): <resumen en imperativo, máximo 72 caracteres>
+#
+# El alcance es opcional. Ejemplos: auth, tramite, docs, build.
+# ─────────────────────────────────────────────────────────────────────────
+#
+# CUERPO — envolver a 72 columnas, separar párrafos con línea en blanco.
+#
+# El diff ya muestra QUÉ cambió. El cuerpo existe para explicar POR QUÉ:
+# qué problema resuelve, qué alternativa se descartó y con qué costo.
+# Un commit cuyo cuerpo repite el diff no aporta nada.
+#
+# Si el cambio se defiende ante el jurado, el porqué va acá: dentro de
+# seis meses este texto es la única fuente de la decisión.
+#
+# ─────────────────────────────────────────────────────────────────────────
+#
+# PIE — opcional, una clave por línea:
+#
+#   Refs: specs/001-auth-login/plan.md
+#   Verificado: ./mvnw clean verify — 22 unitarios + 8 IT en verde
+#   BREAKING CHANGE: <qué se rompe y cómo adaptarse>
+#
+# ─────────────────────────────────────────────────────────────────────────
+#
+# TIPOS
+#
+#   feat      funcionalidad nueva visible para quien usa el sistema
+#   fix       corrección de un defecto
+#   refactor  cambia la estructura sin cambiar el comportamiento
+#   perf      mejora de rendimiento
+#   docs      documentación
+#   test      tests (agregar, corregir o reorganizar)
+#   build     build, dependencias, Maven
+#   ci        integración continua
+#   chore     tooling y configuración que no entra en las anteriores
+#
+# ─────────────────────────────────────────────────────────────────────────
+#
+# REGLAS
+#
+#   · Imperativo y en presente: "agrega", no "agregado" ni "agregando".
+#   · El resumen no lleva punto final ni mayúscula inicial tras los dos puntos.
+#   · Un commit = un propósito. Si el cuerpo necesita "y además", partilo.
+#   · Todo cambio de comportamiento lleva línea "Verificado:" con el comando
+#     y su resultado. Sin evidencia, el commit afirma algo que nadie comprobó.
+#   · Un refactor NO cambia comportamiento: si lo cambia, no es refactor.
+#   · Español, igual que el resto de la documentación del proyecto.
+#     Los identificadores de código siguen en inglés.
+#   · Nunca incluir secretos, credenciales ni rutas absolutas del equipo.
+#
+# ─────────────────────────────────────────────────────────────────────────

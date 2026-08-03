@@ -50,6 +50,17 @@ El árbol de problemas (§11.4) declara que la arquitectura inicial reusa el cha
 - `../convenia/MER.mermaid` ilustra convenciones del modelo de datos del proyecto hermano (no es el modelo de este MVP).
 - **El dominio es distinto**: aquí no hay `Agreement` ni máquina de estados de práctica; aquí hay `Trámite` (o equivalente) con workflow **configurable por dato**, no por código. Copiar el **patrón de capas y plumbing**; no copiar las entidades de Convenia.
 
+## Convención de commits
+
+Conventional Commits en español. La estructura y las reglas están en **`.gitmessage`**
+(raíz del repo). Al clonar hay que activarla: `git config commit.template .gitmessage` —
+esa configuración vive en `.git/config` y **no se versiona**, así que cada persona la
+activa en su copia.
+
+Lo innegociable: el cuerpo explica el **porqué**, no repite el diff; un commit tiene un
+solo propósito; y todo cambio de comportamiento lleva una línea `Verificado:` con el
+comando ejecutado y su resultado.
+
 ## Metodología (citar al usarla)
 
 - **Planteamiento**: Marco Lógico — Ortegón, Pacheco y Prieto (2005), *Metodología del Marco Lógico*, CEPAL/ILPES Serie Manuales N.º 42.
