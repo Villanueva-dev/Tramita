@@ -38,7 +38,7 @@ Comandos complementarios: `speckit-constitution`, `speckit-clarify`, `speckit-ch
 
 ### Estado actual del Spec Kit
 
-- `.specify/memory/constitution.md` **está ratificada (v1.0.0, 2026-07-02)** vía `/speckit-constitution`: 5 principios (KISS+YAGNI · arquitectura por feature · seguridad por defecto · decisiones trazables +Context7 · testing pragmático) + secciones de restricciones tecnológicas, idioma y proceso (Scrum, sprints de 2 semanas).
+- `.specify/memory/constitution.md` **está ratificada (v1.0.0, 2026-07-02) y enmendada a v2.0.0 (2026-08-02)** vía `/speckit-constitution`: 5 principios (KISS+YAGNI · **arquitectura por capas** · seguridad por defecto · decisiones trazables +Context7 · testing pragmático) + secciones de restricciones tecnológicas, idioma y proceso (Scrum, sprints de 2 semanas). La enmienda MAJOR cambió §II de package-by-feature a package-by-layer, para alinear el proyecto con el material de formación del equipo; el trade-off (el árbol deja de "gritar" el dominio, la correspondencia C4 pasa a los diagramas) está documentado en el propio principio.
 - **Sprint 1 completo**: la feature `001-auth-login` recorrió el ciclo entero (`specify → plan → tasks → implement`). El backend de autenticación está **implementado, testeado y mergeado a `main` (PR #2, 2026-07-15)**; sus artefactos viven en `specs/001-auth-login/` y el arranque/uso está en `README.md`.
 - `arbol-de-problemas.md` sigue siendo la fuente del planteamiento; según su §11, lo que resta es **bajar SP1–SP7 a backlog Scrum** y producir los entregables formales de tesis (requisitos IEEE 830 + arquitectura C4 / 4+1).
 
@@ -66,6 +66,8 @@ Plan e insumos técnicos: `specs/001-auth-login/plan.md` (+ `research.md`, `data
 `contracts/openapi.yaml`, `quickstart.md`).
 Stack: Java 21 · Spring Boot 4.0.7 (Security 7, Data JPA, Validation, WebMVC) · PostgreSQL + Flyway
 (validate) · BCrypt · Lombok (sin MapStruct en auth) · Testcontainers (test).
-Paquete `com.uniremington.api.tramita`, estructura package-by-feature (`auth/`, `shared/`).
+Paquete `com.uniremington.api.tramita`, estructura **package-by-layer**: `controller/`,
+`dto/`, `model/`, `repo/`, `security/`, `service/` (contratos) + `service/impl/`, `util/`
+y `shared/` (`config/`, `exception/`, `seed/`). Interfaces con prefijo `I`.
 Para más contexto de tecnologías, estructura y comandos, leer el plan actual.
 <!-- SPECKIT END -->

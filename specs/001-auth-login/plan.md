@@ -4,6 +4,15 @@
 
 **Input**: Feature specification from `/specs/001-auth-login/spec.md`
 
+> **[NOTA 2026-08-02 — la estructura de paquetes descrita abajo ya no es la vigente.]**
+> Este documento es el registro del Sprint 1 y **se conserva sin reescribir**: describe lo
+> que se decidió y ejecutó en su momento. El 2026-08-02 el backend migró de
+> *package-by-feature* a **package-by-layer** (`controller/ · dto/ · model/ · repo/ ·
+> security/ · service/ + service/impl/ · util/ · shared/`), y `auth/` dejó de existir.
+> Los renombres asociados: `UserRepository` → `IUserRepo`, `AuthService` → `IAuthService`.
+> La norma vigente es la **constitución v2.0.0 §II**, que documenta el motivo del cambio y
+> su trade-off. Donde este plan diga "package-by-feature" o `auth/`, léase la constitución.
+
 ## Summary
 
 Autenticación de la Coordinación Académica (único actor) mediante **sesión del lado del

@@ -31,26 +31,32 @@ créditos y novedad de notas) se configuran por dato, no por código. El chasis 
 
 ## Arquitectura
 
-Organización **package-by-feature**
-Base:
+Organización **package-by-layer** (constitución §II, v2.0.0). Base:
 `com.uniremington.api.tramita`.
 
 ```
 tramita/
-├── auth/                    # feature de autenticación (US1–US4)
-│   ├── AuthController        # GET /me, POST /password
-│   ├── AuthService(Impl)     # cambio de contraseña
-│   ├── AppUserDetailsService # carga el usuario para Spring Security
-│   ├── JsonAuthenticationConverter / AuthSuccessHandler / AuthFailureHandler
-│   ├── LoginThrottlingFilter / LoginAttemptService  # 429 anti-fuerza-bruta
-│   ├── PasswordPolicy / EmailNormalizer
-│   ├── User / UserRepository
-│   └── dto/                  # LoginRequest, ChangePasswordRequest, CurrentUserResponse
+├── controller/   AuthController        # GET /me, POST /password
+├── dto/          LoginRequest, ChangePasswordRequest, CurrentUserResponse
+├── model/        User
+├── repo/         IUserRepo
+├── security/     AppUserDetailsService # carga el usuario para Spring Security
+│                 JsonAuthenticationConverter / AuthSuccessHandler / AuthFailureHandler
+│                 LoginThrottlingFilter # 429 anti-fuerza-bruta
+├── service/      IAuthService          # contratos
+│   └── impl/     AuthServiceImpl       # cambio de contraseña
+│                 LoginAttemptService / PasswordPolicy
+├── util/         EmailNormalizer
 └── shared/
-    ├── config/  SecurityConfig, CsrfCookieFilter, CorsProperties
+    ├── config/     SecurityConfig, CsrfCookieFilter, CorsProperties
     ├── exception/  GlobalExceptionHandler, ProblemJsonWriter (RFC 7807)
-    └── seed/  CoordinationUserSeeder  # provisión idempotente de la cuenta real
+    └── seed/       CoordinationUserSeeder  # provisión idempotente de la cuenta real
 ```
+
+Las interfaces llevan prefijo `I`. **`LoginThrottlingFilter` y `CsrfCookieFilter` no
+llevan estereotipo a propósito**: `SecurityConfig` los construye e inserta en el chain a
+mano, y anotarlos haría que Spring Boot los auto-registre por duplicado en la cadena del
+servlet container.
 
 **Login y logout NO son endpoints de controller**: corren dentro del *filter chain* de Spring
 Security (`AuthenticationFilter` + handlers). Así la rotación del id de sesión

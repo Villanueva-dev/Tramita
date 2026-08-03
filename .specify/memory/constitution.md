@@ -1,21 +1,34 @@
 <!--
 Sync Impact Report — Constitución de Trámita
 ============================================
-Cambio de versión: (plantilla sin versionar) → 1.0.0
-Ratificada: 2026-07-02 | Última enmienda: 2026-07-02
-Bump: MAJOR (ratificación inicial — de plantilla a constitución vigente)
+Cambio de versión: 1.0.0 → 2.0.0
+Ratificada: 2026-07-02 | Última enmienda: 2026-08-02
+Bump: MAJOR (cambio incompatible de un principio rector — §II)
 
-Principios definidos (desde placeholders):
+Enmienda 2026-08-02
+-------------------
+§II pasa de "Arquitectura por feature (Screaming Architecture)" a "Arquitectura por
+capas". Motivo: el equipo cursa formación en Spring Boot con material organizado
+package-by-layer; alinear el proyecto con su referencia de estudio elimina el costo de
+traducción y reduce el riesgo de error al trasladar patrones.
+
+Trade-off aceptado y documentado en el propio principio: el árbol de paquetes deja de
+"gritar" el dominio y se pierde la correspondencia 1:1 carpeta ↔ componente C4; esa
+correspondencia pasa a documentarse en los diagramas de arquitectura.
+
+El principio incorpora además dos reglas que antes eran implícitas: el prefijo `I` en
+las interfaces, y la excepción de los filtros del chain de seguridad, que no llevan
+estereotipo porque Spring Boot los auto-registraría por duplicado.
+
+Principios vigentes:
 - I.   Simplicidad primero (KISS + YAGNI)
-- II.  Arquitectura por feature (Screaming Architecture)
+- II.  Arquitectura por capas            ← enmendado en 2.0.0
 - III. Seguridad por defecto
 - IV.  Decisiones defendibles y trazables
 - V.   Testing del comportamiento sensible
 
-Secciones agregadas:
-- Restricciones tecnológicas
-- Idioma y convenciones
-- Proceso y gestión (Scrum, sprints de 2 semanas)
+Secciones: Restricciones tecnológicas · Idioma y convenciones · Proceso y gestión
+(Scrum, sprints de 2 semanas) · Gobernanza
 
 Plantillas dependientes (verificadas, alineadas, sin cambios):
 - OK .specify/templates/plan-template.md  (el "Constitution Check" se resuelve en runtime)
@@ -39,15 +52,29 @@ cuando el requisito **exista**, no cuando se anticipa.
 deuda que hay que mantener y defender. La extensibilidad la da el proceso de migraciones
 versionadas, no las estructuras pre-construidas.
 
-### II. Arquitectura por feature (Screaming Architecture)
+### II. Arquitectura por capas
 
-El código se organiza *package-by-feature*, no por capa. Cada feature es autocontenida
-(controller, service, repository, model y DTOs de esa feature viven juntos). El árbol de
-paquetes DEBE reflejar el dominio, en correspondencia con los diagramas C4.
+El código se organiza *package-by-layer*: `controller/`, `dto/`, `model/`, `repo/`,
+`security/`, `service/` (contratos) con `service/impl/` (implementaciones), `util/`, y
+`shared/` para lo transversal (`config/`, `exception/`, `seed/`). Las interfaces se
+nombran con prefijo `I`. Los servicios se exponen siempre por interface.
 
-**Rationale**: la estructura del código debe "gritar" el dominio (un motor de workflow),
-no la mecánica técnica. Cada componente del diagrama C4 corresponde a una carpeta real,
-lo que cierra la brecha modelo-código.
+**Rationale**: el equipo está en formación activa en Spring Boot con material didáctico
+organizado de esta forma. Alinear el proyecto con su referencia de estudio elimina el
+costo de traducción en cada consulta y reduce el riesgo de error al trasladar patrones —
+un factor material en un equipo de dos personas que aprende mientras construye, con un
+plazo acotado. Es además la organización mayoritaria del ecosistema Spring, lo que
+facilita que un tercero se incorpore al proyecto.
+
+**Trade-off aceptado**: el árbol de paquetes deja de "gritar" el dominio y se pierde la
+correspondencia 1:1 entre carpeta y componente del diagrama C4. Esa correspondencia se
+documenta explícitamente en los diagramas de arquitectura, no en la estructura de
+carpetas. Se acepta el costo a cambio de la coherencia con la formación del equipo.
+
+**Excepción documentada**: los filtros que `SecurityConfig` construye e inserta a mano en
+el filter chain (`LoginThrottlingFilter`, `CsrfCookieFilter`) NO llevan estereotipo. Un
+filtro anotado con `@Component` es auto-registrado por Spring Boot en la cadena del
+servlet container además de en el chain de seguridad, ejecutándose dos veces por request.
 
 ### III. Seguridad por defecto
 
@@ -111,4 +138,4 @@ especificación y plan verifica su alineación con estos principios; toda comple
 introducida debe justificarse explícitamente. La guía operativa del día a día vive en
 `CLAUDE.md`.
 
-**Versión**: 1.0.0 | **Ratificada**: 2026-07-02 | **Última enmienda**: 2026-07-02
+**Versión**: 2.0.0 | **Ratificada**: 2026-07-02 | **Última enmienda**: 2026-08-02
