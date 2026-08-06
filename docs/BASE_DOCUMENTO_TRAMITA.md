@@ -134,24 +134,45 @@ La Universidad Remington opera procesos académicos complejos en los que la coor
 
 ## Marco teórico
 
-El proyecto se sustenta en conceptos de gestión de procesos de negocio, workflow, trazabilidad digital, validación de datos y documentación formal. La propuesta se alinea con enfoques de ingeniería de software orientados a la automatización de flujos de trabajo, la mejora de la calidad de los datos y la auditoría de procesos.
+### Modelado y rediseño de procesos
 
-Entre los referentes conceptuales relevantes se encuentran:
+El rediseño de procesos estudia cómo transformar un proceso existente para mejorar su desempeño. Milani y Lashkevich (2025), en una revisión sistemática de la literatura, ordenan las oportunidades de mejora y las opciones de rediseño disponibles, y muestran que la elección de una opción depende del tipo de deficiencia que se busca corregir y no de una preferencia técnica. Este trabajo adopta esa distinción: el diagnóstico del proceso vigente precede a la decisión de rediseño.
 
-- ingeniería de software orientada a requisitos y documentación;
-- diseño de sistemas basados en flujo de trabajo y estados;
-- principios de usabilidad para usuarios no técnicos;
-- buenas prácticas de calidad, trazabilidad y pruebas de software;
-- generación automatizada de documentos formales.
+En el ámbito de los servicios públicos, Mukherjee et al. (2021) documentan la construcción de un modelo de proceso estándar a partir de un rediseño estructurado, y evidencian que procesos administrativos ejecutados de forma heterogénea pueden converger en un modelo común sin perder la especificidad de cada caso. Esa convergencia es el supuesto que habilita tratar dos trámites distintos sobre una misma infraestructura.
+
+La calidad del dato capturado constituye una dimensión del rediseño y no un asunto posterior a él. Miller et al. (2024) proponen un marco que ordena las dimensiones de calidad de datos y sitúan la exactitud y la completitud entre las propiedades que quedan determinadas en el momento de la captura. La evidencia empírica sobre el efecto de validar en origen proviene del ámbito clínico: Reeves et al. (2020) compararon formularios de consentimiento quirúrgico en papel y en formato electrónico con validaciones, y hallaron una reducción significativa de la tasa de errores de captura. Aunque el dominio de ese estudio difiere del que aquí se aborda, el mecanismo que explica el hallazgo —la imposibilidad de registrar un valor inválido cuando el formulario lo impide— no depende del dominio de aplicación.
+
+### Motores de workflow y modelos de proceso configurables
+
+Un modelo de proceso configurable es un modelo que integra las variantes de una familia de procesos en una representación única, de la cual se derivan por configuración los procesos individuales. Rosemann y van der Aalst (2007) formularon originalmente esta noción mediante un lenguaje de modelado de referencia configurable, y Gottschalk et al. (2007) establecieron su fundamento al distinguir entre los puntos de variación de un modelo y las decisiones que los resuelven. Ambas fuentes ingresan por la excepción temporal declarada en la Metodología, en su primer supuesto.
+
+Sobre esa base se desarrollaron enfoques que difieren en la forma de representar la variabilidad. Hallerbach et al. (2010) propusieron Provop, que deriva variantes aplicando operaciones de ajuste sobre un modelo base, también admitido por la excepción; Calegari et al. (2020), dentro de la ventana temporal general, recurren a un lenguaje de variabilidad común para dirigir mediante modelos la generación de familias de procesos. La Rosa et al. (2017), en una revisión del campo igualmente admitida por la excepción, clasifican estas aproximaciones y señalan que la diferencia central reside en si la variabilidad se expresa restringiendo un modelo que las contiene a todas o extendiendo un modelo mínimo.
+
+La pertinencia de este enfoque para el ámbito universitario está documentada. Subić y Dimitrijević (2015) modelaron el proceso de matrícula de instituciones de educación superior como un proceso configurable y mostraron que las diferencias entre programas académicos podían expresarse como configuraciones de un modelo común, en lugar de como procesos independientes; esta fuente ingresa por el segundo supuesto de la excepción, referido a la aplicación del concepto a procesos administrativos de educación superior. Ese hallazgo constituye el antecedente directo de la propuesta de este trabajo.
+
+Finalmente, van der Aalst (2023) advierte que los modelos de proceso adquieren valor operativo cuando se contrastan con el comportamiento efectivamente registrado durante la ejecución, lo que vincula la configuración del modelo con la evidencia que el propio sistema produce.
+
+### Trazabilidad y auditoría del proceso
+
+La trazabilidad de un proceso descansa en el registro de los eventos que lo componen. Andrews y Wynn (2026) analizan los patrones de imperfección que afectan a esos registros y sostienen que un registro incompleto o inconsistente compromete todo análisis posterior, por lo que su calidad debe garantizarse en el momento de producirlo y no reconstruirse después. Este trabajo traslada ese principio al diseño: los eventos del trámite se registran como consecuencia de la transición de estado y no como una acción separada que pueda omitirse.
+
+El registro de eventos permite además verificar el cumplimiento de las reglas del proceso. González et al. (2022) combinan minería de procesos con un modelo de controles genéricos de cumplimiento para evaluar si un proceso colaborativo satisface los requisitos que le fueron impuestos, con lo cual la traza de ejecución se convierte en evidencia auditable.
+
+El documento formal que cierra un trámite materializa esa evidencia. Vargas y Piedra (2023) describen un esquema de emisión y verificación de micro-credenciales universitarias en el que la institución emite un documento cuya autenticidad puede comprobarse con independencia de quien lo presenta. En el plano del mecanismo, Sharif et al. (2021) documentan la protección de la integridad de archivos PDF mediante firma digital y funciones de resumen criptográfico, procedimiento que permite detectar cualquier alteración posterior a la emisión.
+
+### Transformación digital de la gestión administrativa universitaria
+
+La digitalización de los procesos administrativos de las instituciones de educación superior ha sido abordada desde distintos ángulos. Almarayeh y Frehat (2026) examinan el papel de la automatización robótica de procesos en la mejora de los procesos administrativos universitarios y señalan que las ganancias se concentran en tareas repetitivas de alto volumen. Sorour et al. (2020) proponen marcos comparativos para el monitoreo del aseguramiento de la calidad en estas instituciones mediante inteligencia de negocios, y evidencian que la información necesaria para la gestión suele existir dispersa en los sistemas antes de ser aprovechada. Tsakalidis (2022), por su parte, desarrolla un marco de evaluación sistemática de iniciativas de rediseño que introduce la noción de plasticidad del modelo como medida de su capacidad de ser rediseñado antes de la implementación.
 
 ## Marco normativo y de buenas prácticas
 
-El proyecto incorpora referentes de documentación y desarrollo de software, entre ellos:
+El proyecto incorpora referentes normativos de documentación y desarrollo de software, citados en su edición vigente al momento de esta redacción:
 
-- IEEE 830 para especificación de requisitos;
-- ISO/IEC 12207 para procesos del ciclo de vida del software;
-- IEEE 1016 para diseño de software;
-- principios de simplicidad, modularidad y trazabilidad aplicados al desarrollo ágil.
+- **ISO/IEC/IEEE 29148:2018** para la ingeniería de requisitos y la estructura de la especificación de requisitos de software (ISO/IEC/IEEE, 2018). Además de fijar el contenido del documento, la norma define el enunciado de un requisito como la composición de una condición, un sujeto, una acción, un objeto y una restricción de la acción, lo que permite redactar requisitos verificables por construcción.
+- **ISO/IEC/IEEE 12207:2017** para los procesos del ciclo de vida del software (ISO/IEC/IEEE, 2017).
+- Principios de simplicidad, modularidad y trazabilidad aplicados al desarrollo ágil.
+
+La selección de estas ediciones responde a una verificación del estado de vigencia de cada norma en el catálogo de su organismo emisor. La norma IEEE 830-1998, de uso extendido para la especificación de requisitos, figura en el catálogo del IEEE Standards Association con estado *superseded*: fue reemplazada por ISO/IEC/IEEE 29148:2011, cuya edición vigente es la de 2018. Por la misma razón se excluye IEEE 1016-2009, cuyo estado en ese catálogo es *inactive-reserved*.
 
 ---
 
@@ -194,7 +215,9 @@ Esta excepción se justifica por cuatro razones. Primera: el concepto de proceso
 
 **Delimitación de la excepción.** La apertura temporal se aplica exclusivamente al eje de motores de workflow y modelos de proceso configurables. Los demás ejes del marco de referencia —modelado de procesos, validación de datos en origen, documentos electrónicos verificables, trazabilidad y auditoría, y transformación digital en educación superior— se mantienen dentro de la ventana 2020–2026. Cada fuente admitida por la excepción se identifica como tal en el momento de citarla.
 
-**Procedimiento de verificación de fuentes.** Toda referencia empleada en este trabajo se comprueba individualmente contra la fuente primaria antes de incorporarse: se contrasta título completo, lista completa de autores, año, medio de publicación y paginación, consultando el registro del identificador digital de objeto (DOI) en Crossref o, cuando no existe DOI, el documento mismo. Este procedimiento se adoptó tras constatar que las herramientas de búsqueda asistida utilizadas en la fase exploratoria produjeron fichas bibliográficas defectuosas —títulos truncados, autores omitidos, paginación inexistente y, en un caso, la combinación de dos trabajos distintos en una sola referencia—, sin que dichos defectos fueran detectables sin acudir a la fuente.
+**Tratamiento de las normas técnicas.** Las normas emitidas por organismos de normalización no se someten a la ventana temporal. La razón es que una norma no cumple en este trabajo la función de describir el estado del arte, sino la de fijar un marco prescriptivo de referencia, y su vigencia no la determina el año de publicación sino el estado que le asigna el catálogo de su organismo emisor. En consecuencia, cada norma se cita en la edición vigente al momento de esta redacción y ese estado se comprueba en el catálogo oficial correspondiente. Cuando la comprobación revela que una norma fue reemplazada o retirada, se sustituye por la edición vigente y se deja constancia del reemplazo.
+
+**Procedimiento de verificación de fuentes.** Toda referencia empleada en este trabajo se comprueba individualmente contra la fuente primaria antes de incorporarse: se contrasta título completo, lista completa de autores, año, medio de publicación y paginación, consultando el registro del identificador digital de objeto (DOI) en Crossref o, cuando no existe DOI, el documento mismo. En el caso de las normas técnicas, la comprobación se realiza además contra el catálogo del organismo emisor, que es la única fuente que declara el estado de vigencia; la aplicación de este procedimiento permitió detectar que dos de las normas inicialmente previstas para este trabajo se encontraban reemplazada e inactiva, respectivamente. Este procedimiento se adoptó tras constatar que las herramientas de búsqueda asistida utilizadas en la fase exploratoria produjeron fichas bibliográficas defectuosas —títulos truncados, autores omitidos, paginación inexistente y, en un caso, la combinación de dos trabajos distintos en una sola referencia—, sin que dichos defectos fueran detectables sin acudir a la fuente.
 
 **Fuentes admitidas por la excepción.** Ingresan por el primer supuesto Rosemann y van der Aalst (2007), Gottschalk et al. (2007), Hallerbach et al. (2010) y La Rosa et al. (2017); por el segundo, Subić y Dimitrijević (2015). Sus fichas completas se relacionan en el apartado de Referencias.
 
@@ -282,6 +305,20 @@ Además, el proyecto aporta un valor académico importante al demostrar cómo un
 
 Las fichas de este apartado fueron verificadas individualmente contra la fuente primaria conforme al procedimiento declarado en la Metodología. Se indica con la marca *(excepción)* toda fuente admitida por la excepción temporal del eje de modelos de proceso configurables.
 
+### Modelado y rediseño de procesos
+
+- Milani, F., & Lashkevich, K. (2025). Business process improvement opportunities and redesign options: A systematic literature review. *Business Process Management Journal*. Publicación anticipada en línea. https://doi.org/10.1108/BPMJ-02-2025-0232
+- Miller, R., Whelan, H., Chrubasik, M., Whittaker, D., Duncan, P., & Gregório, J. (2024). A framework for current and new data quality dimensions: An overview. *Data, 9*(12), Artículo 151. https://doi.org/10.3390/data9120151
+- Mukherjee, K. K., Reka, L., Mullahi, R., Jani, K., & Taraj, J. (2021). Public services: A standard process model following a structured process redesign. *Business Process Management Journal, 27*(3), 796–835. https://doi.org/10.1108/BPMJ-03-2020-0107
+- Reeves, J. J., Mekeel, K. L., Waterman, R. S., Rhodes, L. R., Clay, B. J., Clary, B. M., & Longhurst, C. A. (2020). Association of electronic surgical consent forms with entry error rates. *JAMA Surgery, 155*(8), 777. https://doi.org/10.1001/jamasurg.2020.1014
+
+### Trazabilidad, auditoría y documentos verificables
+
+- Andrews, R., & Wynn, M. T. (2026). Event log imperfection patterns for process mining: Towards a systematic approach to cleaning event logs. *Information Systems, 137*, Artículo 102645. https://doi.org/10.1016/j.is.2025.102645
+- González, L., Delgado, A., Canaparo, J., & Gambetta, F. (2022). Evaluation of compliance requirements for collaborative business process with process mining and a model of generic compliance controls. *CLEI Electronic Journal, 25*(2). https://doi.org/10.19153/cleiej.25.2.7
+- Sharif, A., Ginting, D. S., & Dias, A. D. (2021). Securing the integrity of PDF files using RSA digital signature and SHA-3 hash function. En *2021 International Conference on Data Science, Artificial Intelligence, and Business Analytics (DATABIA)* (pp. 154–159). IEEE. https://doi.org/10.1109/DATABIA53375.2021.9650121
+- Vargas, F., & Piedra, N. (2023). Decentralized issuance and verification of university micro-credentials. En *2023 12th International Conference on Software Process Improvement (CIMPS)* (pp. 90–99). IEEE. https://doi.org/10.1109/CIMPS61323.2023.10528844
+
 ### Modelos de proceso configurables y motores de workflow
 
 - Calegari, D., Delgado, A., & Peña, L. (2020). Model-driven support for business process families with the Common Variability Language (CVL). *CLEI Electronic Journal, 23*(1). https://doi.org/10.19153/cleiej.23.1.3
@@ -296,20 +333,16 @@ Las fichas de este apartado fueron verificadas individualmente contra la fuente 
 
 - Almarayeh, T., & Frehat, R. (2026). The role of robotic process automation in improving administrative processes in higher education. *EDPACS*, 1–9. https://doi.org/10.1080/07366981.2026.2635153
 - Sorour, A., Atkins, A. S., Stanier, C. F., & Alharbi, F. D. (2020). Comparative frameworks for monitoring quality assurance in higher education institutions using business intelligence. En *2020 International Conference on Computing and Information Technology (ICCIT-1441)* (pp. 1–5). IEEE. https://doi.org/10.1109/ICCIT-144147971.2020.9213808
-- Tsakalidis, G. (2022). *A framework for systematic evaluation of Business Process Redesign (BPR) initiatives using the notion of model plasticity* [Tesis doctoral, University of Macedonia].
+- Tsakalidis, G. (2022). *A framework for systematic evaluation of Business Process Redesign (BPR) initiatives using the notion of model plasticity* [Tesis doctoral, University of Macedonia, Department of Applied Informatics]. National Archive of PhD Theses. https://doi.org/10.12681/eadd/52832
 
-### Normas y referencias de ingeniería de software
+### Normas de ingeniería de software
 
-- IEEE. (1998). Recommended Practice for Software Requirements Specifications (IEEE 830).
-- ISO/IEC. (2017). Systems and software engineering — Software life cycle processes (ISO/IEC 12207).
-- IEEE. (2009). Software Design Description (IEEE 1016).
-- Sommerville, I. (2016). Software Engineering (10th ed.). Pearson.
-- Weske, M. (2012). Business Process Management: Concepts, Languages, Architectures. Springer.
+- ISO/IEC/IEEE. (2017). *Systems and software engineering — Software life cycle processes* (ISO/IEC/IEEE 12207:2017). IEEE. https://doi.org/10.1109/IEEESTD.2017.8100771
+- ISO/IEC/IEEE. (2018). *Systems and software engineering — Life cycle processes — Requirements engineering* (ISO/IEC/IEEE 29148:2018). IEEE. https://doi.org/10.1109/IEEESTD.2018.8559686
 
 > **Notas de trabajo (no forman parte del documento final).**
-> 1. **Tsakalidis (2022)**: título y filiación confirmados por fuente secundaria independiente, pero el repositorio institucional (`dspace.lib.uom.gr`) rechazó la conexión al intentar abrir el registro. Falta confirmar la URL directa y el departamento antes de dar la ficha por cerrada.
-> 2. **Hallerbach et al.**: el año se consigna como 2010 siguiendo el volumen impreso 22(6-7); el registro de Crossref fecha el trabajo en 2009 por publicación anticipada en línea. Confirmar en el sitio del editor. Existe además un segundo identificador para el mismo artículo (`10.1002/spip.446`) que corresponde a un registro incompleto y no debe usarse.
-> 3. **Sommerville (2016) y Weske (2012)** quedan fuera de la ventana 2020–2026 y no pertenecen al eje amparado por la excepción: bajo el criterio declarado en la Metodología, hoy son inconsistentes. Decidir si se sustituyen por fuentes dentro de ventana o si se amplía el criterio para las obras de referencia general de la disciplina.
+> 1. **Sustento del diseño arquitectónico**: al retirarse IEEE 1016 del marco normativo, la descripción de la arquitectura y el diseño queda sin referente declarado. Los modelos C4 y 4+1 están previstos para ese fin pero todavía no figuran en la Metodología de este documento; deben incorporarse allí antes de redactar la sección de arquitectura.
+> 2. **Especificación de requisitos**: la migración a ISO/IEC/IEEE 29148:2018 implica que la especificación de requisitos se estructure según la cláusula 9.6 de esa norma y no según la plantilla de IEEE 830. El entregable de requisitos aún no está redactado, de modo que el cambio no obliga a rehacer trabajo existente.
 
 ---
 
