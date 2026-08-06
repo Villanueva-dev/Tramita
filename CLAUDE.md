@@ -75,11 +75,14 @@ comando ejecutado y su resultado.
 Al citar literatura o normativa institucional, **incluir la referencia exacta** en cada afirmación — alineado con la regla general #4 del CLAUDE.md global.
 
 <!-- SPECKIT START -->
-Feature activa: `001-auth-login` (autenticación de la Coordinación por sesión + cookie, sin JWT).
-Plan e insumos técnicos: `specs/001-auth-login/plan.md` (+ `research.md`, `data-model.md`,
-`contracts/openapi.yaml`, `quickstart.md`).
+Feature activa: `002-workflow-engine` (motor de workflow configurable + timeline de auditoría,
+SP1+SP6). Plan e insumos técnicos: `specs/002-workflow-engine/plan.md` (+ `research.md`,
+`data-model.md`, `contracts/openapi.yaml`, `quickstart.md`).
+Diseño: configuración en BD, definiciones versionadas (`UNIQUE(code, version)`), **5 tablas**
+(`workflow_parameter`/`guard_key` diferidos a `003` — research D3), timeline solo-INSERT con
+trigger, locking optimista `@Version`. Sin dependencias nuevas.
 Stack: Java 21 · Spring Boot 4.0.7 (Security 7, Data JPA, Validation, WebMVC) · PostgreSQL + Flyway
-(validate) · BCrypt · Lombok (sin MapStruct en auth) · Testcontainers (test).
+(validate) · BCrypt · Lombok · Testcontainers (test).
 Paquete `com.uniremington.api.tramita`, estructura **package-by-layer**: `controller/`,
 `dto/`, `model/`, `repo/`, `security/`, `service/` (contratos) + `service/impl/`, `util/`
 y `shared/` (`config/`, `exception/`, `seed/`). Interfaces con prefijo `I`.
