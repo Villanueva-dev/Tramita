@@ -61,18 +61,18 @@ en el estado inicial de su propia definición (spec, US1).
 
 ### Tests for User Story 1 (RED primero)
 
-- [ ] T013 [P] [US1] Unit RED en `src/test/java/…/tramita/service/impl/RequestServiceImplTest.java`: `register()` crea en el estado inicial de SU definición y escribe la entrada inicial del log (`from_state` NULL, autor, fecha — research D7); tipo de trámite inexistente → `UnprocessableRequestException` (422); con dos versiones de una definición usa la VIGENTE (mayor `version`)
-- [ ] T014 [P] [US1] IT RED en `src/test/java/…/tramita/controller/RequestControllerIT.java`: `POST /api/requests` → 201 + `Location` + body con `currentState` inicial y `availableTransitions`; sin sesión → 401 sin registrar nada (FR-012, escenario US1-4); `definitionCode` inexistente → 422 problem+json
-- [ ] T015 [P] [US1] IT RED en `src/test/java/…/tramita/controller/WorkflowDefinitionControllerIT.java`: `GET /api/workflow-definitions` → 200 con los dos trámites vigentes de la semilla; sin sesión → 401
+- [X] T013 [P] [US1] Unit RED en `src/test/java/…/tramita/service/impl/RequestServiceImplTest.java`: `register()` crea en el estado inicial de SU definición y escribe la entrada inicial del log (`from_state` NULL, autor, fecha — research D7); tipo de trámite inexistente → `UnprocessableRequestException` (422); con dos versiones de una definición usa la VIGENTE (mayor `version`)
+- [X] T014 [P] [US1] IT RED en `src/test/java/…/tramita/controller/RequestControllerIT.java`: `POST /api/requests` → 201 + `Location` + body con `currentState` inicial y `availableTransitions`; sin sesión → 401 sin registrar nada (FR-012, escenario US1-4); `definitionCode` inexistente → 422 problem+json
+- [X] T015 [P] [US1] IT RED en `src/test/java/…/tramita/controller/WorkflowDefinitionControllerIT.java`: `GET /api/workflow-definitions` → 200 con los dos trámites vigentes de la semilla; sin sesión → 401
 
 ### Implementation for User Story 1
 
-- [ ] T016 [P] [US1] DTOs en `…/tramita/dto/`: `CreateRequestBody` (validación Bean Validation: campos obligatorios, longitudes del contrato), `WorkflowDefinitionResponse`, `RequestResponse` (con `State` y `AvailableTransition` anidados según openapi.yaml)
-- [ ] T017 [US1] `IWorkflowDefinitionService` + `WorkflowDefinitionServiceImpl` (vigentes = mayor `version` por `code`; **sin caché** — research D10) en `…/tramita/service/` y `…/tramita/service/impl/`
-- [ ] T018 [US1] `IRequestService.register()` + `RequestServiceImpl` en `…/tramita/service/impl/RequestServiceImpl.java`: crea la solicitud atada a la definición vigente (FR-009), inserta la entrada inicial del log, mapea `RequestResponse` con `availableTransitions` derivadas de la definición
-- [ ] T019 [US1] `WorkflowDefinitionController` (`GET /api/workflow-definitions`) en `…/tramita/controller/WorkflowDefinitionController.java`
-- [ ] T020 [US1] `RequestController` (`POST /api/requests` → 201 + `Location`) en `…/tramita/controller/RequestController.java`
-- [ ] T021 [US1] GREEN: `./mvnw clean verify` — T013–T015 en verde sin tocar los tests
+- [X] T016 [P] [US1] DTOs en `…/tramita/dto/`: `CreateRequestBody` (validación Bean Validation: campos obligatorios, longitudes del contrato), `WorkflowDefinitionResponse`, `RequestResponse` (con `State` y `AvailableTransition` anidados según openapi.yaml)
+- [X] T017 [US1] `IWorkflowDefinitionService` + `WorkflowDefinitionServiceImpl` (vigentes = mayor `version` por `code`; **sin caché** — research D10) en `…/tramita/service/` y `…/tramita/service/impl/`
+- [X] T018 [US1] `IRequestService.register()` + `RequestServiceImpl` en `…/tramita/service/impl/RequestServiceImpl.java`: crea la solicitud atada a la definición vigente (FR-009), inserta la entrada inicial del log, mapea `RequestResponse` con `availableTransitions` derivadas de la definición
+- [X] T019 [US1] `WorkflowDefinitionController` (`GET /api/workflow-definitions`) en `…/tramita/controller/WorkflowDefinitionController.java`
+- [X] T020 [US1] `RequestController` (`POST /api/requests` → 201 + `Location`) en `…/tramita/controller/RequestController.java`
+- [X] T021 [US1] GREEN: `./mvnw clean verify` — T013–T015 en verde sin tocar los tests
 
 **Checkpoint**: US1 funcional e independientemente testeable — se pueden registrar
 solicitudes de ambos trámites.
