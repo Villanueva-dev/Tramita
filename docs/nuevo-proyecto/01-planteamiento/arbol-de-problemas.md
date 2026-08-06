@@ -213,10 +213,10 @@ Las tres variables de la pregunta de investigación se operacionalizan así:
 
 1. **Validar este documento** con el usuario (revisor: tú) y, cuando esté disponible, con el tutor asignado y la coordinación académica.
 2. **Bajar SP1–SP7 al backlog Scrum**: épicas, historias de usuario y criterios de aceptación.
-3. **Documento de requisitos (SRS, IEEE 830)**: requisitos funcionales y no funcionales derivados de SP1–SP7.
+3. **Documento de requisitos (SRS, ISO/IEC/IEEE 29148:2018)**: requisitos funcionales y no funcionales derivados de SP1–SP7, estructurados según la cláusula 9.6 de la norma. Sustituye a IEEE 830-1998, reemplazada según el catálogo del IEEE Standards Association.
 4. **Arquitectura inicial** (vistas C4 + 4+1 + modelo entidad-relación), apuntando a reusar el chasis Spring Boot 4 / Java 21 / PostgreSQL del proyecto Convenia.
 
-**Insumos abiertos a cerrar antes (o durante) la fase IEEE 830:**
+**Insumos abiertos a cerrar antes (o durante) la fase de especificación de requisitos:**
 
 - **Normativa de los dos trámites** (reglamento estudiantil / PEI / políticas) — la coordinación la buscará en la semana siguiente a E3.
 - **Q21–Q35 — RESUELTAS** en `material-coord/parte2-entrevista3.md`: vistas (Q21–Q23 → cockpit interno + aviso de cierre; NO portal del estudiante), volumetría Q24 (30–40 adiciones/sem, ~100% aprobación), calendario Q27–Q28, escalamiento Q30, demos Q31–Q32, piloto estudiantil Q33. Pendientes menores que persisten: volumen novedad (Q25), población activa (Q26), normativa firmas (Q29), hosting (Q34 → profe Diego), ley de datos (Q35 → probable Ley 1581/2012, verificar).

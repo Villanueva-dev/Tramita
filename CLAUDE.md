@@ -40,7 +40,7 @@ Comandos complementarios: `speckit-constitution`, `speckit-clarify`, `speckit-ch
 
 - `.specify/memory/constitution.md` **está ratificada (v1.0.0, 2026-07-02) y enmendada a v2.0.0 (2026-08-02)** vía `/speckit-constitution`: 5 principios (KISS+YAGNI · **arquitectura por capas** · seguridad por defecto · decisiones trazables +Context7 · testing pragmático) + secciones de restricciones tecnológicas, idioma y proceso (Scrum, sprints de 2 semanas). La enmienda MAJOR cambió §II de package-by-feature a package-by-layer, para alinear el proyecto con el material de formación del equipo; el trade-off (el árbol deja de "gritar" el dominio, la correspondencia C4 pasa a los diagramas) está documentado en el propio principio.
 - **Sprint 1 completo**: la feature `001-auth-login` recorrió el ciclo entero (`specify → plan → tasks → implement`). El backend de autenticación está **implementado, testeado y mergeado a `main` (PR #2, 2026-07-15)**; sus artefactos viven en `specs/001-auth-login/` y el arranque/uso está en `README.md`.
-- `arbol-de-problemas.md` sigue siendo la fuente del planteamiento; según su §11, lo que resta es **bajar SP1–SP7 a backlog Scrum** y producir los entregables formales de tesis (requisitos IEEE 830 + arquitectura C4 / 4+1).
+- `arbol-de-problemas.md` sigue siendo la fuente del planteamiento; según su §11, lo que resta es **bajar SP1–SP7 a backlog Scrum** y producir los entregables formales de tesis (requisitos ISO/IEC/IEEE 29148:2018 + arquitectura C4 / 4+1).
 
 ## Reutilización arquitectónica de Convenia
 
@@ -66,8 +66,9 @@ comando ejecutado y su resultado.
 - **Planteamiento**: Marco Lógico — Ortegón, Pacheco y Prieto (2005), *Metodología del Marco Lógico*, CEPAL/ILPES Serie Manuales N.º 42.
 - **Verbos de objetivos**: taxonomía de Bloom revisada — Anderson & Krathwohl (2001), priorizando *aplicar / analizar / crear*.
 - **Gestión**: Scrum, 3 sprints (S1: SP1+SP2+SP6 → S2: SP3+SP4 → S3: SP5+SP7).
-- **Requisitos** (pendiente): IEEE 830.
+- **Requisitos** (pendiente): **ISO/IEC/IEEE 29148:2018**, estructura del SRS según su cláusula 9.6. Sustituye a IEEE 830-1998, que figura como *superseded* en el catálogo del IEEE Standards Association. Se descartó IEEE 1016-2009 (*inactive-reserved*): el diseño se documenta con C4 + 4+1.
 - **Arquitectura** (pendiente): C4 + 4+1.
+- **Ciclo de vida**: ISO/IEC/IEEE 12207:2017 (edición vigente).
 
 Al citar literatura o normativa institucional, **incluir la referencia exacta** en cada afirmación — alineado con la regla general #4 del CLAUDE.md global.
 
