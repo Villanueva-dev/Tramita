@@ -93,15 +93,15 @@ estado; una no definida se bloquea con el estado intacto (spec, US2).
 > estado no final, nota obligatoria, existencia) se testean juntas aquí. FR-014
 > (`requires_note`) se ejercita a nivel de negocio en US5 con la semilla real.
 
-- [ ] T022 [P] [US2] Unit RED en `src/test/java/…/tramita/service/impl/RequestServiceImplTest.java`: transición legal → estado cambia y el log registra autor+fecha (FR-005); transición no definida → `IllegalTransitionException`, estado intacto, **cero** entradas nuevas en el log (FR-004 + edge case de la spec); estado final → `IllegalTransitionException` (US2-4); transición con `requires_note` sin nota → `UnprocessableRequestException` 422 (FR-014); con nota → aplica y la nota queda en el log; solicitud inexistente → `ResourceNotFoundException`
-- [ ] T023 [P] [US2] IT RED en `src/test/java/…/tramita/controller/RequestControllerIT.java`: `POST /api/requests/{id}/transitions` recorre la semilla real de adición (REGISTRADA → EN_FACULTAD → …); transición ilegal → 409 problem+json y el estado no cambia; sin sesión → 401 y **sin** entrada de timeline (FR-012, escenario US2-5); `ObjectOptimisticLockingFailureException` mapeada a 409 por el handler (research D6 — se testea el mapping, no la carrera)
+- [X] T022 [P] [US2] Unit RED en `src/test/java/…/tramita/service/impl/RequestServiceImplTest.java`: transición legal → estado cambia y el log registra autor+fecha (FR-005); transición no definida → `IllegalTransitionException`, estado intacto, **cero** entradas nuevas en el log (FR-004 + edge case de la spec); estado final → `IllegalTransitionException` (US2-4); transición con `requires_note` sin nota → `UnprocessableRequestException` 422 (FR-014); con nota → aplica y la nota queda en el log; solicitud inexistente → `ResourceNotFoundException`
+- [X] T023 [P] [US2] IT RED en `src/test/java/…/tramita/controller/RequestControllerIT.java`: `POST /api/requests/{id}/transitions` recorre la semilla real de adición (REGISTRADA → EN_FACULTAD → …); transición ilegal → 409 problem+json y el estado no cambia; sin sesión → 401 y **sin** entrada de timeline (FR-012, escenario US2-5); `ObjectOptimisticLockingFailureException` mapeada a 409 por el handler (research D6 — se testea el mapping, no la carrera)
 
 ### Implementation for User Story 2
 
-- [ ] T024 [P] [US2] DTO `AdvanceRequestBody` (`targetStateCode` obligatorio, `note` opcional) en `…/tramita/dto/AdvanceRequestBody.java`
-- [ ] T025 [US2] El motor: `IRequestService.advance()` en `…/tramita/service/impl/RequestServiceImpl.java` — (1) carga la solicitud y SU definición (FR-009), (2) busca la transición desde el estado actual en esa definición o falla 409, (3) exige nota si `requires_note` (FR-014), (4) inserta la entrada del log, (5) mueve `current_state_id`. **Prohibido**: mencionar trámites, estados o valores concretos (la verificación es T035)
-- [ ] T026 [US2] `RequestController`: `POST /api/requests/{id}/transitions` → 200 con la solicitud actualizada, en `…/tramita/controller/RequestController.java`
-- [ ] T027 [US2] GREEN: `./mvnw clean verify` — T022–T023 en verde sin tocar los tests
+- [X] T024 [P] [US2] DTO `AdvanceRequestBody` (`targetStateCode` obligatorio, `note` opcional) en `…/tramita/dto/AdvanceRequestBody.java`
+- [X] T025 [US2] El motor: `IRequestService.advance()` en `…/tramita/service/impl/RequestServiceImpl.java` — (1) carga la solicitud y SU definición (FR-009), (2) busca la transición desde el estado actual en esa definición o falla 409, (3) exige nota si `requires_note` (FR-014), (4) inserta la entrada del log, (5) mueve `current_state_id`. **Prohibido**: mencionar trámites, estados o valores concretos (la verificación es T035)
+- [X] T026 [US2] `RequestController`: `POST /api/requests/{id}/transitions` → 200 con la solicitud actualizada, en `…/tramita/controller/RequestController.java`
+- [X] T027 [US2] GREEN: `./mvnw clean verify` — T022–T023 en verde sin tocar los tests
 
 **Checkpoint**: el corazón de SP1 late — registrar y avanzar funcionan sobre configuración.
 

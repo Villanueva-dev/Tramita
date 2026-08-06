@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.uniremington.api.tramita.dto.AdvanceRequestBody;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.model.Request;
@@ -20,6 +21,8 @@ import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
 import com.uniremington.api.tramita.repo.IUserRepo;
 import com.uniremington.api.tramita.repo.IWorkflowDefinitionRepo;
+import com.uniremington.api.tramita.shared.exception.IllegalTransitionException;
+import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
 import java.util.List;
 import java.util.Optional;
@@ -49,9 +52,10 @@ class RequestServiceImplTest {
     private final User actor = new User();
 
     /**
-     * Definición mínima en memoria: INICIAL → SIGUIENTE (responsable EXTERNO) y
-     * SIGUIENTE → FINAL. Códigos genéricos a propósito: el motor no conoce
-     * trámites (US4) y este test tampoco debería.
+     * Definición mínima en memoria: INICIAL → SIGUIENTE → FINAL, más la
+     * devolución SIGUIENTE → INICIAL con nota obligatoria (FR-013/FR-014).
+     * Códigos genéricos a propósito: el motor no conoce trámites (US4) y este
+     * test tampoco debería.
      */
     private final WorkflowState initial =
             WorkflowState.builder().code("INICIAL").name("Inicial").initial(true).build();
@@ -70,7 +74,11 @@ class RequestServiceImplTest {
                             .responsible("EXTERNO").requiresNote(false).build(),
                     WorkflowTransition.builder()
                             .fromState(next).toState(terminal)
-                            .responsible("COORDINACION").requiresNote(false).build()))
+                            .responsible("COORDINACION").requiresNote(false).build(),
+                    // Devolución: retorno con motivo obligatorio (FR-013/FR-014)
+                    WorkflowTransition.builder()
+                            .fromState(next).toState(initial)
+                            .responsible("EXTERNO").requiresNote(true).build()))
             .build();
 
     // --- US1: registrar ------------------------------------------------------------------
@@ -122,7 +130,116 @@ class RequestServiceImplTest {
         verify(logRepo, never()).save(any());
     }
 
+    // --- US2: avanzar (el algoritmo del motor) -------------------------------------------
+
+    @Test
+    @DisplayName("avanzar por una transición definida: el estado cambia y el log registra al autor")
+    void advanceAppliesDefinedTransitionAndLogsActor() {
+        Request request = requestAt(initial);
+
+        RequestResponse response = service.advance(
+                REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL);
+
+        assertThat(response.currentState().code()).isEqualTo("SIGUIENTE");
+        assertThat(request.getCurrentState()).isSameAs(next);
+
+        ArgumentCaptor<RequestTransitionLog> savedLog =
+                ArgumentCaptor.forClass(RequestTransitionLog.class);
+        verify(logRepo).save(savedLog.capture());
+        assertThat(savedLog.getValue().getFromState()).isSameAs(initial);
+        assertThat(savedLog.getValue().getToState()).isSameAs(next);
+        assertThat(savedLog.getValue().getActor()).isSameAs(actor);
+        assertThat(savedLog.getValue().getNote()).isNull();
+        // La fecha (occurred_at) la pone @PrePersist al persistir de verdad: se
+        // verifica en el IT del timeline (US3), no aquí contra un mock.
+    }
+
+    @Test
+    @DisplayName("transición no definida: 409, el estado no cambia y el timeline no crece")
+    void advanceUndefinedTransitionRejectsWithoutSideEffects() {
+        Request request = requestAt(initial);
+
+        // INICIAL → FINAL no existe en la definición (el camino pasa por SIGUIENTE)
+        assertThatExceptionOfType(IllegalTransitionException.class)
+                .isThrownBy(() -> service.advance(
+                        REQUEST_ID, new AdvanceRequestBody("FINAL", null), EMAIL));
+
+        assertThat(request.getCurrentState()).isSameAs(initial);
+        verify(logRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("solicitud en estado final: el trámite está cerrado y no admite más transiciones")
+    void advanceFromFinalStateRejects() {
+        Request request = requestAt(terminal);
+
+        assertThatExceptionOfType(IllegalTransitionException.class)
+                .isThrownBy(() -> service.advance(
+                        REQUEST_ID, new AdvanceRequestBody("INICIAL", null), EMAIL));
+
+        assertThat(request.getCurrentState()).isSameAs(terminal);
+        verify(logRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("devolución sin motivo: 422, sin efectos — el motivo es lo que la hace útil")
+    void advanceReturnTransitionWithoutNoteRejects() {
+        Request request = requestAt(next);
+
+        assertThatExceptionOfType(UnprocessableRequestException.class)
+                .isThrownBy(() -> service.advance(
+                        REQUEST_ID, new AdvanceRequestBody("INICIAL", " "), EMAIL));
+
+        assertThat(request.getCurrentState()).isSameAs(next);
+        verify(logRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("devolución con motivo: aplica y la nota queda en el log (FR-014)")
+    void advanceReturnTransitionWithNoteAppliesAndLogsNote() {
+        requestAt(next);
+
+        RequestResponse response = service.advance(
+                REQUEST_ID,
+                new AdvanceRequestBody("INICIAL", "Falta la firma de la casilla 2"), EMAIL);
+
+        assertThat(response.currentState().code()).isEqualTo("INICIAL");
+
+        ArgumentCaptor<RequestTransitionLog> savedLog =
+                ArgumentCaptor.forClass(RequestTransitionLog.class);
+        verify(logRepo).save(savedLog.capture());
+        assertThat(savedLog.getValue().getNote()).isEqualTo("Falta la firma de la casilla 2");
+    }
+
+    @Test
+    @DisplayName("solicitud inexistente: 404")
+    void advanceUnknownRequestThrowsNotFound() {
+        when(requestRepo.findById(REQUEST_ID)).thenReturn(Optional.empty());
+
+        assertThatExceptionOfType(ResourceNotFoundException.class)
+                .isThrownBy(() -> service.advance(
+                        REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL));
+    }
+
     // --- helpers -------------------------------------------------------------------------
+
+    private static final java.util.UUID REQUEST_ID =
+            java.util.UUID.fromString("00000000-0000-0000-0000-000000000001");
+
+    /** Solicitud del trámite de prueba parada en el estado dado, con stubs de I/O listos. */
+    private Request requestAt(WorkflowState state) {
+        Request request = Request.builder()
+                .definition(definition)
+                .currentState(state)
+                .studentName("Ana María Pérez")
+                .studentDocument("1144099888")
+                .build();
+        when(requestRepo.findById(REQUEST_ID)).thenReturn(Optional.of(request));
+        when(userRepo.findByEmail(EMAIL)).thenReturn(Optional.of(actor));
+        when(requestRepo.save(any(Request.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(logRepo.save(any(RequestTransitionLog.class))).thenAnswer(inv -> inv.getArgument(0));
+        return request;
+    }
 
     private void stubHappyPath() {
         when(definitionRepo.findTopByCodeOrderByVersionDesc("TRAMITE_PRUEBA"))

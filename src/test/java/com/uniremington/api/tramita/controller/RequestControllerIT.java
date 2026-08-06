@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.uniremington.api.tramita.TestcontainersConfiguration;
 import com.uniremington.api.tramita.repo.IRequestRepo;
+import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +46,9 @@ class RequestControllerIT {
 
     @Autowired
     private IRequestRepo requestRepo;
+
+    @Autowired
+    private IRequestTransitionLogRepo logRepo;
 
     // --- US1: registrar ------------------------------------------------------------------
 
@@ -110,7 +114,86 @@ class RequestControllerIT {
                 .andExpect(jsonPath("$.detail").exists());
     }
 
+    // --- US2: avanzar (el motor sobre la semilla real) -----------------------------------
+
+    @Test
+    @DisplayName("adición de créditos recorre su cadena completa hasta FINALIZADA, que no admite más")
+    void adicionWalksItsFullChainToFinalState() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Caminante Feliz", "301");
+
+        for (String state : new String[] {
+                "EN_FACULTAD", "APROBADA_FACULTAD", "EN_REGISTRO_CALI", "EN_REGISTRO_NACIONAL"}) {
+            mockMvc.perform(advanceRequest(id, state, null).session(session))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.currentState.code").value(state));
+        }
+
+        mockMvc.perform(advanceRequest(id, "FINALIZADA", null).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.code").value("FINALIZADA"))
+                .andExpect(jsonPath("$.currentState.isFinal").value(true))
+                // Trámite cerrado: de un estado final no sale nada
+                .andExpect(jsonPath("$.availableTransitions").isEmpty());
+    }
+
+    @Test
+    @DisplayName("transición no definida: 409 problem+json y el estado queda intacto")
+    void undefinedTransitionReturns409AndStateSurvives() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Saltarina Ilegal", "302");
+
+        // REGISTRADA → FINALIZADA no está definida: el camino pasa por la facultad
+        mockMvc.perform(advanceRequest(id, "FINALIZADA", null).session(session))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail").exists());
+
+        // La prueba de que el estado no se corrompió: la transición legal desde
+        // REGISTRADA sigue disponible y funciona
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.code").value("EN_FACULTAD"));
+    }
+
+    @Test
+    @DisplayName("avanzar sin sesión: 401, el estado no cambia y el timeline no crece (FR-012)")
+    void advanceWithoutSessionIsRejectedWithoutSideEffects() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Protegida Total", "303");
+        long logEntriesBefore = logRepo.count();
+
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null))
+                .andExpect(status().isUnauthorized());
+
+        assertThat(logRepo.count()).isEqualTo(logEntriesBefore);
+
+        // El estado sigue siendo REGISTRADA: el avance legal aún es EN_FACULTAD
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+    }
+
     // --- helpers -------------------------------------------------------------------------
+
+    private String registerAndGetId(MockHttpSession session, String definitionCode,
+            String studentName, String studentDocument) throws Exception {
+        String body = mockMvc.perform(
+                        createRequest(definitionCode, studentName, studentDocument).session(session))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return com.jayway.jsonpath.JsonPath.read(body, "$.id");
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder advanceRequest(
+            String id, String targetStateCode, String note) {
+        String body = note == null
+                ? "{\"targetStateCode\":\"%s\"}".formatted(targetStateCode)
+                : "{\"targetStateCode\":\"%s\",\"note\":\"%s\"}".formatted(targetStateCode, note);
+        return post("/api/requests/" + id + "/transitions")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body);
+    }
 
     private MockHttpSession login() throws Exception {
         MockHttpSession session = new MockHttpSession();
