@@ -26,7 +26,7 @@ workflow_definition 1──N workflow_state
 | `code` | `VARCHAR(50)` | NOT NULL — `'ADICION_CREDITOS'`, `'NOVEDAD_NOTAS'` |
 | `version` | `INT` | NOT NULL |
 | `name` | `VARCHAR(120)` | NOT NULL — nombre para mostrar |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT now() |
+| `created_at` | `TIMESTAMP` | NOT NULL DEFAULT now() |
 | | | **`UNIQUE (code, version)`** — la versión es la identidad (research D2) |
 
 La **vigente** para solicitudes nuevas es la de mayor `version` por `code`. Las filas de
@@ -80,7 +80,7 @@ transición hacia un estado anterior con `requires_note = true` en la semilla. *
 | `student_name` | `VARCHAR(120)` | NOT NULL |
 | `student_document` | `VARCHAR(20)` | NOT NULL — cédula, se busca por igualdad |
 | `version` | `BIGINT` | NOT NULL DEFAULT 0 — `@Version`, locking optimista (research D6) |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT now() |
+| `created_at` | `TIMESTAMP` | NOT NULL DEFAULT now() |
 
 Índices: `request(student_document)` (búsqueda exacta) y `request(lower(student_name))`
 (búsqueda por nombre, `ILIKE` — a esta escala no se necesita trigram). Sin `created_by`:
@@ -96,7 +96,7 @@ el autor del registro vive en la primera entrada del timeline (research D7).
 | `to_state_id` | `UUID` | NOT NULL, FK → `workflow_state` |
 | `actor_id` | `UUID` | NOT NULL, FK → `users` (feature 001) |
 | `note` | `TEXT` | NULL — obligatoria solo si la transición la exige (FR-014) |
-| `occurred_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT now() |
+| `occurred_at` | `TIMESTAMP` | NOT NULL DEFAULT now() |
 
 Índice: `request_transition_log(request_id, occurred_at, id)` — el timeline es un solo
 `SELECT` ordenado.

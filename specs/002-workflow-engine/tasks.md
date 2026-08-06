@@ -25,7 +25,7 @@ dar un BUILD SUCCESS falso («Nothing to compile»).
 **Purpose**: línea base verificable antes de tocar nada. La feature no agrega dependencias
 ni configuración nueva (plan.md) — el chasis ya está.
 
-- [ ] T001 Establecer línea base: `docker start tramita-postgres && ./mvnw clean verify` en verde (suite de `001` intacta antes de empezar)
+- [X] T001 Establecer línea base: `docker start tramita-postgres && ./mvnw clean verify` en verde (suite de `001` intacta antes de empezar)
 
 ---
 
@@ -35,17 +35,17 @@ ni configuración nueva (plan.md) — el chasis ya está.
 
 **⚠️ CRITICAL**: ninguna user story arranca antes de cerrar esta fase.
 
-- [ ] T002 Migración `V2.0.0__Create_workflow_tables.sql` en `src/main/resources/db/migration/`: 5 tablas según data-model.md (`workflow_definition` con `UNIQUE(code,version)`, `workflow_state`, `workflow_transition` con `responsible`+`requires_note`, `request` con `version` de locking, `request_transition_log` con PK `BIGSERIAL`), índices de búsqueda (`student_document`, `lower(student_name)`, `(request_id, occurred_at, id)`) y trigger `trg_timeline_immutable` (BEFORE UPDATE OR DELETE → RAISE EXCEPTION)
-- [ ] T003 Migración `V2.1.0__Seed_workflow_definitions.sql`: semilla de adición de créditos v1 (CERRADA — estados y transiciones exactos de data-model.md, devoluciones con `requires_note=true`) y novedad de notas v1 (**PROVISIONAL** — comentario SQL que remita a la reunión con la Coordinación; si cambia antes de correr en ambientes compartidos, se edita esta migración, si no, se carga v2)
-- [ ] T004 [P] Entidad `WorkflowDefinition` (con `@OneToMany` states/transitions LAZY, agregado de solo lectura) en `…/tramita/model/WorkflowDefinition.java`
-- [ ] T005 [P] Entidad `WorkflowState` en `…/tramita/model/WorkflowState.java`
-- [ ] T006 [P] Entidad `WorkflowTransition` en `…/tramita/model/WorkflowTransition.java`
-- [ ] T007 [P] Entidad `Request` con `@Version private long version;` en `…/tramita/model/Request.java`
-- [ ] T008 [P] Entidad `RequestTransitionLog` (sin setters de negocio; se construye completa y se persiste una vez) en `…/tramita/model/RequestTransitionLog.java`
-- [ ] T009 [P] Repos `IWorkflowDefinitionRepo`, `IRequestRepo`, `IRequestTransitionLogRepo` en `…/tramita/repo/`
-- [ ] T010 [P] Excepciones `ResourceNotFoundException` (404) e `IllegalTransitionException` (409) en `…/tramita/shared/exception/`
-- [ ] T011 Ampliar `GlobalExceptionHandler` en `…/tramita/shared/exception/GlobalExceptionHandler.java`: 404, 409 (`IllegalTransitionException` y `ObjectOptimisticLockingFailureException` — research D6) en `application/problem+json`
-- [ ] T012 Checkpoint foundational: `./mvnw clean verify` — Flyway aplica V2.0.0/V2.1.0 en Testcontainers e Hibernate (`ddl-auto: validate`) valida el schema contra las entidades
+- [X] T002 Migración `V2.0.0__Create_workflow_tables.sql` en `src/main/resources/db/migration/`: 5 tablas según data-model.md (`workflow_definition` con `UNIQUE(code,version)`, `workflow_state`, `workflow_transition` con `responsible`+`requires_note`, `request` con `version` de locking, `request_transition_log` con PK `BIGSERIAL`), índices de búsqueda (`student_document`, `lower(student_name)`, `(request_id, occurred_at, id)`) y trigger `trg_timeline_immutable` (BEFORE UPDATE OR DELETE → RAISE EXCEPTION)
+- [X] T003 Migración `V2.1.0__Seed_workflow_definitions.sql`: semilla de adición de créditos v1 (CERRADA — estados y transiciones exactos de data-model.md, devoluciones con `requires_note=true`) y novedad de notas v1 (**PROVISIONAL** — comentario SQL que remita a la reunión con la Coordinación; si cambia antes de correr en ambientes compartidos, se edita esta migración, si no, se carga v2)
+- [X] T004 [P] Entidad `WorkflowDefinition` (con `@OneToMany` states/transitions LAZY, agregado de solo lectura) en `…/tramita/model/WorkflowDefinition.java`
+- [X] T005 [P] Entidad `WorkflowState` en `…/tramita/model/WorkflowState.java`
+- [X] T006 [P] Entidad `WorkflowTransition` en `…/tramita/model/WorkflowTransition.java`
+- [X] T007 [P] Entidad `Request` con `@Version private long version;` en `…/tramita/model/Request.java`
+- [X] T008 [P] Entidad `RequestTransitionLog` (sin setters de negocio; se construye completa y se persiste una vez) en `…/tramita/model/RequestTransitionLog.java`
+- [X] T009 [P] Repos `IWorkflowDefinitionRepo`, `IRequestRepo`, `IRequestTransitionLogRepo` en `…/tramita/repo/`
+- [X] T010 [P] Excepciones `ResourceNotFoundException` (404) e `IllegalTransitionException` (409) en `…/tramita/shared/exception/`
+- [X] T011 Ampliar `GlobalExceptionHandler` en `…/tramita/shared/exception/GlobalExceptionHandler.java`: 404, 409 (`IllegalTransitionException` y `ObjectOptimisticLockingFailureException` — research D6) en `application/problem+json`
+- [X] T012 Checkpoint foundational: `./mvnw clean verify` — Flyway aplica V2.0.0/V2.1.0 en Testcontainers e Hibernate (`ddl-auto: validate`) valida el schema contra las entidades
 
 **Checkpoint**: base de datos y modelo listos — las user stories pueden arrancar.
 
