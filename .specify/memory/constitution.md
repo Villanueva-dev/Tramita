@@ -1,9 +1,23 @@
 <!--
 Sync Impact Report — Constitución de Trámita
 ============================================
-Cambio de versión: 1.0.0 → 2.0.0
-Ratificada: 2026-07-02 | Última enmienda: 2026-08-02
-Bump: MAJOR (cambio incompatible de un principio rector — §II)
+Cambio de versión: 2.0.0 → 2.1.0
+Ratificada: 2026-07-02 | Última enmienda: 2026-08-06
+Bump: MINOR (guía materialmente ampliada — §IV)
+
+Enmienda 2026-08-06
+-------------------
+§IV sustituye la referencia normativa **IEEE 830** por **ISO/IEC/IEEE 29148:2018**, y
+precisa que el documento de requisitos se estructura según su cláusula 9.6 mientras la
+arquitectura se documenta con C4 y 4+1.
+
+Motivo: IEEE 830-1998 figura como *superseded* en el catálogo del IEEE Standards
+Association; 29148:2018 es la edición vigente de la norma que la reemplaza. Se descartó
+además IEEE 1016-2009, cuyo estado en ese catálogo es *inactive-reserved*.
+
+Es MINOR y no PATCH porque cambia la norma concreta que rige la estructura del entregable
+de requisitos, no solo su redacción. No se rehace trabajo existente: el SRS todavía no
+está redactado.
 
 Enmienda 2026-08-02
 -------------------
@@ -24,7 +38,7 @@ Principios vigentes:
 - I.   Simplicidad primero (KISS + YAGNI)
 - II.  Arquitectura por capas            ← enmendado en 2.0.0
 - III. Seguridad por defecto
-- IV.  Decisiones defendibles y trazables
+- IV.  Decisiones defendibles y trazables ← enmendado en 2.1.0
 - V.   Testing del comportamiento sensible
 
 Secciones: Restricciones tecnológicas · Idioma y convenciones · Proceso y gestión
@@ -90,12 +104,19 @@ OWASP e IETF, en lugar de tecnología de moda que resuelve problemas que este si
 
 Toda decisión arquitectónica DEBE poder justificarse con un trade-off explícito
 ("elegí X frente a Y, sabiendo que el costo es Z"). La especificación precede al código.
-Se privilegia la trazabilidad requisito → código (IEEE 830, C4 / 4+1). Las afirmaciones
-técnicas y normativas que sustentan decisiones DEBEN verificarse contra documentación
-oficial vigente (vía Context7) y citarse con su URL en la documentación del proyecto.
+Se privilegia la trazabilidad requisito → código: el documento de requisitos se estructura
+según **ISO/IEC/IEEE 29148:2018** (cláusula 9.6) y la arquitectura se documenta con **C4 y
+4+1**. Las afirmaciones técnicas y normativas que sustentan decisiones DEBEN verificarse
+contra documentación oficial vigente (vía Context7) y citarse con su URL en la documentación
+del proyecto.
 
 **Rationale**: es un trabajo de grado que se defiende ante un jurado. Una decisión sin
 trade-off explícito ni fuente verificable no debería estar en el código ni en el documento.
+
+**Nota normativa**: la vigencia de una norma la fija el catálogo de su organismo emisor, no
+su antigüedad. IEEE 830-1998 figura allí como *superseded* y fue reemplazada por la familia
+29148, cuya edición vigente es la de 2018; IEEE 1016-2009 figura como *inactive-reserved*,
+por lo que el diseño se documenta con C4 y 4+1 en su lugar.
 
 ### V. Testing del comportamiento sensible
 
@@ -138,4 +159,4 @@ especificación y plan verifica su alineación con estos principios; toda comple
 introducida debe justificarse explícitamente. La guía operativa del día a día vive en
 `CLAUDE.md`.
 
-**Versión**: 2.0.0 | **Ratificada**: 2026-07-02 | **Última enmienda**: 2026-08-02
+**Versión**: 2.1.0 | **Ratificada**: 2026-07-02 | **Última enmienda**: 2026-08-06

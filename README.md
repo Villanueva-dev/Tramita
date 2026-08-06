@@ -31,7 +31,7 @@ créditos y novedad de notas) se configuran por dato, no por código. El chasis 
 
 ## Arquitectura
 
-Organización **package-by-layer** (constitución §II, v2.0.0). Base:
+Organización **package-by-layer** (constitución §II, vigente desde v2.0.0). Base:
 `com.uniremington.api.tramita`.
 
 ```
