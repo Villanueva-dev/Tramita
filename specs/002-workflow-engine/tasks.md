@@ -140,9 +140,9 @@ directa (spec US3 + SC-002).
 **Independent Test**: operar los dos trámites con sus definiciones y un trámite DEMO cargado
 solo con SQL, sin cambios en el sistema (spec, US4).
 
-- [ ] T034 [US4] IT en `src/test/java/…/tramita/controller/WorkflowGenericityIT.java`: recorrido completo de novedad de notas con la semilla (REGISTRADA → EN_PREPARACION → … → FINALIZADA); devolución de novedad retorna a EN_PREPARACION; el cierre por rechazo NO existe en novedad → 409 (US4-3, FR-015) y SÍ en adición → RECHAZADA
-- [ ] T035 [US4] IT SC-005 en `src/test/java/…/tramita/controller/WorkflowGenericityIT.java`: insertar por `JdbcTemplate` una definición `DEMO` v1 en runtime (sin migración, sin restart) y registrar + avanzar + cerrar una solicitud DEMO por la API — el motor la orquesta sin ningún cambio de código (US4-2)
-- [ ] T036 [US4] Verificación de genericidad: `rg -n 'ADICION|NOVEDAD|DEVUELTA|RECHAZADA|EN_FACULTAD' src/main/java/` → **cero** ocurrencias (los literales solo viven en `V2.1.0` y en los tests); registrar comando y resultado en la línea `Verificado:` del commit
+- [X] T034 [US4] IT en `src/test/java/…/tramita/controller/WorkflowGenericityIT.java`: recorrido completo de novedad de notas con la semilla (REGISTRADA → EN_PREPARACION → … → FINALIZADA); devolución de novedad retorna a EN_PREPARACION; el cierre por rechazo NO existe en novedad → 409 (US4-3, FR-015) y SÍ en adición → RECHAZADA
+- [X] T035 [US4] IT SC-005 en `src/test/java/…/tramita/controller/WorkflowGenericityIT.java`: insertar por `JdbcTemplate` una definición `DEMO` v1 en runtime (sin migración, sin restart) y registrar + avanzar + cerrar una solicitud DEMO por la API — el motor la orquesta sin ningún cambio de código (US4-2)
+- [X] T036 [US4] Verificación de genericidad: `rg -n 'ADICION|NOVEDAD|DEVUELTA|RECHAZADA|EN_FACULTAD' src/main/java/` → **cero** ocurrencias (los literales solo viven en `V2.1.0` y en los tests); registrar comando y resultado en la línea `Verificado:` del commit
 
 **Checkpoint**: la tesis del motor genérico queda demostrada y automatizada.
 

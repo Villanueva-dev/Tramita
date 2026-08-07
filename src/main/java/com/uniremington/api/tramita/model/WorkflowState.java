@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
  * Estado de una definición de trámite (data-model.md). El code es único por
  * definición — el motor compara estados por code, no por id: es estable entre
  * la BD y las definiciones construidas en memoria por los tests. Un estado
- * final cierra el trámite sea satisfactorio (FINALIZADA) o negativo (RECHAZADA):
+ * final cierra el trámite, sea el cierre satisfactorio o negativo (rechazo):
  * FR-015 emerge de que la definición tenga o no ese estado, sin lógica especial.
  */
 @Entity
@@ -39,7 +39,7 @@ public class WorkflowState {
     @JoinColumn(name = "definition_id")
     private WorkflowDefinition definition;
 
-    /** Único por definición ('REGISTRADA', 'EN_FACULTAD', …). */
+    /** Único por definición; los códigos concretos de cada trámite viven en la semilla. */
     @Column(nullable = false)
     private String code;
 

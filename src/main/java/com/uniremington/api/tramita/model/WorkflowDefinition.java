@@ -41,7 +41,7 @@ public class WorkflowDefinition {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    /** Identificador estable del trámite entre versiones ('ADICION_CREDITOS'). */
+    /** Identificador estable del trámite entre versiones (los códigos concretos viven en la semilla). */
     @Column(nullable = false)
     private String code;
 
