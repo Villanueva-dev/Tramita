@@ -34,7 +34,7 @@ specify → review-spec (gate) → plan → review-plan (gate) → tasks → imp
 
 Comandos complementarios: `speckit-constitution`, `speckit-clarify`, `speckit-checklist`, `speckit-analyze`, `speckit-taskstoissues`.
 
-**Auto-commit de git** está habilitado en `.specify/extensions.yml` para casi todas las transiciones (`after_specify`, `after_plan`, `after_tasks`, `after_implement`, etc.). Los commits saldrán solos al final de cada fase salvo que se rechace el prompt — útil saberlo si esperabas controlar manualmente la historia git.
+**El auto-commit de git NO corre: los commits de fase son manuales.** Hay dos archivos de configuración y mandan en distinto nivel. `.specify/extensions.yml` registra los hooks (`after_specify`, `after_plan`, `after_tasks`, `after_implement`, etc.) y habilita su ejecución, pero **`.specify/extensions/git/git-config.yml` los apaga uno por uno**: `auto_commit.default: false` y cada evento con `enabled: false`, así que `auto-commit.sh` sale en silencio sin commitear. El único hook git que sí ejecuta es `before_specify`, que crea la rama de la feature. Cada fase se commitea a mano con la convención de `.gitmessage`. *(Verificado el 2026-08-06: los 12 commits de la rama `002-workflow-engine` son todos manuales.)*
 
 ### Estado actual del Spec Kit
 
