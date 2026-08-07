@@ -202,6 +202,19 @@ Fuente: [Flyway — Versioned Migrations](https://documentation.red-gate.com/fly
   type `application/problem+json` y el modelo — el código no cambia; conviene un PATCH
   futuro de la constitución que actualice la cita
   ([RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)). No bloquea esta feature.
+- **Deuda aceptada tras el code review (2026-08-06), con su porqué:**
+  - **N+1 en `search()` y `getTimeline()`**: cada fila carga sus proxies LAZY, así que
+    una búsqueda de N filas cuesta ~2N+1 consultas. **No se optimiza**: la escala real
+    son decenas de solicitudes por semestre (árbol de problemas §9) y `@EntityGraph`
+    agregaría acoplamiento a un problema que no existe (Principio I). El riesgo que lo
+    agravaba —un resultado sin cota— se cerró al escapar los comodines de LIKE.
+  - **FK no compuesta entre `workflow_transition` y `workflow_state`**: nada impide que
+    una transición de la v2 referencie un estado de la v1. El motor compara por `code`,
+    así que seguiría "funcionando" mientras reporta el `name` de la otra versión — una
+    corrupción silenciosa. **No se corrige hoy**: exigiría un `UNIQUE (id, definition_id)`
+    redundante en `workflow_state` más FK compuestas en dos tablas, y la única escritura
+    del alcance es la semilla. Se revisa cuando exista administración de definiciones
+    por UI, que es el momento en que un humano puede equivocarse a mano.
 - **Errores nuevos**: transición no definida / estado final / conflicto optimista → **409**
   (`IllegalTransitionException`, `ObjectOptimisticLockingFailureException`); trámite
   inexistente al registrar y devolución sin motivo → **422** (se reutiliza

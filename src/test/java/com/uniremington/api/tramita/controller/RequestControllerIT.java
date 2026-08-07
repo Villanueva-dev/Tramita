@@ -232,6 +232,54 @@ class RequestControllerIT {
     }
 
     @Test
+    @DisplayName("buscar con comodines de LIKE no vuelca el padrón: '%' y '_' se tratan literales")
+    void searchDoesNotLeakEveryRequestThroughLikeWildcards() throws Exception {
+        MockHttpSession session = login();
+        // Garantiza que haya al menos una solicitud que un volcado expondría
+        registerAndGetId(session, "ADICION_CREDITOS", "Privacidad Protegida", "405405");
+
+        // '%%' hacía match con TODAS las filas: nombre y cédula de cada
+        // estudiante. Se usan dos porque el @Size(min = 2) del controller ya
+        // rechaza un comodín suelto — mitigaba el caso trivial, no el real
+        mockMvc.perform(get("/api/requests").param("search", "%%").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        // '_' es el comodín de un carácter: mismo riesgo en su versión acotada
+        mockMvc.perform(get("/api/requests").param("search", "__").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        // El escapado no rompe la búsqueda legítima
+        mockMvc.perform(get("/api/requests").param("search", "Privacidad").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].studentDocument").value("405405"));
+    }
+
+    @Test
+    @DisplayName("nota que excede el tope: 400 y nada se persiste en el timeline inmutable")
+    void oversizedNoteIsRejectedBeforeReachingTheImmutableLog() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Nota Enorme", "406406");
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+        long logEntriesBefore = logRepo.count();
+
+        // El log es append-only por trigger: lo que entra acá no se puede borrar
+        String hugeNote = "x".repeat(2001);
+        mockMvc.perform(advanceRequest(id, "DEVUELTA", hugeNote).session(session))
+                .andExpect(status().isBadRequest());
+
+        assertThat(logRepo.count()).isEqualTo(logEntriesBefore);
+
+        // El tope no estorba a una observación real
+        mockMvc.perform(advanceRequest(id, "DEVUELTA", "Motivo de tamaño razonable")
+                        .session(session))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("detalle por id con transiciones disponibles; id desconocido: 404")
     void getByIdReturnsDetailAndUnknownIdReturns404() throws Exception {
         MockHttpSession session = login();

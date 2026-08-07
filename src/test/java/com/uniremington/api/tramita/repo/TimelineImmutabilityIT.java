@@ -45,6 +45,44 @@ class TimelineImmutabilityIT {
     private JdbcTemplate jdbcTemplate;
 
     @Test
+    @DisplayName("el esquema impide dos estados iniciales por definición y las auto-transiciones")
+    void schemaRejectsAmbiguousInitialStateAndSelfTransition() {
+        // Ambas invariantes eran ciertas por convención de la semilla. Como
+        // SC-005 declara que cargar un trámite por SQL es el camino soportado,
+        // el esquema tiene que hacerlas cumplir (V2.2.0).
+        jdbcTemplate.update("""
+                INSERT INTO workflow_definition (id, code, version, name, created_at)
+                VALUES (gen_random_uuid(), 'CONSTRAINTS_DEMO', 1, 'Demo de constraints', now())
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO workflow_state (id, definition_id, code, name, is_initial, is_final)
+                SELECT gen_random_uuid(), d.id, 'UNO', 'Uno', TRUE, FALSE
+                FROM workflow_definition d WHERE d.code = 'CONSTRAINTS_DEMO'
+                """);
+
+        // Un segundo inicial haría que el estado de nacimiento lo decidiera el
+        // orden de filas de Postgres — no determinista entre llamadas
+        assertThatExceptionOfType(DataAccessException.class)
+                .isThrownBy(() -> jdbcTemplate.update("""
+                        INSERT INTO workflow_state (id, definition_id, code, name, is_initial, is_final)
+                        SELECT gen_random_uuid(), d.id, 'DOS', 'Dos', TRUE, FALSE
+                        FROM workflow_definition d WHERE d.code = 'CONSTRAINTS_DEMO'
+                        """));
+
+        // Una transición hacia el mismo estado no cambia ningún campo: sin
+        // UPDATE no hay chequeo de @Version y el locking optimista se evapora
+        assertThatExceptionOfType(DataAccessException.class)
+                .isThrownBy(() -> jdbcTemplate.update("""
+                        INSERT INTO workflow_transition
+                            (id, definition_id, from_state_id, to_state_id, responsible, requires_note)
+                        SELECT gen_random_uuid(), d.id, s.id, s.id, 'COORDINACION', FALSE
+                        FROM workflow_definition d
+                        JOIN workflow_state s ON s.definition_id = d.id AND s.code = 'UNO'
+                        WHERE d.code = 'CONSTRAINTS_DEMO'
+                        """));
+    }
+
+    @Test
     @DisplayName("UPDATE y DELETE directos sobre el log: el trigger los rechaza (SC-002)")
     void directUpdateAndDeleteOnTimelineAreRejectedByTrigger() {
         // Una entrada real: el registro escribe el nacimiento en el log

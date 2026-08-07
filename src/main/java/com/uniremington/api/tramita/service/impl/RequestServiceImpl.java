@@ -53,13 +53,22 @@ public class RequestServiceImpl implements IRequestService {
                         "El tipo de trámite '%s' no existe en la configuración"
                                 .formatted(body.definitionCode())));
 
-        WorkflowState initial = definition.getStates().stream()
+        // Configuración rota = error del sistema (500), no del usuario. El
+        // esquema garantiza como máximo un inicial por definición (índice
+        // parcial de V2.2.0); acá se cubre el caso de CERO, que ningún
+        // constraint puede exigir sin bloquear la carga incremental de una
+        // definición. El mensaje nombra la definición: quien cargó el trámite
+        // por SQL necesita saber cuál quedó a medias.
+        List<WorkflowState> initialStates = definition.getStates().stream()
                 .filter(WorkflowState::isInitial)
-                .findFirst()
-                // Configuración rota = error del sistema (500), no del usuario
-                .orElseThrow(() -> new IllegalStateException(
-                        "La definición %s v%d no declara estado inicial"
-                                .formatted(definition.getCode(), definition.getVersion())));
+                .toList();
+        if (initialStates.size() != 1) {
+            throw new IllegalStateException(
+                    "La definición %s v%d declara %d estados iniciales; debe declarar exactamente 1"
+                            .formatted(definition.getCode(), definition.getVersion(),
+                                    initialStates.size()));
+        }
+        WorkflowState initial = initialStates.getFirst();
 
         Request request = requestRepo.save(Request.builder()
                 .definition(definition)
@@ -137,7 +146,9 @@ public class RequestServiceImpl implements IRequestService {
     @Override
     @Transactional(readOnly = true)
     public List<RequestSummaryResponse> search(String query) {
-        return requestRepo.search(query).stream().map(this::toSummary).toList();
+        return requestRepo.search(query, escapeLikeWildcards(query)).stream()
+                .map(this::toSummary)
+                .toList();
     }
 
     /**
@@ -156,6 +167,15 @@ public class RequestServiceImpl implements IRequestService {
     }
 
     // --- helpers -------------------------------------------------------------------------
+
+    /**
+     * Neutraliza los comodines de LIKE para que el fragmento se busque literal.
+     * El backslash va primero: escaparlo después duplicaría los que la propia
+     * función acaba de introducir.
+     */
+    private String escapeLikeWildcards(String raw) {
+        return raw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
 
     private Request loadRequest(UUID requestId) {
         return requestRepo.findById(requestId)
