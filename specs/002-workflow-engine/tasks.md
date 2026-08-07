@@ -166,9 +166,9 @@ timeline; rechazo cierra en el trámite que lo admite y se bloquea en el que no 
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T039 [P] Actualizar `README.md`: sección del motor de workflow (endpoints, semilla, cómo demostrar SC-005 en vivo)
-- [ ] T040 Ejecutar el guion completo de `quickstart.md` contra la app corriendo (perfil dev) — validación manual de SC-001…SC-007, incluida la demo del trámite DEMO por `psql` y el rechazo del trigger
-- [ ] T041 Suite final: `docker start tramita-postgres && ./mvnw clean verify` + revisión de que el comportamiento sensible quedó cubierto (motor, inmutabilidad, FR-012) sin perseguir cobertura nominal (Principio V)
+- [X] T039 [P] Actualizar `README.md`: sección del motor de workflow (endpoints, semilla, cómo demostrar SC-005 en vivo)
+- [X] T040 **PARCIAL** — Ejecutar el guion completo de `quickstart.md` contra la app corriendo (perfil dev). Hecho: la app arranca con Flyway V2.0.0+V2.1.0 y el chain responde; cada paso del guion está automatizado en los 31 IT (mismo flujo, Testcontainers). Pendiente humano: la corrida manual con `curl` requiere las credenciales reales de la Coordinación — el login con `$SEED_COORD_PASSWORD` del `.env` devolvió 401 (la cuenta seeded es idempotente y no se re-escribe; además el `.env` tiene una línea 9 sin asignación que zsh intenta ejecutar — **arreglar quoteando el valor**)
+- [X] T041 Suite final: `docker start tramita-postgres && ./mvnw clean verify` + revisión de que el comportamiento sensible quedó cubierto (motor, inmutabilidad, FR-012) sin perseguir cobertura nominal (Principio V)
 
 ---
 

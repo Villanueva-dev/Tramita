@@ -3,14 +3,17 @@
 Backend del MVP de **motor de workflow configurable** para trámites académicos de la
 Universidad Remington (Sede Cali). Trabajo de grado — Ingeniería de Sistemas.
 
-> **Estado**: Sprint 1 — **autenticación de la Coordinación** (`001-auth-login`) cerrado y
-> mergeado a `main`. Los trámites (adición de créditos, novedad de notas) son **Fase B** y
-> todavía no existen en código.
+> **Estado**: Sprint 1 — **autenticación** (`001-auth-login`) cerrado y mergeado a `main`.
+> Sprint 2 — **motor de workflow configurable + timeline de auditoría** (`002-workflow-engine`,
+> SP1+SP6) implementado: registrar, avanzar, devolver, rechazar y auditar solicitudes de los
+> dos trámites sobre un único motor sin código a medida.
 
-El dominio final es un motor genérico donde dos trámites de estructura idéntica (adición de
-créditos y novedad de notas) se configuran por dato, no por código. El chasis técnico
-(Spring Boot 4 / Java 21 / PostgreSQL / Flyway) reutiliza el patrón del proyecto hermano
-`convenia/` — se copia el *plumbing* por capas, no las entidades.
+El dominio es un motor genérico donde dos trámites de profundidad distinta (adición de
+créditos y novedad de notas) se configuran **por dato, no por código**: sus estados,
+transiciones y responsables son filas versionadas en BD, y agregar un trámite es un
+`INSERT` — sin recompilar ni desplegar. El chasis técnico (Spring Boot 4 / Java 21 /
+PostgreSQL / Flyway) reutiliza el patrón del proyecto hermano `convenia/` — se copia el
+*plumbing* por capas, no las entidades.
 
 ---
 
@@ -36,16 +39,24 @@ Organización **package-by-layer** (constitución §II, vigente desde v2.0.0). B
 
 ```
 tramita/
-├── controller/   AuthController        # GET /me, POST /password
+├── controller/   AuthController                # GET /me, POST /password
+│                 WorkflowDefinitionController  # catálogo de trámites vigentes
+│                 RequestController             # registrar / avanzar / localizar / timeline
 ├── dto/          LoginRequest, ChangePasswordRequest, CurrentUserResponse
+│                 CreateRequestBody, AdvanceRequestBody, RequestResponse,
+│                 RequestSummaryResponse, TimelineEntryResponse, …
 ├── model/        User
-├── repo/         IUserRepo
+│                 WorkflowDefinition / WorkflowState / WorkflowTransition  # config versionada
+│                 Request (@Version) / RequestTransitionLog (solo INSERT)
+├── repo/         IUserRepo, IWorkflowDefinitionRepo, IRequestRepo, IRequestTransitionLogRepo
 ├── security/     AppUserDetailsService # carga el usuario para Spring Security
 │                 JsonAuthenticationConverter / AuthSuccessHandler / AuthFailureHandler
 │                 LoginThrottlingFilter # 429 anti-fuerza-bruta
-├── service/      IAuthService          # contratos
-│   └── impl/     AuthServiceImpl       # cambio de contraseña
-│                 LoginAttemptService / PasswordPolicy
+├── service/      IAuthService, IWorkflowDefinitionService, IRequestService   # contratos
+│   └── impl/     AuthServiceImpl / LoginAttemptService / PasswordPolicy
+│                 RequestServiceImpl            # EL MOTOR: advance() valida contra la
+│                                               #   definición — no conoce ningún trámite
+│                 WorkflowDefinitionServiceImpl
 ├── util/         EmailNormalizer
 └── shared/
     ├── config/     SecurityConfig, CsrfCookieFilter, CorsProperties
@@ -70,15 +81,28 @@ Todas las decisiones de diseño (D1–D10) están documentadas y trazadas en
 
 ## Modelo de datos
 
-Una sola tabla, creada por Flyway (`V1.0.0__Create_users_table.sql`):
+Seis tablas, todas creadas por Flyway.
 
-- `users(id UUID PK, email, password_hash, active, created_at, updated_at)`.
-- **PK UUID generada por la app** (`GenerationType.UUID`), no por la BD.
-- Índice único **funcional** `LOWER(email)`: unicidad case-insensitive real.
-- **Sin seed en migración**: la cuenta de la Coordinación la provisiona `CoordinationUserSeeder`
-  al arranque desde variables de entorno — nunca se versionan credenciales en git.
+**Auth** (`V1.0.0`): `users(id UUID PK, email, password_hash, active, …)` — índice único
+funcional `LOWER(email)`; la cuenta la provisiona `CoordinationUserSeeder` por env (nunca
+credenciales en git). Detalle: [`specs/001-auth-login/data-model.md`](specs/001-auth-login/data-model.md).
 
-Detalle: [`specs/001-auth-login/data-model.md`](specs/001-auth-login/data-model.md).
+**Motor de workflow** (`V2.0.0` + semilla `V2.1.0`):
+
+- `workflow_definition(code, version, …)` con `UNIQUE(code, version)` — **la versión es
+  parte de la identidad**: editar un trámite es insertar la versión siguiente, y cada
+  solicitud se rige por la definición con la que nació (FR-009).
+- `workflow_state` y `workflow_transition` — estados, transiciones, responsable de cada
+  paso y si exige observación (`requires_note`): la "devolución" es un dato de la
+  configuración, no un concepto del motor.
+- `request` — nombre + cédula del estudiante (datos minimizados, Ley 1581) y
+  `version` de **locking optimista**: ante dos avances simultáneos solo prospera el que
+  vio el estado vigente.
+- `request_transition_log` — el **timeline inmutable** (SP6): solo recibe INSERT y un
+  **trigger de BD** rechaza UPDATE/DELETE incluso con acceso directo por SQL.
+
+Detalle y semillas: [`specs/002-workflow-engine/data-model.md`](specs/002-workflow-engine/data-model.md).
+La semilla de novedad de notas es **provisional** hasta validar la cadena con la Coordinación.
 
 ---
 
@@ -114,6 +138,17 @@ y [`contracts/openapi.yaml`](specs/001-auth-login/contracts/openapi.yaml).
 | `GET`  | `/api/auth/me` | ✅ | — | `200` `{ email, active }` |
 | `POST` | `/api/auth/password` | ✅ | ✅ | `204` (rota el id de sesión) |
 | `POST` | `/api/auth/logout` | ✅ | ✅ | `204` (borra ambas cookies) |
+| `GET`  | `/api/workflow-definitions` | ✅ | — | `200` — trámites vigentes (insumo del formulario) |
+| `POST` | `/api/requests` | ✅ | ✅ | `201` + `Location` — nace en el estado inicial de su trámite |
+| `GET`  | `/api/requests?search=` | ✅ | — | `200` — localiza por cédula o fragmento del nombre |
+| `GET`  | `/api/requests/{id}` | ✅ | — | `200` — detalle + transiciones disponibles |
+| `POST` | `/api/requests/{id}/transitions` | ✅ | ✅ | `200` — avanza o devuelve; `409` si no está definida |
+| `GET`  | `/api/requests/{id}/timeline` | ✅ | — | `200` — historia completa en orden cronológico |
+
+Contrato del motor: [`specs/002-workflow-engine/contracts/openapi.yaml`](specs/002-workflow-engine/contracts/openapi.yaml).
+Recorrido completo con `curl` — incluida la **demo SC-005** (cargar un trámite nuevo por SQL
+con la app corriendo y operarlo sin redeploy):
+[`specs/002-workflow-engine/quickstart.md`](specs/002-workflow-engine/quickstart.md).
 
 ---
 
@@ -194,9 +229,12 @@ Flujo de humo con `curl` (login → `/me` → password → logout):
 
 | Documento | Contenido |
 |-----------|-----------|
-| [`specs/001-auth-login/spec.md`](specs/001-auth-login/spec.md) | Requisitos funcionales (FR) y criterios de aceptación |
-| [`specs/001-auth-login/plan.md`](specs/001-auth-login/plan.md) | Plan técnico, stack y estructura |
-| [`specs/001-auth-login/research.md`](specs/001-auth-login/research.md) | Decisiones de diseño D1–D10 con justificación |
+| [`specs/002-workflow-engine/spec.md`](specs/002-workflow-engine/spec.md) | Requisitos del motor (FR-001…FR-015) y criterios medibles (SC) |
+| [`specs/002-workflow-engine/research.md`](specs/002-workflow-engine/research.md) | Decisiones de diseño D1–D11 del motor con fuentes |
+| [`specs/002-workflow-engine/data-model.md`](specs/002-workflow-engine/data-model.md) | Las 5 tablas, el algoritmo `advance()` y las semillas |
+| [`specs/002-workflow-engine/quickstart.md`](specs/002-workflow-engine/quickstart.md) | Recorrido `curl` + demo SC-005 en vivo |
+| [`specs/001-auth-login/spec.md`](specs/001-auth-login/spec.md) | Requisitos de autenticación y criterios de aceptación |
+| [`specs/001-auth-login/research.md`](specs/001-auth-login/research.md) | Decisiones de diseño D1–D10 de auth |
 | [`specs/001-auth-login/integracion-frontend.md`](specs/001-auth-login/integracion-frontend.md) | Guía de integración para el SPA (Juan) |
 | [`docs/nuevo-proyecto/01-planteamiento/arbol-de-problemas.md`](docs/nuevo-proyecto/01-planteamiento/arbol-de-problemas.md) | Planteamiento (Marco Lógico), alcance y supuestos |
 
