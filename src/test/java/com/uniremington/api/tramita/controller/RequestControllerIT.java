@@ -263,6 +263,93 @@ class RequestControllerIT {
                 .andExpect(status().isUnauthorized());
     }
 
+    // --- US5: devolución con motivo y cierre por rechazo ---------------------------------
+    // US5-4 (rechazo en un trámite que no lo define → 409) vive en
+    // WorkflowGenericityIT.rejectionExistsOnlyWhereTheDefinitionDeclaresIt.
+
+    @Test
+    @DisplayName("devolución con motivo: vuelve al estado de corrección y el motivo queda en el timeline")
+    void returnWithReasonMovesBackAndRecordsReason() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Devuelta Con Motivo", "701");
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(advanceRequest(id, "DEVUELTA", "Formato sin firma en la casilla 2")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.code").value("DEVUELTA"));
+
+        mockMvc.perform(get("/api/requests/" + id + "/timeline").session(session))
+                .andExpect(jsonPath("$[2].toState.code").value("DEVUELTA"))
+                .andExpect(jsonPath("$[2].note").value("Formato sin firma en la casilla 2"))
+                .andExpect(jsonPath("$[2].responsible").value("FACULTAD"));
+    }
+
+    @Test
+    @DisplayName("devolución sin motivo: 422 — el motivo es el dato que la hace útil (FR-014)")
+    void returnWithoutReasonIsRejected() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Devuelta Sin Motivo", "702");
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(advanceRequest(id, "DEVUELTA", null).session(session))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+
+        // El estado no cambió: sigue en EN_FACULTAD y su timeline no creció
+        mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(jsonPath("$.currentState.code").value("EN_FACULTAD"));
+        mockMvc.perform(get("/api/requests/" + id + "/timeline").session(session))
+                .andExpect(jsonPath("$.length()").value(2));
+    }
+
+    @Test
+    @DisplayName("rechazo definitivo: la solicitud queda en estado final y el trámite cerrado (FR-015)")
+    void definitiveRejectionClosesTheRequest() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Rechazada Definitiva", "703");
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(advanceRequest(id, "RECHAZADA", null).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.code").value("RECHAZADA"))
+                .andExpect(jsonPath("$.currentState.isFinal").value(true))
+                .andExpect(jsonPath("$.availableTransitions").isEmpty());
+
+        // Cerrado es cerrado: ningún avance posterior es legal (US2-4)
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    @DisplayName("devuelta, corregida y reavanzada: el timeline conserva los tres tramos y las devoluciones son contables (SC-007)")
+    void timelineSurvivesReturnAndResubmissionCycles() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Resiliente Total", "704");
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(advanceRequest(id, "DEVUELTA", "Falta soporte de pago").session(session))
+                .andExpect(status().isOk());
+        // Corregida: la Coordinación la reenvía a la facultad
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/requests/" + id + "/timeline").session(session))
+                .andExpect(jsonPath("$.length()").value(4))
+                // Nada se sobrescribió: nacimiento, envío, devolución y reenvío conviven
+                .andExpect(jsonPath("$[1].toState.code").value("EN_FACULTAD"))
+                .andExpect(jsonPath("$[2].toState.code").value("DEVUELTA"))
+                .andExpect(jsonPath("$[2].note").value("Falta soporte de pago"))
+                .andExpect(jsonPath("$[3].toState.code").value("EN_FACULTAD"))
+                // SC-007: las devoluciones se cuentan filtrando el timeline —
+                // aquí, exactamente una y con su motivo
+                .andExpect(jsonPath("$[?(@.toState.code == 'DEVUELTA')].note")
+                        .value(org.hamcrest.Matchers.contains("Falta soporte de pago")));
+    }
+
     // --- helpers -------------------------------------------------------------------------
 
     private String registerAndGetId(MockHttpSession session, String definitionCode,

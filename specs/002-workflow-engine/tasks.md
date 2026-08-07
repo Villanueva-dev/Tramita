@@ -157,8 +157,8 @@ se implementó en US2; aquí se valida contra la configuración real y de punta 
 **Independent Test**: devolución con motivo vuelve al estado de corrección conservando el
 timeline; rechazo cierra en el trámite que lo admite y se bloquea en el que no (spec, US5).
 
-- [ ] T037 [US5] IT en `src/test/java/…/tramita/controller/RequestControllerIT.java`: los 5 escenarios de aceptación de US5 contra la semilla — devolución con motivo → estado de corrección + entrada con `note` (US5-1); sin motivo → 422 (US5-2); rechazo definitivo en adición → `RECHAZADA` final sin más transiciones (US5-3); intento de rechazo en novedad → 409 (US5-4); tras corregir y reavanzar, el timeline conserva tramo previo + devolución + nuevo avance sin sobrescribir (US5-5, SC-007: las devoluciones son contables con su motivo)
-- [ ] T038 [US5] GREEN: `./mvnw clean verify` — si algún escenario nace en verde (el motor ya lo cubre), sabotearlo momentáneamente para evidenciar que el test discrimina (tests honestos, no amañados), luego restaurar
+- [X] T037 [US5] IT en `src/test/java/…/tramita/controller/RequestControllerIT.java`: los 5 escenarios de aceptación de US5 contra la semilla — devolución con motivo → estado de corrección + entrada con `note` (US5-1); sin motivo → 422 (US5-2); rechazo definitivo en adición → `RECHAZADA` final sin más transiciones (US5-3); intento de rechazo en novedad → 409 (US5-4); tras corregir y reavanzar, el timeline conserva tramo previo + devolución + nuevo avance sin sobrescribir (US5-5, SC-007: las devoluciones son contables con su motivo)
+- [X] T038 [US5] GREEN: `./mvnw clean verify` — si algún escenario nace en verde (el motor ya lo cubre), sabotearlo momentáneamente para evidenciar que el test discrimina (tests honestos, no amañados), luego restaurar
 
 **Checkpoint**: todas las user stories funcionales — la spec completa está implementada.
 
