@@ -247,7 +247,7 @@ components:
 
     TimelineEntry:
       type: object
-      required: [id, toState, actorName, occurredAt]
+      required: [id, toState, actorEmail, occurredAt]
       properties:
         id: { type: integer, format: int64 }
         fromState:
@@ -256,9 +256,11 @@ components:
             - { type: 'null' }
           description: 'null en la entrada de registro (nacimiento de la solicitud)'
         toState: { $ref: '#/components/schemas/State' }
-        actorName:
+        actorEmail:
           type: string
-          description: Quién registró la entrada (siempre un usuario autenticado de 001)
+          description: >-
+            Quién registró la entrada — siempre un usuario autenticado de 001, cuyo
+            identificador público es el email (users no persiste nombre para mostrar)
         responsible:
           type: string
           description: >-

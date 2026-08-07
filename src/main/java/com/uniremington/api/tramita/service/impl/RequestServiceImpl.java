@@ -4,7 +4,9 @@ import com.uniremington.api.tramita.dto.AdvanceRequestBody;
 import com.uniremington.api.tramita.dto.AvailableTransitionResponse;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
 import com.uniremington.api.tramita.dto.RequestResponse;
+import com.uniremington.api.tramita.dto.RequestSummaryResponse;
 import com.uniremington.api.tramita.dto.StateResponse;
+import com.uniremington.api.tramita.dto.TimelineEntryResponse;
 import com.uniremington.api.tramita.dto.WorkflowDefinitionResponse;
 import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.model.RequestTransitionLog;
@@ -20,6 +22,7 @@ import com.uniremington.api.tramita.service.IRequestService;
 import com.uniremington.api.tramita.shared.exception.IllegalTransitionException;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -86,9 +89,7 @@ public class RequestServiceImpl implements IRequestService {
     @Override
     @Transactional
     public RequestResponse advance(UUID requestId, AdvanceRequestBody body, String actorEmail) {
-        Request request = requestRepo.findById(requestId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "La solicitud %s no existe".formatted(requestId)));
+        Request request = loadRequest(requestId);
 
         // La definición que rige es la de nacimiento (FR-009), y de un estado
         // final no hay salida: el trámite está cerrado (US2-4)
@@ -127,7 +128,72 @@ public class RequestServiceImpl implements IRequestService {
         return toResponse(requestRepo.save(request));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public RequestResponse getById(UUID requestId) {
+        return toResponse(loadRequest(requestId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<RequestSummaryResponse> search(String query) {
+        return requestRepo.search(query).stream().map(this::toSummary).toList();
+    }
+
+    /**
+     * El timeline es un solo SELECT ordenado (research.md D7/D11). El "en nombre
+     * de" (FR-006) se deriva por join contra la definición de nacimiento — es
+     * estable porque las definiciones versionadas son inmutables (research.md D5).
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<TimelineEntryResponse> getTimeline(UUID requestId) {
+        Request request = loadRequest(requestId);
+        List<WorkflowTransition> transitions = request.getDefinition().getTransitions();
+        return logRepo.findByRequestIdOrderByOccurredAtAscIdAsc(request.getId()).stream()
+                .map(entry -> toTimelineEntry(entry, transitions))
+                .toList();
+    }
+
     // --- helpers -------------------------------------------------------------------------
+
+    private Request loadRequest(UUID requestId) {
+        return requestRepo.findById(requestId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "La solicitud %s no existe".formatted(requestId)));
+    }
+
+    private RequestSummaryResponse toSummary(Request request) {
+        WorkflowDefinition definition = request.getDefinition();
+        return new RequestSummaryResponse(
+                request.getId(),
+                new WorkflowDefinitionResponse(
+                        definition.getCode(), definition.getName(), definition.getVersion()),
+                request.getStudentName(),
+                request.getStudentDocument(),
+                toStateResponse(request.getCurrentState()),
+                request.getCreatedAt());
+    }
+
+    private TimelineEntryResponse toTimelineEntry(
+            RequestTransitionLog entry, List<WorkflowTransition> transitions) {
+        // Nacimiento (from NULL): no hay paso de la definición que lo respalde
+        String responsible = entry.getFromState() == null ? null
+                : transitions.stream()
+                        .filter(t -> t.getFromState().getCode().equals(entry.getFromState().getCode())
+                                && t.getToState().getCode().equals(entry.getToState().getCode()))
+                        .map(WorkflowTransition::getResponsible)
+                        .findFirst()
+                        .orElse(null);
+        return new TimelineEntryResponse(
+                entry.getId(),
+                entry.getFromState() == null ? null : toStateResponse(entry.getFromState()),
+                toStateResponse(entry.getToState()),
+                entry.getActor().getEmail(),
+                responsible,
+                entry.getNote(),
+                entry.getOccurredAt());
+    }
 
     private User resolveActor(String actorEmail) {
         // Con sesión válida el usuario existe; si no, es un estado imposible (500 honesto)

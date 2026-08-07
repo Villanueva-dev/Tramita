@@ -3,6 +3,9 @@ package com.uniremington.api.tramita.service;
 import com.uniremington.api.tramita.dto.AdvanceRequestBody;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
 import com.uniremington.api.tramita.dto.RequestResponse;
+import com.uniremington.api.tramita.dto.RequestSummaryResponse;
+import com.uniremington.api.tramita.dto.TimelineEntryResponse;
+import java.util.List;
 import java.util.UUID;
 
 public interface IRequestService {
@@ -21,4 +24,20 @@ public interface IRequestService {
      * Toda transición efectuada queda en el timeline con autor y fecha (FR-005).
      */
     RequestResponse advance(UUID requestId, AdvanceRequestBody body, String actorEmail);
+
+    /** Detalle de una solicitud con sus transiciones disponibles (US3). */
+    RequestResponse getById(UUID requestId);
+
+    /**
+     * Localiza solicitudes por cédula (igualdad exacta) o fragmento del nombre
+     * (case-insensitive) — los dos datos con los que la Coordinación identifica
+     * un trámite al recibir la consulta (US3, FR-011).
+     */
+    List<RequestSummaryResponse> search(String query);
+
+    /**
+     * Timeline completo en orden cronológico (US3, FR-008): cada entrada con su
+     * autor real y el responsable del paso según la definición (FR-006).
+     */
+    List<TimelineEntryResponse> getTimeline(UUID requestId);
 }

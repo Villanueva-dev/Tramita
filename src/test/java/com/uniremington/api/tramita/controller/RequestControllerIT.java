@@ -2,6 +2,7 @@ package com.uniremington.api.tramita.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -171,6 +172,95 @@ class RequestControllerIT {
         // El estado sigue siendo REGISTRADA: el avance legal aún es EN_FACULTAD
         mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
                 .andExpect(status().isOk());
+    }
+
+    // --- US3: timeline y localización ----------------------------------------------------
+
+    @Test
+    @DisplayName("el timeline muestra la historia completa en orden: nacimiento, avances, autor y responsable")
+    void timelineShowsChronologicalHistoryWithActorAndResponsible() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Historia Completa", "401");
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(advanceRequest(id, "APROBADA_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/requests/" + id + "/timeline").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                // Nacimiento (research.md D7): sin from y sin responsable de paso
+                .andExpect(jsonPath("$[0].fromState").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$[0].toState.code").value("REGISTRADA"))
+                .andExpect(jsonPath("$[0].actorEmail").value(AuthControllerIT.SEED_EMAIL))
+                .andExpect(jsonPath("$[0].occurredAt").exists())
+                // El envío a facultad lo hace la Coordinación en nombre propio
+                .andExpect(jsonPath("$[1].fromState.code").value("REGISTRADA"))
+                .andExpect(jsonPath("$[1].toState.code").value("EN_FACULTAD"))
+                .andExpect(jsonPath("$[1].responsible").value("COORDINACION"))
+                // La aprobación es del decano; la registró la Coordinación en su
+                // nombre — actor real + responsable del paso (FR-006)
+                .andExpect(jsonPath("$[2].toState.code").value("APROBADA_FACULTAD"))
+                .andExpect(jsonPath("$[2].responsible").value("FACULTAD"))
+                .andExpect(jsonPath("$[2].actorEmail").value(AuthControllerIT.SEED_EMAIL));
+    }
+
+    @Test
+    @DisplayName("localiza por cédula exacta y por fragmento del nombre, sin distinguir mayúsculas")
+    void searchFindsByDocumentAndNameFragment() throws Exception {
+        MockHttpSession session = login();
+        registerAndGetId(session, "ADICION_CREDITOS", "Búsqueda Extraordinaria", "402505");
+        registerAndGetId(session, "NOVEDAD_NOTAS", "Otra Persona", "888777");
+
+        // Por cédula: igualdad exacta — un prefijo no matchea
+        mockMvc.perform(get("/api/requests").param("search", "402505").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].studentName").value("Búsqueda Extraordinaria"))
+                .andExpect(jsonPath("$[0].currentState.code").value("REGISTRADA"));
+
+        // Por fragmento del nombre, case-insensitive (FR-011)
+        mockMvc.perform(get("/api/requests").param("search", "extraordinaria").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].studentDocument").value("402505"));
+
+        // Sin coincidencias: lista vacía, no error
+        mockMvc.perform(get("/api/requests").param("search", "inexistente").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("detalle por id con transiciones disponibles; id desconocido: 404")
+    void getByIdReturnsDetailAndUnknownIdReturns404() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Detalle Visible", "403");
+
+        mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.currentState.code").value("REGISTRADA"))
+                .andExpect(jsonPath("$.availableTransitions[0].targetState.code")
+                        .value("EN_FACULTAD"));
+
+        mockMvc.perform(get("/api/requests/00000000-0000-0000-0000-00000000dead")
+                        .session(session))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+    }
+
+    @Test
+    @DisplayName("localizar, detalle y timeline sin sesión: 401 y nada se devuelve (FR-012)")
+    void queryEndpointsWithoutSessionReturn401() throws Exception {
+        String id = registerAndGetId(login(), "ADICION_CREDITOS", "Consulta Protegida", "404404");
+
+        mockMvc.perform(get("/api/requests").param("search", "404404"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/requests/" + id))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/requests/" + id + "/timeline"))
+                .andExpect(status().isUnauthorized());
     }
 
     // --- helpers -------------------------------------------------------------------------

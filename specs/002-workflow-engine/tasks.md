@@ -118,15 +118,15 @@ directa (spec US3 + SC-002).
 
 ### Tests for User Story 3 (RED primero)
 
-- [ ] T028 [P] [US3] IT RED en `src/test/java/…/tramita/controller/RequestControllerIT.java`: `GET /api/requests/{id}/timeline` → orden cronológico con autor y `responsible` derivado de la definición (FR-006, entrada de nacimiento sin `responsible`); `GET /api/requests?search=` localiza por cédula exacta y por fragmento de nombre case-insensitive (FR-011); `GET /api/requests/{id}` → detalle con `availableTransitions`; las tres sin sesión → 401 (FR-012, escenario US3-4)
-- [ ] T029 [P] [US3] IT RED de inmutabilidad en `src/test/java/…/tramita/repo/TimelineImmutabilityIT.java`: `UPDATE` y `DELETE` directos por `JdbcTemplate` sobre `request_transition_log` → excepción del trigger (SC-002: la garantía sobrevive al acceso directo a BD)
+- [X] T028 [P] [US3] IT RED en `src/test/java/…/tramita/controller/RequestControllerIT.java`: `GET /api/requests/{id}/timeline` → orden cronológico con autor y `responsible` derivado de la definición (FR-006, entrada de nacimiento sin `responsible`); `GET /api/requests?search=` localiza por cédula exacta y por fragmento de nombre case-insensitive (FR-011); `GET /api/requests/{id}` → detalle con `availableTransitions`; las tres sin sesión → 401 (FR-012, escenario US3-4)
+- [X] T029 [P] [US3] IT RED de inmutabilidad en `src/test/java/…/tramita/repo/TimelineImmutabilityIT.java`: `UPDATE` y `DELETE` directos por `JdbcTemplate` sobre `request_transition_log` → excepción del trigger (SC-002: la garantía sobrevive al acceso directo a BD)
 
 ### Implementation for User Story 3
 
-- [ ] T030 [P] [US3] DTOs `TimelineEntryResponse` y `RequestSummaryResponse` según openapi.yaml en `…/tramita/dto/`
-- [ ] T031 [US3] `IRequestService`: `getTimeline()` (un SELECT ordenado por `occurred_at, id`; `responsible` por join estable contra la definición — research D5) y `search()` en `…/tramita/service/impl/RequestServiceImpl.java`
-- [ ] T032 [US3] `RequestController`: `GET /api/requests/{id}`, `GET /api/requests?search=`, `GET /api/requests/{id}/timeline` en `…/tramita/controller/RequestController.java`
-- [ ] T033 [US3] GREEN: `./mvnw clean verify` — T028–T029 en verde sin tocar los tests
+- [X] T030 [P] [US3] DTOs `TimelineEntryResponse` y `RequestSummaryResponse` según openapi.yaml en `…/tramita/dto/`
+- [X] T031 [US3] `IRequestService`: `getTimeline()` (un SELECT ordenado por `occurred_at, id`; `responsible` por join estable contra la definición — research D5) y `search()` en `…/tramita/service/impl/RequestServiceImpl.java`
+- [X] T032 [US3] `RequestController`: `GET /api/requests/{id}`, `GET /api/requests?search=`, `GET /api/requests/{id}/timeline` en `…/tramita/controller/RequestController.java`
+- [X] T033 [US3] GREEN: `./mvnw clean verify` — T028–T029 en verde sin tocar los tests
 
 **Checkpoint**: P1 completo — SP1 + SP6 operativos de punta a punta para adición de créditos.
 
