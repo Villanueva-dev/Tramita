@@ -110,7 +110,7 @@ class RequestControllerIT {
     @DisplayName("registrar un tipo de trámite inexistente: 422 problem+json con el motivo")
     void registerUnknownProcedureTypeReturns422() throws Exception {
         mockMvc.perform(createRequest("TRAMITE_FANTASMA", "Ana", "123").session(login()))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.detail").exists());
     }
@@ -343,7 +343,7 @@ class RequestControllerIT {
                 .andExpect(status().isOk());
 
         mockMvc.perform(advanceRequest(id, "DEVUELTA", null).session(session))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
 
         // El estado no cambió: sigue en EN_FACULTAD y su timeline no creció

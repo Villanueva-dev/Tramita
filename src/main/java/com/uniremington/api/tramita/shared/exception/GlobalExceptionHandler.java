@@ -27,7 +27,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(UnprocessableRequestException.class)
     ProblemDetail handleUnprocessable(UnprocessableRequestException ex) {
         ProblemDetail problem =
-                ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+                ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_CONTENT, ex.getMessage());
         problem.setTitle("Regla de negocio incumplida");
         return problem;
     }
