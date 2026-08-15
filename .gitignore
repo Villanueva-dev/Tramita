@@ -1,5 +1,17 @@
 # Spec-Kit / Claude Code (recomendación oficial: evitar fugas de credenciales)
-.claude/
+# Se excluyen los HIJOS (`.claude/*`) y no el directorio (`.claude/`): git no desciende
+# a un directorio excluido, así que un `!` sobre su contenido no tendría ningún efecto.
+# Ver https://git-scm.com/docs/gitignore ("It is not possible to re-include a file if a
+# parent directory of that file is excluded").
+.claude/*
+!.claude/skills/
+.claude/skills/*
+
+# Excepción deliberada: las dos skills de autoría del equipo sí se versionan, para que
+# tengan respaldo e historial revisable. Quedan fuera las `speckit-*` (las regenera Spec
+# Kit desde `.specify/`, ya versionado) y `dr-jskill` (terceros, Apache 2.0).
+!.claude/skills/auditar-vs-entrevistas/
+!.claude/skills/revisar-backend-java/
 
 # Secretos y variables de entorno — NUNCA subir
 # (la implementación heredará el chasis Convenia, que usa .env con credenciales)
