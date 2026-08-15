@@ -1,9 +1,32 @@
 <!--
 Sync Impact Report — Constitución de Trámita
 ============================================
-Cambio de versión: 2.0.0 → 2.1.0
-Ratificada: 2026-07-02 | Última enmienda: 2026-08-06
-Bump: MINOR (guía materialmente ampliada — §IV)
+Cambio de versión: 2.1.0 → 2.2.0
+Ratificada: 2026-07-02 | Última enmienda: 2026-08-14
+Bump: MINOR (guía materialmente ampliada — §III y §IV)
+
+Enmienda 2026-08-14
+-------------------
+§III incorpora la **minimización de datos personales** como regla explícita: qué se
+almacena, qué no se persiste nunca, y la obligación de anonimizar por rol en fixtures y
+material de ejemplo.
+
+§IV separa el medio de verificación según la clase de fuente. Context7 queda acotado a
+fuentes técnicas; la normativa institucional se verifica solo contra el documento obtenido
+de la fuente, y mientras no se obtenga, toda afirmación que dependa de él se marca como
+provisional y no auditada.
+
+Motivo: ambos huecos salieron de auditar la constitución contra las entrevistas con la
+skill `auditar-vs-entrevistas` v2.0.0. El de §III era una omisión: el equipo asumió ante
+la Coordinación el compromiso de no retener datos sensibles y ningún principio lo recogía.
+El de §IV era un mecanismo inaplicable: Context7 no puede verificar el reglamento
+estudiantil ni el PEI, que son justamente las fuentes que el proyecto necesita para
+defender la legalidad del trámite — y que siguen sin obtenerse.
+
+Es MINOR y no MAJOR porque ningún principio existente se invierte ni se vuelve
+incompatible: §III suma una regla que antes no estaba escrita y §IV precisa el alcance de
+un mecanismo que ya exigía. No obliga a rehacer trabajo: la 001 y la 002 no persisten
+datos personales fuera de lo que el trámite necesita.
 
 Enmienda 2026-08-06
 -------------------
@@ -37,8 +60,8 @@ estereotipo porque Spring Boot los auto-registraría por duplicado.
 Principios vigentes:
 - I.   Simplicidad primero (KISS + YAGNI)
 - II.  Arquitectura por capas            ← enmendado en 2.0.0
-- III. Seguridad por defecto
-- IV.  Decisiones defendibles y trazables ← enmendado en 2.1.0
+- III. Seguridad por defecto              ← enmendado en 2.2.0
+- IV.  Decisiones defendibles y trazables ← enmendado en 2.1.0 y 2.2.0
 - V.   Testing del comportamiento sensible
 
 Secciones: Restricciones tecnológicas · Idioma y convenciones · Proceso y gestión
@@ -97,8 +120,26 @@ SameSite=Strict` (patrón BFF); NO se usa JWT. Las contraseñas se almacenan con
 Los DTOs en la frontera de la API son obligatorios — NUNCA se exponen entities. La
 validación autoritativa DEBE ocurrir en el backend; la validación del frontend es solo UX.
 
+**Datos personales — minimización obligatoria**. El sistema almacena únicamente los datos
+personales que el trámite necesita para existir (identificación del solicitante, datos
+académicos de la solicitud y trazabilidad de quién actuó). NO se persisten documentos de
+identidad, recibos de pago ni anexos con datos de terceros: el documento formal se entrega
+y es la institución quien lo custodia en sus propios sistemas. Todo dato personal en
+documentos de ejemplo, fixtures o material de prueba DEBE estar anonimizado por rol.
+
 **Rationale**: elegir la opción segura más simple que cumple el requisito, respaldada por
 OWASP e IETF, en lugar de tecnología de moda que resuelve problemas que este sistema no tiene.
+La minimización, además, no es solo higiene técnica: es un compromiso que el equipo asumió
+explícitamente ante la Coordinación durante la Sesión 2 de entrevistas, y opera en un país
+donde el tratamiento de datos personales tiene marco legal propio — **Ley 1581 de 2012** y
+su decreto reglamentario **1377 de 2013**. La Coordinación confirmó que la institución
+recoge autorización de tratamiento tanto de estudiantes al matricularse como de empleados
+al vincularse; el sistema no puede ofrecer menos garantías que el proceso que reemplaza.
+
+**Pendiente de verificación documental**: la referencia legal anterior está citada por su
+identificación oficial pero **no se ha contrastado contra el texto publicado**, ni se ha
+obtenido la política de tratamiento de datos de la propia universidad. Hasta que ocurra,
+se aplica el régimen del §IV para normativa institucional.
 
 ### IV. Decisiones defendibles y trazables
 
@@ -106,9 +147,19 @@ Toda decisión arquitectónica DEBE poder justificarse con un trade-off explíci
 ("elegí X frente a Y, sabiendo que el costo es Z"). La especificación precede al código.
 Se privilegia la trazabilidad requisito → código: el documento de requisitos se estructura
 según **ISO/IEC/IEEE 29148:2018** (cláusula 9.6) y la arquitectura se documenta con **C4 y
-4+1**. Las afirmaciones técnicas y normativas que sustentan decisiones DEBEN verificarse
-contra documentación oficial vigente (vía Context7) y citarse con su URL en la documentación
-del proyecto.
+4+1**. Las afirmaciones que sustentan decisiones DEBEN verificarse contra documentación
+oficial vigente y citarse en la documentación del proyecto, con el medio de verificación
+que corresponda a cada clase de fuente:
+
+- **Fuentes técnicas** (librerías, frameworks, estándares publicados): se verifican vía
+  Context7 o contra el catálogo del organismo emisor, y se citan con su URL.
+- **Normativa institucional** (reglamento estudiantil, PEI, resoluciones y comunicados
+  internos de la universidad): NO está en Context7 y puede no estar publicada. Se verifica
+  únicamente contra el documento institucional obtenido de la fuente, y se cita por su
+  identificación oficial y fecha de obtención. **Mientras el documento no se obtenga, toda
+  afirmación que dependa de él se marca explícitamente como provisional y no auditada**, en
+  el artefacto donde aparezca. Un dato de este tipo NUNCA se presenta como hecho establecido
+  por el solo respaldo de una entrevista.
 
 **Rationale**: es un trabajo de grado que se defiende ante un jurado. Una decisión sin
 trade-off explícito ni fuente verificable no debería estar en el código ni en el documento.
@@ -159,4 +210,4 @@ especificación y plan verifica su alineación con estos principios; toda comple
 introducida debe justificarse explícitamente. La guía operativa del día a día vive en
 `CLAUDE.md`.
 
-**Versión**: 2.1.0 | **Ratificada**: 2026-07-02 | **Última enmienda**: 2026-08-06
+**Versión**: 2.2.0 | **Ratificada**: 2026-07-02 | **Última enmienda**: 2026-08-14
