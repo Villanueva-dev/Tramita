@@ -105,7 +105,7 @@ si algún día hay más actores.
 
 **Decisión**: `request` lleva columna `version` mapeada con `@Version` (Jakarta
 Persistence). Ante dos avances casi simultáneos, la segunda transacción falla al hacer
-flush y el `GlobalExceptionHandler` la traduce a **409 Conflict** RFC 7807 (edge case
+flush y el `GlobalExceptionHandler` la traduce a **409 Conflict** RFC 9457 (edge case
 declarado en la spec: *«solo prospera el que sea legal desde el estado vigente»*).
 
 **Racional**: es el mecanismo estándar de JPA, sin locks pesimistas ni colas — adecuado
@@ -197,11 +197,14 @@ Fuente: [Flyway — Versioned Migrations](https://documentation.red-gate.com/fly
 - **PK del log: `BIGSERIAL`**. A diferencia de `users` (UUID, decisión de `001`), el log es
   append-only y su identidad monótona da desempate barato al orden cronológico
   (`occurred_at, id`). Las demás tablas nuevas siguen con UUID por consistencia con el chasis.
-- **RFC 7807**: se reutiliza `ProblemJsonWriter`/`GlobalExceptionHandler` de `001`. Nota de
-  vigencia (patrón IEEE 830→29148): **RFC 9457 obsoleta a RFC 7807** manteniendo el media
-  type `application/problem+json` y el modelo — el código no cambia; conviene un PATCH
-  futuro de la constitución que actualice la cita
-  ([RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)). No bloquea esta feature.
+- **RFC 9457**: se reutiliza `ProblemJsonWriter`/`GlobalExceptionHandler` de `001`. Nota de
+  vigencia (patrón IEEE 830→29148): **RFC 9457 obsoleta a RFC 7807**, verificado en el
+  catálogo del RFC Editor —*"This RFC is now obsolete, see RFC 9457"*
+  ([rfc7807](https://www.rfc-editor.org/info/rfc7807), [rfc9457](https://www.rfc-editor.org/rfc/rfc9457))—
+  manteniendo el media type `application/problem+json` y el modelo: **el código no cambia,
+  solo la cita**. Los documentos vivos del proyecto ya la actualizaron; queda pendiente
+  `.specify/memory/constitution.md`, que se enmienda con `/speckit-constitution` y amerita
+  un PATCH propio, no un arrastre dentro de un commit de documentación.
 - **Deuda aceptada tras el code review (2026-08-06), con su porqué:**
   - **N+1 en `search()` y `getTimeline()`**: cada fila carga sus proxies LAZY, así que
     una búsqueda de N filas cuesta ~2N+1 consultas. **No se optimiza**: la escala real
@@ -213,8 +216,11 @@ Fuente: [Flyway — Versioned Migrations](https://documentation.red-gate.com/fly
     así que seguiría "funcionando" mientras reporta el `name` de la otra versión — una
     corrupción silenciosa. **No se corrige hoy**: exigiría un `UNIQUE (id, definition_id)`
     redundante en `workflow_state` más FK compuestas en dos tablas, y la única escritura
-    del alcance es la semilla. Se revisa cuando exista administración de definiciones
-    por UI, que es el momento en que un humano puede equivocarse a mano.
+    del alcance es la semilla versionada, que pasa por revisión como cualquier migración.
+    **Se revisa cuando la configuración se cargue fuera de esa semilla** — no cuando exista
+    una UI de administración: SC-005 ya declara la carga por SQL como camino soportado y el
+    `quickstart.md` la demuestra en vivo, así que la escritura manual no es un escenario
+    futuro. El disparador es que la configuración deje de venir de una migración revisada.
 - **Errores nuevos**: transición no definida / estado final / conflicto optimista → **409**
   (`IllegalTransitionException`, `ObjectOptimisticLockingFailureException`); trámite
   inexistente al registrar y devolución sin motivo → **422** (se reutiliza

@@ -49,7 +49,7 @@ escenarios 401 de FR-012.
 con timeline en pantalla). Sin caché ni optimizaciones especulativas.
 
 **Constraints**: toda operación exige la sesión autenticada de `001` (FR-012) y CSRF en las
-mutaciones (patrón `XSRF-TOKEN` ya operativo); errores RFC 7807 vía `GlobalExceptionHandler`
+mutaciones (patrón `XSRF-TOKEN` ya operativo); errores RFC 9457 vía `GlobalExceptionHandler`
 existente; timeline solo-INSERT reforzado a nivel de BD (FR-007/SC-002); concurrencia sobre
 `request` resuelta con locking optimista `@Version` → 409 (edge case de avances simultáneos).
 
@@ -67,7 +67,7 @@ por semestre. 5 tablas nuevas, 2 controllers, 2 services.
 | **III. Seguridad por defecto** | ✅ Todos los endpoints detrás de la sesión de `001` (FR-012, escenarios 401 en la spec); CSRF activo en mutaciones; DTOs en la frontera (nunca entities); validación autoritativa en backend; datos personales minimizados a nombre + cédula (Ley 1581, supuesto de la spec). |
 | **IV. Decisiones defendibles y trazables** | ✅ Cada decisión en `research.md` con trade-off y fuente (docs oficiales verificadas vía Context7 donde aplica); el diseño de fondo trae su registro de alternativas descartadas (engram #866). Trazabilidad requisito → tabla → endpoint en `data-model.md` y `contracts/`. |
 | **V. Testing del comportamiento sensible** | ✅ Se testea el motor (validación de transiciones, nota obligatoria, estado final), la inmutabilidad del log y la frontera de autenticación. No se testean getters ni CRUD trivial. |
-| **Restricciones tecnológicas** | ✅ Stack fijo sin dependencias nuevas; Flyway gestiona el schema; RFC 7807; servicios por interface; Class/QF siguen siendo cajas negras (el motor registra decisiones externas, no las ejecuta). |
+| **Restricciones tecnológicas** | ✅ Stack fijo sin dependencias nuevas; Flyway gestiona el schema; RFC 9457; servicios por interface; Class/QF siguen siendo cajas negras (el motor registra decisiones externas, no las ejecuta). |
 
 **Resultado**: PASS. Sin violaciones → *Complexity Tracking* vacío.
 

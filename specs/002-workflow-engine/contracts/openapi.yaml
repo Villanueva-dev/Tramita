@@ -7,7 +7,7 @@ info:
     auditoría). Toda operación exige la sesión autenticada de la feature 001 (cookie de
     sesión HttpOnly; FR-012): sin sesión válida el backend responde 401 problem+json.
     Las mutaciones exigen además el header X-XSRF-TOKEN espejando la cookie XSRF-TOKEN
-    (patrón CSRF de 001). Errores en formato RFC 7807 (application/problem+json).
+    (patrón CSRF de 001). Errores en formato RFC 9457 (application/problem+json).
 servers:
   - url: /api
 paths:
@@ -165,7 +165,7 @@ components:
     Problem:
       type: object
       description: >-
-        RFC 7807 (application/problem+json). Solo title y status son requeridos; detail
+        RFC 9457 (application/problem+json). Solo title y status son requeridos; detail
         explica el motivo concreto (p. ej. qué transición no está definida).
       required: [title, status]
       properties:

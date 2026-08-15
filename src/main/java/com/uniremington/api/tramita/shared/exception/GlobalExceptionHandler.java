@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
- * Errores como application/problem+json — RFC 7807 (research.md D10).
+ * Errores como application/problem+json — RFC 9457 (research.md D10).
  *
  * Extender ResponseEntityExceptionHandler hace que las excepciones estándar de MVC
  * (body ilegible, media type no soportado, el 400 de @Valid) ya salgan como

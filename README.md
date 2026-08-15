@@ -60,7 +60,7 @@ tramita/
 ├── util/         EmailNormalizer
 └── shared/
     ├── config/     SecurityConfig, CsrfCookieFilter, CorsProperties
-    ├── exception/  GlobalExceptionHandler, ProblemJsonWriter (RFC 7807)
+    ├── exception/  GlobalExceptionHandler, ProblemJsonWriter (RFC 9457)
     └── seed/       CoordinationUserSeeder  # provisión idempotente de la cuenta real
 ```
 
@@ -119,7 +119,7 @@ El corazón de este sprint. Sesión **stateful** con cookie, sin JWT.
 | Hashing | `DelegatingPasswordEncoder` con BCrypt por defecto (prefijo `{bcrypt}` → migrable sin invalidar hashes) |
 | Política de clave | Mínimo 15 caracteres, máximo 72 bytes UTF-8, distinta de la actual; sin composición forzada |
 | CORS | Allowlist explícita desde `APP_CORS_ALLOWED_ORIGINS` (nunca comodín, obligatorio con `allowCredentials`) |
-| Errores | Siempre `application/problem+json` (RFC 7807) |
+| Errores | Siempre `application/problem+json` (RFC 9457) |
 
 `/me` responde desde el **snapshot de la sesión** (email + active del `UserDetails` capturado al
 autenticar), sin tocar la BD.
