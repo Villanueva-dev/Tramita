@@ -107,7 +107,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .anyRequest().authenticated())
-                // sin sesión → 401 problem+json (RFC 7807, D10)
+                // sin sesión → 401 problem+json (RFC 9457, D10)
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(problemJsonEntryPoint(problemJsonWriter)))
                 // Logout por filter chain, sin controller (T036). JD2-001: el default

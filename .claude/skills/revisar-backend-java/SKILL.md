@@ -16,7 +16,7 @@ Leer las reglas duras primero. Ahí está el 80 % del valor.
 - **Java 21 · Spring Boot 4.0.7 · PostgreSQL · Maven.** No proponer migrar de versión.
 - **Spring Security 7** con autenticación por **sesión + cookie `HttpOnly`** (patrón BFF). **No hay JWT y no debe haberlo.**
 - **Flyway posee el schema; Hibernate solo valida** (`ddl-auto: validate`). Todo cambio de schema es una migración nueva.
-- **Errores según RFC 7807** (`application/problem+json`).
+- **Errores según RFC 9457** (`application/problem+json`).
 - **Estructura por capas**: `controller/ · dto/ · model/ · repo/ · security/ · service/` (contratos) `· service/impl/` (implementaciones) `· util/ · shared/{config,exception,seed}`. Migración desde package-by-feature **completada el 2026-08-02**; la norma es la constitución v2.0.0 §II.
 - **Las interfaces llevan prefijo `I`** (`IUserRepo`, `IAuthService`). Es convención deliberada del proyecto: **NO marcarla como defecto.**
 - La constitución vive en `.specify/memory/constitution.md` y prevalece sobre cualquier práctica.
@@ -72,7 +72,7 @@ Aplica hoy a `LoginThrottlingFilter` y `CsrfCookieFilter`.
 
 Constitución §III. Todo request y response usa DTO. El motivo concreto: `User` contiene el hash BCrypt.
 
-### 4. Errores en RFC 7807, y nunca devolver el mensaje interno
+### 4. Errores en RFC 9457, y nunca devolver el mensaje interno
 
 ```java
 // ❌ ALTO — fuga de información

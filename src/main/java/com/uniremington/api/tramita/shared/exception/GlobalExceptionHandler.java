@@ -5,12 +5,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
- * Errores como application/problem+json — RFC 7807 (research.md D10).
+ * Errores como application/problem+json — RFC 9457 (research.md D10).
  *
  * Extender ResponseEntityExceptionHandler hace que las excepciones estándar de MVC
  * (body ilegible, media type no soportado, el 400 de @Valid) ya salgan como
@@ -26,8 +27,44 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(UnprocessableRequestException.class)
     ProblemDetail handleUnprocessable(UnprocessableRequestException ex) {
         ProblemDetail problem =
-                ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+                ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_CONTENT, ex.getMessage());
         problem.setTitle("Regla de negocio incumplida");
+        return problem;
+    }
+
+    /** Recurso inexistente → 404 (002: solicitud no encontrada). */
+    @ExceptionHandler(ResourceNotFoundException.class)
+    ProblemDetail handleNotFound(ResourceNotFoundException ex) {
+        ProblemDetail problem =
+                ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Recurso no encontrado");
+        return problem;
+    }
+
+    /**
+     * Transición que la definición no contempla → 409 (002, FR-003/FR-004): el
+     * conflicto es con el estado actual del recurso, no con el formato del body.
+     */
+    @ExceptionHandler(IllegalTransitionException.class)
+    ProblemDetail handleIllegalTransition(IllegalTransitionException ex) {
+        ProblemDetail problem =
+                ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Transición no permitida");
+        return problem;
+    }
+
+    /**
+     * Locking optimista (002, research.md D6): dos avances casi simultáneos —
+     * solo prosperó el que vio el estado vigente. 409 con instrucción de
+     * reintento; nada interno (entidad, versión) se filtra al cliente.
+     */
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    ProblemDetail handleOptimisticLock(ObjectOptimisticLockingFailureException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                "La solicitud cambió mientras se procesaba la operación; "
+                        + "consulte el estado vigente y reintente.");
+        problem.setTitle("Conflicto de concurrencia");
         return problem;
     }
 

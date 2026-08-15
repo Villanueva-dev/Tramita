@@ -1,0 +1,270 @@
+openapi: 3.1.0
+info:
+  title: Trámita — Workflow Engine API (motor de trámites)
+  version: 0.1.0
+  description: |
+    Contrato REST de la feature 002 (motor de workflow configurable + timeline de
+    auditoría). Toda operación exige la sesión autenticada de la feature 001 (cookie de
+    sesión HttpOnly; FR-012): sin sesión válida el backend responde 401 problem+json.
+    Las mutaciones exigen además el header X-XSRF-TOKEN espejando la cookie XSRF-TOKEN
+    (patrón CSRF de 001). Errores en formato RFC 9457 (application/problem+json).
+servers:
+  - url: /api
+paths:
+  /workflow-definitions:
+    get:
+      summary: Lista las definiciones de trámite vigentes
+      description: |
+        Devuelve la versión vigente (mayor version por code) de cada trámite configurado.
+        Insumo del formulario de registro (US1) — el frontend no hardcodea trámites.
+      responses:
+        '200':
+          description: Definiciones vigentes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/WorkflowDefinition' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /requests:
+    post:
+      summary: Registra una solicitud de trámite (US1)
+      description: |
+        La solicitud nace en el estado inicial de la definición vigente de su trámite y
+        escribe la primera entrada del timeline (autor = sesión actual, from_state null).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRequestBody' }
+      responses:
+        '201':
+          description: Solicitud creada
+          headers:
+            Location:
+              description: URL de la solicitud creada (/api/requests/{id})
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Request' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422':
+          description: Tipo de trámite inexistente en la configuración, o datos inválidos
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+    get:
+      summary: Localiza solicitudes por nombre o cédula del estudiante (US3, FR-011)
+      parameters:
+        - name: search
+          in: query
+          required: true
+          description: |
+            Cédula (igualdad exacta) o fragmento del nombre (búsqueda case-insensitive).
+            Un solo parámetro para los dos criterios: son los dos datos con los que la
+            Coordinación identifica el trámite al recibir la consulta.
+          schema: { type: string, minLength: 2 }
+      responses:
+        '200':
+          description: Solicitudes que coinciden (lista vacía si ninguna)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RequestSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /requests/{id}:
+    get:
+      summary: Detalle de una solicitud con sus transiciones disponibles
+      description: |
+        availableTransitions se deriva de la definición con la que nació la solicitud
+        (FR-009): la UI se configura sola desde la definición, sin conocer trámites.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Detalle de la solicitud
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Request' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /requests/{id}/transitions:
+    post:
+      summary: Avanza (o devuelve) una solicitud por una transición definida (US2, US5)
+      description: |
+        Aplica la transición del estado actual hacia targetStateCode si la definición de
+        la solicitud la contempla. note es obligatoria cuando la transición la exige
+        (devoluciones — FR-014). El motor no distingue avance de retorno (FR-013).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdvanceRequestBody' }
+      responses:
+        '200':
+          description: Transición aplicada; se devuelve la solicitud actualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Request' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            Transición no definida desde el estado actual, estado final (trámite
+            cerrado), o conflicto de concurrencia (otro avance ganó — reintentar
+            leyendo el estado vigente). El estado no cambia y no se escribe timeline.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422':
+          description: La transición exige observación (devolución) y no llegó (FR-014)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /requests/{id}/timeline:
+    get:
+      summary: Timeline de auditoría completo de una solicitud (US3, FR-008)
+      description: |
+        Todas las entradas en orden cronológico, cada una con autor real, responsable
+        del paso según la definición (FR-006) y observación si la hubo. No existe
+        operación de edición ni borrado de entradas (FR-007).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Timeline en orden cronológico ascendente
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TimelineEntry' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  responses:
+    Unauthorized:
+      description: Sin sesión autenticada de la Coordinación (FR-012)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: La solicitud no existe
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    Problem:
+      type: object
+      description: >-
+        RFC 9457 (application/problem+json). Solo title y status son requeridos; detail
+        explica el motivo concreto (p. ej. qué transición no está definida).
+      required: [title, status]
+      properties:
+        title: { type: string, example: Conflict }
+        status: { type: integer, example: 409 }
+        detail: { type: string }
+        instance: { type: string }
+
+    WorkflowDefinition:
+      type: object
+      required: [code, name, version]
+      properties:
+        code: { type: string, example: ADICION_CREDITOS }
+        name: { type: string, example: Adición de créditos }
+        version: { type: integer, example: 1 }
+
+    CreateRequestBody:
+      type: object
+      required: [definitionCode, studentName, studentDocument]
+      properties:
+        definitionCode: { type: string, example: ADICION_CREDITOS }
+        studentName: { type: string, maxLength: 120, example: Ana María Pérez }
+        studentDocument: { type: string, maxLength: 20, example: '1144099888' }
+
+    AdvanceRequestBody:
+      type: object
+      required: [targetStateCode]
+      properties:
+        targetStateCode: { type: string, example: EN_FACULTAD }
+        note:
+          type: string
+          description: Observación; obligatoria si la transición la exige (FR-014)
+
+    State:
+      type: object
+      required: [code, name, isFinal]
+      properties:
+        code: { type: string, example: EN_FACULTAD }
+        name: { type: string, example: En facultad }
+        isFinal: { type: boolean }
+
+    AvailableTransition:
+      type: object
+      required: [targetState, responsible, requiresNote]
+      properties:
+        targetState: { $ref: '#/components/schemas/State' }
+        responsible:
+          type: string
+          description: Responsable del paso según la definición (FR-006)
+          example: FACULTAD
+        requiresNote: { type: boolean }
+
+    Request:
+      type: object
+      required: [id, definition, studentName, studentDocument, currentState,
+                 availableTransitions, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        definition: { $ref: '#/components/schemas/WorkflowDefinition' }
+        studentName: { type: string }
+        studentDocument: { type: string }
+        currentState: { $ref: '#/components/schemas/State' }
+        availableTransitions:
+          type: array
+          description: Vacía cuando el estado actual es final (trámite cerrado)
+          items: { $ref: '#/components/schemas/AvailableTransition' }
+        createdAt: { type: string, format: date-time }
+
+    RequestSummary:
+      type: object
+      required: [id, definition, studentName, studentDocument, currentState, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        definition: { $ref: '#/components/schemas/WorkflowDefinition' }
+        studentName: { type: string }
+        studentDocument: { type: string }
+        currentState: { $ref: '#/components/schemas/State' }
+        createdAt: { type: string, format: date-time }
+
+    TimelineEntry:
+      type: object
+      required: [id, toState, actorEmail, occurredAt]
+      properties:
+        id: { type: integer, format: int64 }
+        fromState:
+          oneOf:
+            - { $ref: '#/components/schemas/State' }
+            - { type: 'null' }
+          description: 'null en la entrada de registro (nacimiento de la solicitud)'
+        toState: { $ref: '#/components/schemas/State' }
+        actorEmail:
+          type: string
+          description: >-
+            Quién registró la entrada — siempre un usuario autenticado de 001, cuyo
+            identificador público es el email (users no persiste nombre para mostrar)
+        responsible:
+          type: string
+          description: >-
+            En nombre de quién ocurrió el paso, según la definición (FR-006). Ausente en
+            la entrada de registro.
+        note: { type: string }
+        occurredAt: { type: string, format: date-time }

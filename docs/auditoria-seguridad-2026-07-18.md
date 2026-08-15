@@ -7,6 +7,7 @@
 | **Stack auditado** | Spring Boot 4.0.7 · Spring Security 7.0.6 · Java 21 · PostgreSQL 16 + Flyway |
 | **Criterio** | Estándares mínimos de Spring Security para autenticación por sesión, bajo el principio KISS de la constitución del proyecto (v1.0.0) |
 | **Veredicto** | **APTO** — cumple los estándares mínimos sin deshabilitar ningún default del framework; 0 hallazgos Alta, 1 Media accionable (M-1), 3 Baja (trade-offs ya documentados en el código) |
+| **Seguimiento** | **M-1 CORREGIDO el 2026-08-06** (ver §3). B-1 y B-2 siguen abiertos como deuda declarada; B-3 es una advertencia, no un fix pendiente. |
 
 ## 1. Metodología
 
@@ -39,7 +40,7 @@ El hallazgo principal (M-1) fue detectado por dos revisiones independientes y co
 
 ## 3. Hallazgos
 
-### M-1 (Media) — Buffering del body sin límite en endpoint no autenticado
+### M-1 (Media) — Buffering del body sin límite en endpoint no autenticado — ✅ CORREGIDO (2026-08-06)
 
 **Ubicación**: `LoginThrottlingFilter.java:102` (`CachedBodyRequest`).
 
@@ -53,6 +54,10 @@ El hallazgo principal (M-1) fue detectado por dos revisiones independientes y co
 **Impacto**: requests con bodies de cientos de MB (o varios concurrentes) agotan la memoria de la única instancia antes de cualquier autenticación o throttling — denegación de servicio sin credenciales.
 
 **Corrección recomendada (KISS)**: rechazar con 400/413 cuando `Content-Length` supere un tope pequeño (~8 KB; un login legítimo son dos campos) antes de `readAllBytes()`, o leer con límite de bytes. Estimación: ~5 líneas + test.
+
+**Corrección aplicada (2026-08-06)**: se implementaron **las dos** defensas, no una. El `Content-Length` se consulta primero para cortar sin leer un solo byte, pero no se confía en él como única barrera: es declarativo y con `Transfer-Encoding: chunked` no existe. La lectura pasó a `readNBytes(MAX_BODY_BYTES + 1)` —un byte de más para distinguir "justo en el tope" de "lo excede"— y el request se rechaza con `413` y `ProblemDetail`, por el mismo `ProblemJsonWriter` que ya emitía el `429`. `CachedBodyRequest` dejó de leer del stream: ahora recibe los bytes ya acotados, de modo que la única lectura del body es la que aplica el tope.
+
+**Verificación**: `LoginThrottlingFilterTest` (4 casos) — login legítimo que pasa y conserva el body legible downstream, body sobre el tope cortado con 413 sin llegar al chain, **body sobre el tope sin `Content-Length` igualmente cortado** (el caso que justifica no confiar en la cabecera), y body exactamente en el tope aceptado. Suite completa: `./mvnw clean verify` → 26 unitarios + 8 de integración, en verde.
 
 ### B-1 (Baja, condicional al despliegue) — Clave de throttling atada a `getRemoteAddr()`
 

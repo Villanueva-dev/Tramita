@@ -50,6 +50,15 @@ public class LoginThrottlingFilter extends OncePerRequestFilter {
     private static final RequestMatcher LOGIN_MATCHER =
             PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/auth/login");
 
+    /**
+     * Tope del body que se bufferea (M-1 de la auditoría del 2026-07-18). Un login son dos
+     * campos: 8 KB sobran de largo. Sin tope, el único endpoint permitAll del sistema permite
+     * agotar la memoria del proceso sin credenciales — el maxPostSize de Tomcat solo acota el
+     * parseo de form-url-encoded, y el CSRF double-submit no frena a un atacante directo, que
+     * fabrica su propio par cookie+header.
+     */
+    static final int MAX_BODY_BYTES = 8 * 1024;
+
     private final LoginAttemptService loginAttemptService;
     private final JsonMapper jsonMapper;
     private final ProblemJsonWriter problemJsonWriter;
@@ -69,7 +78,14 @@ public class LoginThrottlingFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
-        CachedBodyRequest cachedRequest = new CachedBodyRequest(request);
+        byte[] body = readBodyWithinLimit(request);
+        if (body == null) {
+            ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONTENT_TOO_LARGE);
+            problem.setTitle("Cuerpo de la solicitud demasiado grande");
+            problemJsonWriter.write(response, problem);
+            return;
+        }
+        CachedBodyRequest cachedRequest = new CachedBodyRequest(request, body);
 
         String email = tryExtractEmail(cachedRequest);
         if (email != null) {
@@ -86,6 +102,27 @@ public class LoginThrottlingFilter extends OncePerRequestFilter {
         filterChain.doFilter(cachedRequest, response);
     }
 
+    /**
+     * Lee el body acotado a {@link #MAX_BODY_BYTES}, o devuelve {@code null} si lo excede.
+     *
+     * El Content-Length se consulta primero para cortar sin leer un solo byte, pero NO alcanza
+     * como única defensa: es declarativo y con Transfer-Encoding chunked ni siquiera existe.
+     * Por eso la lectura pide un byte de más — así distingue "justo en el tope" de "lo excede"
+     * sin confiar en lo que el cliente declara.
+     *
+     * El resto del body queda sin drenar a propósito. Tomcat traga hasta maxSwallowSize (2 MiB
+     * por defecto) para que el cliente alcance a ver la respuesta, y si el body lo supera cierra
+     * la conexión: el atacante pierde el 413, pero nada se materializó en heap, que es el punto.
+     * https://tomcat.apache.org/tomcat-11.0-doc/config/http.html
+     */
+    private byte[] readBodyWithinLimit(HttpServletRequest request) throws IOException {
+        if (request.getContentLengthLong() > MAX_BODY_BYTES) {
+            return null;
+        }
+        byte[] body = request.getInputStream().readNBytes(MAX_BODY_BYTES + 1);
+        return body.length > MAX_BODY_BYTES ? null : body;
+    }
+
     // Parse tolerante: si el body no es un login válido, se deja pasar — el converter
     // downstream disparará el 400 (JD2-004); un body roto no cuenta para el throttling.
     private String tryExtractEmail(CachedBodyRequest request) {
@@ -100,14 +137,17 @@ public class LoginThrottlingFilter extends OncePerRequestFilter {
         }
     }
 
-    /** Bufferea el body completo y lo re-sirve en cada getInputStream()/getReader(). */
+    /**
+     * Re-sirve en cada getInputStream()/getReader() un body ya leído y acotado por el filtro.
+     * No lee del stream original a propósito: quien lee es quien aplica el tope.
+     */
     static final class CachedBodyRequest extends HttpServletRequestWrapper {
 
         private final byte[] body;
 
-        CachedBodyRequest(HttpServletRequest request) throws IOException {
+        CachedBodyRequest(HttpServletRequest request, byte[] body) {
             super(request);
-            this.body = request.getInputStream().readAllBytes();
+            this.body = body;
         }
 
         @Override
