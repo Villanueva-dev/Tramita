@@ -175,7 +175,7 @@ En este sentido, el diseño del sistema no debe limitarse a la programación de 
 
 ## 10. Referencias sugeridas
 
-- IEEE. (1998). Recommended Practice for Software Requirements Specifications (IEEE 830).
+- ISO/IEC/IEEE. (2018). Systems and software engineering — Life cycle processes — Requirements engineering (ISO/IEC/IEEE 29148:2018). *Sustituye a la IEEE 830-1998, que figura como superseded en el catálogo del IEEE Standards Association.*
 - ISO/IEC. (2017). Systems and software engineering — Software life cycle processes (ISO/IEC 12207).
 - Sommerville, I. (2016). Software Engineering (10th ed.). Pearson.
 - Documentación interna del proyecto Tramita.
