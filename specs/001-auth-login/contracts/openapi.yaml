@@ -4,7 +4,8 @@ info:
   version: 0.1.0
   description: >
     Contrato REST framework-agnóstico de autenticación por sesión (cookie HttpOnly).
-    Único actor: la Coordinación. Errores en application/problem+json (RFC 7807).
+    Único actor: la Coordinación. Errores en application/problem+json (RFC 9457,
+    que obsoleta a la RFC 7807).
     Toda falla de autenticación devuelve un 401 genérico (anti-enumeración, FR-002).
 
 servers:
@@ -249,8 +250,8 @@ components:
     Problem:
       type: object
       description: >
-        RFC 7807 (application/problem+json). Solo title y status son requeridos; los demás
-        miembros son opcionales, fiel a la especificación.
+        RFC 9457 (application/problem+json), que obsoleta a la RFC 7807. Solo title y
+        status son requeridos; los demás miembros son opcionales, fiel a la especificación.
       required: [title, status]
       properties:
         type: { type: string, format: uri, example: about:blank }
