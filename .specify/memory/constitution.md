@@ -1,9 +1,51 @@
 <!--
 Sync Impact Report — Constitución de Trámita
 ============================================
-Cambio de versión: 2.1.0 → 2.2.0
-Ratificada: 2026-07-02 | Última enmienda: 2026-08-14
-Bump: MINOR (guía materialmente ampliada — §III y §IV)
+Cambio de versión: 2.2.1 → 2.2.2
+Ratificada: 2026-07-02 | Última enmienda: 2026-08-16
+Bump: PATCH (corrección de una afirmación factual del reporte de la v2.2.1)
+
+Enmienda 2026-08-16 (b) — ERRATA de la v2.2.1
+---------------------------------------------
+La entrada de la v2.2.1, más abajo, afirmaba que la constitución era «la última
+referencia desactualizada del repo, verificado con `rg -n --hidden '7807'` → una sola
+ocurrencia». **Esa afirmación es FALSA y queda rectificada aquí.**
+
+El comando citado se ejecutó **acotado a `.specify/`, `README.md` y `CLAUDE.md`**, y su
+resultado se consignó como si hubiera sido una búsqueda global. Ejecutado sobre el
+repositorio completo, `rg -n --hidden --glob '!.git' '7807'` devuelve **18 líneas en 9
+archivos**. Verificado además con `git show --stat 2e036e2`: aquel commit **no toca ningún
+archivo bajo `specs/001-auth-login/`**, de modo que la carpeta entera de la feature 001
+quedó fuera de la migración.
+
+Citas de RFC 7807 pendientes al 2026-08-16, detectadas por auditoría independiente:
+`specs/001-auth-login/contracts/openapi.yaml` (líneas 7 y 252) — el contrato que la propia
+sesión había declarado «la autoridad» —, `specs/001-auth-login/plan.md`,
+`specs/001-auth-login/research.md`, `specs/001-auth-login/tasks.md`,
+`specs/002-workflow-engine/research.md`, `docs/auditoria-seguridad-2026-07-18.md` y
+`docs/nuevo-proyecto/02-constitucion/draft-principios.md`.
+
+**La norma no cambia**: «Restricciones tecnológicas» sigue exigiendo RFC 9457, que es
+correcto. Lo que se rectifica es la evidencia con que se justificó el alcance. Es PATCH
+porque no altera ningún principio ni regla.
+
+Lección incorporada al §IV en la práctica: **un comando citado como prueba debe poder
+re-ejecutarse y dar el mismo resultado**. Una salida transcrita sin su invocación exacta
+no es evidencia verificable — es justamente lo que el §IV exige evitar.
+
+Enmienda 2026-08-16 (a) — v2.2.1
+--------------------------------
+«Restricciones tecnológicas» pasa de citar **RFC 7807** a **RFC 9457** para
+`application/problem+json`. La 9457 obsoleta a la 7807 según el propio documento
+(https://www.rfc-editor.org/rfc/rfc9457.html).
+
+Motivo: el commit `2e036e2` (2026-08-15) había migrado la mayor parte de las citas del
+repositorio y la constitución seguía desactualizada. ~~Verificado con `rg -n --hidden
+'7807'` → una sola ocurrencia.~~ **← afirmación errónea; ver la errata de arriba.**
+
+Es PATCH y no MINOR porque no cambia ninguna regla ni principio: la obligación de devolver
+los errores en `application/problem+json` es idéntica antes y después. Solo se corrige la
+identificación de la norma que la respalda. Ningún artefacto existente requiere rehacerse.
 
 Enmienda 2026-08-14
 -------------------
@@ -182,7 +224,8 @@ donde el riesgo lo justifica, no en inflar una métrica de cobertura.
 - Stack fijo, chasis heredado de Convenia: **Spring Boot 4 / Java 21 / PostgreSQL**, Maven.
 - **Flyway gestiona el schema; Hibernate solo valida** (`ddl-auto: validate`). Todo cambio
   de schema se hace con una migración nueva, nunca a mano.
-- Los errores se devuelven según **RFC 7807** (`application/problem+json`).
+- Los errores se devuelven según **RFC 9457** (`application/problem+json`), que obsoleta a la
+  RFC 7807 (<https://www.rfc-editor.org/rfc/rfc9457.html>).
 - Los servicios se exponen siempre por interface; los controllers inyectan la interface.
 - **Class** y **QF** son cajas negras: no se integran técnicamente. El sistema entrega el
   documento formal y un humano lo asienta donde corresponde.
@@ -210,4 +253,4 @@ especificación y plan verifica su alineación con estos principios; toda comple
 introducida debe justificarse explícitamente. La guía operativa del día a día vive en
 `CLAUDE.md`.
 
-**Versión**: 2.2.0 | **Ratificada**: 2026-07-02 | **Última enmienda**: 2026-08-14
+**Versión**: 2.2.2 | **Ratificada**: 2026-07-02 | **Última enmienda**: 2026-08-16
