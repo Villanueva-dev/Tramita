@@ -40,12 +40,20 @@ que siguen.
 Sin este paso, **todo** lo que sigue responde `401 problem+json` — son los escenarios
 FR-012 de US1/US2/US3.
 
-> ⚠️ **Un 401 acá puede no ser por la contraseña.** Si se saltea el paso 1 o falta el
-> header `X-XSRF-TOKEN`, el rechazo es de CSRF, pero como todavía no hay sesión el
-> `ExceptionTranslationFilter` deriva al `AuthenticationEntryPoint` en lugar del
-> `AccessDeniedHandler`: la respuesta es **401 «Autenticación requerida», no 403**. Antes
-> de sospechar de las credenciales, verificar que la cookie esté en el jar y el header
-> viaje en el request.
+> ⚠️ **401 y 403 son causas distintas, y el código las distingue sin ambigüedad.** Si se
+> saltea el paso 1 o falta el header `X-XSRF-TOKEN`, la respuesta es **`403`**, no 401 —
+> también en el login, con usuario todavía anónimo. `CsrfFilter` **resuelve la denegación
+> él mismo y corta la cadena**: su handler por defecto es `AccessDeniedHandlerImpl`
+> (`CsrfFilter.java:89`) y lo invoca directamente antes de retornar (`:132-133`), así que
+> la `AccessDeniedException` **nunca llega** al `ExceptionTranslationFilter` y no existe
+> el desvío anónimo → `AuthenticationEntryPoint`. `SecurityConfig` no configura ningún
+> `accessDeniedHandler` propio, por eso queda el default. Probado en
+> `AuthControllerIT#loginWithoutCsrfTokenIsRejected` (`.andExpect(status().isForbidden())`).
+>
+> Vale el mapa un-código-una-causa del contrato (`contracts/openapi.yaml` de la 001):
+> **401 = sesión ausente o expirada · 403 = CSRF · 422 = negocio · 429 = throttling**. Ante
+> un `403`, revisar que la cookie esté en el jar y que el header viaje; ante un `401`,
+> sospechar de la sesión o las credenciales.
 
 ## 3. Recorrer el motor
 
