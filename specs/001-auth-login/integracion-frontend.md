@@ -13,15 +13,21 @@
 | Frontend (Next) | `http://localhost:3000` | dev server |
 | Base de datos | Postgres `localhost:5433` | `docker start tramita-postgres` |
 
-**Recomendado: proxy same-origin.** Agregar rewrites en `next.config.mjs` para que el navegador
-vea todo bajo `localhost:3000`. Así `SameSite=Strict` funciona, las cookies fluyen y **no hace
-falta CORS**:
+**Proxy same-origin — ya implementado en `proxy.ts`**, no en `next.config.mjs`. El navegador ve
+todo bajo `localhost:3000`, así `SameSite=Strict` funciona, las cookies fluyen y **no hace falta
+CORS**.
 
-```js
-// next.config.mjs
-async rewrites() {
-  return [{ source: '/api/:path*', destination: 'http://localhost:8080/api/:path*' }];
-}
+> ⚠️ **Un `rewrites()` de `next.config.mjs` NO alcanza**, aunque parezca equivalente. El navegador
+> manda `Origin: http://localhost:3000` en cada POST; si se reenvía tal cual, el backend lo ve
+> como cross-origin y **responde `403` aunque el CSRF sea válido**. Un rewrite de configuración no
+> puede modificar headers de la request; por eso el proxy vive en `proxy.ts`, que borra el header
+> `Origin` antes de reenviar (ver `proxy.ts:5-9` y el comentario de `next.config.mjs:6-7`).
+
+```ts
+// proxy.ts — el matcher captura /api/:path*
+const headers = new Headers(request.headers)
+headers.delete('origin')
+return NextResponse.rewrite(target, { request: { headers } })
 ```
 
 > Alternativa sin proxy (fetch directo a `:8080`): hay que setear en el backend
@@ -34,7 +40,8 @@ async rewrites() {
 
 ## 1. Endpoints (resumen)
 
-Base: `/api`. Errores siempre en `application/problem+json` (RFC 7807).
+Base: `/api`. Errores siempre en `application/problem+json` (**RFC 9457**, que obsoleta a la
+RFC 7807 — <https://www.rfc-editor.org/rfc/rfc9457.html>).
 
 | Método | Path | Sesión | CSRF | Body | Éxito |
 |--------|------|:------:|:----:|------|-------|
@@ -171,7 +178,8 @@ async function apiFetch(path: string, opts: RequestInit = {}) {
 
 ## 9. Checklist de cableado (maqueta actual → real)
 
-- [ ] `next.config.mjs`: agregar los `rewrites` (§0).
+- [x] Proxy same-origin de `/api/*` (§0) — resuelto en `proxy.ts`, que además borra el header
+  `Origin`. **No usar `rewrites()` de `next.config.mjs`**: no puede modificar headers.
 - [ ] `lib/api.ts`: crear el cliente base (§8) con `credentials: 'include'` + CSRF.
 - [ ] `lib/store.tsx`: **borrar el mock** (login simulado, credenciales hardcodeadas, `setTimeout`).
   - `login(email, pw)` → `POST /auth/login`; en `204`, `GET /me` y poblar `user`.
@@ -185,8 +193,14 @@ async function apiFetch(path: string, opts: RequestInit = {}) {
 
 ## 10. Fuera de alcance (Fase B)
 
-Trámites (adición de créditos, novedad de notas) requieren backend `002+` que **aún no existe**.
-`lib/types.ts` de la maqueta es un **borrador de contrato**, no cablear todavía.
+Trámites (adición de créditos, novedad de notas) están fuera del alcance de **este** documento,
+que cubre solo auth.
+
+> **Actualización 2026-08-16**: el backend `002-workflow-engine` **ya existe y está mergeado a
+> `main`** (PR #3, merge `edcf188`). Su contrato es
+> `specs/002-workflow-engine/contracts/openapi.yaml`. La Fase B está en curso y `lib/types.ts` de
+> la maqueta **no es un borrador de contrato válido**: congela trámites y estados en union types
+> literales, incompatible con un motor configurable por dato. Se reemplaza, no se cablea.
 
 ---
 
@@ -194,7 +208,7 @@ Trámites (adición de créditos, novedad de notas) requieren backend `002+` que
 
 1. Backend dev arriba: `docker start tramita-postgres` → `set -a; source .env; set +a;
    SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run`.
-2. Frontend: `next dev` (con los rewrites).
+2. Frontend: `next dev` (el proxy de `proxy.ts` se activa solo, vía su `matcher`).
 3. Recorrido feliz: cargar app (→ `/me 401` → login), login con credenciales seed (→ `204` →
    `/me 200` → dashboard), **F5 → sigue logueado**, cambiar contraseña (clave corta → `422` con
    motivo; válida → `204`), logout (→ `204` → `/me 401` → login).
