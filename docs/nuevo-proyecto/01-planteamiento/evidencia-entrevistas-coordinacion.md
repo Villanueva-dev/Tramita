@@ -71,7 +71,7 @@ El guion `guia-entrevista-3.md` fue redactado tratando las dos partes de la prim
 
 | | **Sesión 1** | **Sesión 2** |
 |---|---|---|
-| **Fecha de realización** | *[por confirmar]* | *[por confirmar]* |
+| **Fecha de realización** | 12 de mayo | 4 de junio |
 | **Modalidad** | Presencial | Presencial |
 | **Duración registrada** | Dos tramos de grabación | ≈ 41 minutos *(estimado — ver nota)* |
 | **Entrevistada** | Coordinación Académica — Sede Cali | Coordinación Académica — Sede Cali |
@@ -122,7 +122,7 @@ Todos los actores se designan por rol. Esta tabla es la que debe usarse en cualq
 
 **Objetivo declarado al inicio de la sesión**: identificar los procesos que más carga operativa generan en la coordinación, para acotar el alcance del proyecto sobre evidencia y no sobre suposición.
 
-> Apertura registrada: *"pues el primero que todo, pues muchas gracias por aceptar esta entrevista. Es muy importante para nuestro pro[yecto de] grado. Queremos hacerte unas pequeñas preguntas para modificar lo que ya tenemos, según los procesos que más tú haces."*
+> Apertura registrada: *"primero que todo, pues muchas gracias por aceptar esta entrevista. Es muy importante para nuestro proyecto de grado. Queremos hacerte unas pequeñas preguntas para modificar lo que ya tenemos, según los procesos que más tú haces."*
 
 ### 5.1 Bloque de apertura — identificación de procesos críticos
 
