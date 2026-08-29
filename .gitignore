@@ -7,11 +7,16 @@
 !.claude/skills/
 .claude/skills/*
 
-# Excepción deliberada: las dos skills de autoría del equipo sí se versionan, para que
-# tengan respaldo e historial revisable. Quedan fuera las `speckit-*` (las regenera Spec
-# Kit desde `.specify/`, ya versionado) y `dr-jskill` (terceros, Apache 2.0).
+# Excepción deliberada: las skills de autoría del equipo sí se versionan, para que tengan
+# respaldo e historial revisable. Quedan fuera las `speckit-*` (las regenera Spec Kit
+# desde `.specify/`, ya versionado) y `dr-jskill` (terceros, Apache 2.0).
+#
+# Cada skill nueva del equipo necesita SU PROPIA línea acá: la regla de arriba
+# (`.claude/skills/*`) excluye a todas por defecto, así que sin re-inclusión explícita
+# una skill nueva queda fuera del repositorio sin que nada lo avise.
 !.claude/skills/auditar-vs-entrevistas/
 !.claude/skills/revisar-backend-java/
+!.claude/skills/review-agente-limpio/
 
 # Secretos y variables de entorno — NUNCA subir
 # (la implementación heredará el chasis Convenia, que usa .env con credenciales)
