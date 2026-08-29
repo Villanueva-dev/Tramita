@@ -66,6 +66,18 @@ Lo innegociable: el cuerpo explica el **porqué**, no repite el diff; un commit 
 solo propósito; y todo cambio de comportamiento lleva una línea `Verificado:` con el
 comando ejecutado y su resultado.
 
+## CI y reglas de `main`
+
+`.github/workflows/ci.yml` corre `./mvnw clean verify` en cada push a `main` y en cada PR. **No
+necesita secretos**: los IT traen su Postgres vía `@ServiceConnection`.
+
+El ruleset `branch-protect` tiene `bypass_actors` vacío, así que **nadie puede pushear directo a
+`main`, ni el administrador**. Todo va por PR con el check `build` en verde — documentación
+incluida. `squash` está deshabilitado a propósito: aplastaría los cuerpos de commit.
+
+El estado del proyecto vive en los **milestones e issues de GitHub** (un milestone por sprint, un
+issue por SP1–SP7), no en un archivo. Se cierra con `Closes #N` en el cuerpo de la PR.
+
 ## Metodología (citar al usarla)
 
 - **Planteamiento**: Marco Lógico — Ortegón, Pacheco y Prieto (2005), *Metodología del Marco Lógico*, CEPAL/ILPES Serie Manuales N.º 42.

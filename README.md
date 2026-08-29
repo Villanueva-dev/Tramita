@@ -225,6 +225,43 @@ Flujo de humo con `curl` (login → `/me` → password → logout):
 
 ---
 
+## Integración continua
+
+Cada push a `main` y cada pull request contra `main` dispara
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml): un runner limpio compila el proyecto y
+corre la suite completa —unitarios y de integración— con `./mvnw clean verify`.
+
+No necesita secretos ni un servicio de PostgreSQL en el runner: los tests de integración levantan
+su propio contenedor vía `@ServiceConnection`, y cada uno declara `APP_CORS_ALLOWED_ORIGINS` en su
+`@SpringBootTest`. El workflow tampoco filtra por `paths:` **a propósito**: si no corriera en
+cambios de documentación, toda PR de solo-docs quedaría esperando un check que nunca llega.
+
+---
+
+## Cómo se contribuye
+
+`main` está protegida por el ruleset `branch-protect`, con `bypass_actors` vacío: **las reglas
+aplican también al administrador**.
+
+| Regla | Efecto |
+|-------|--------|
+| `pull_request` | No se puede pushear directo a `main`. Todo cambio va por PR, documentación incluida |
+| `required_status_checks` | El check `build` debe estar en verde para habilitar el merge |
+| `required_review_thread_resolution` | No se mergea con comentarios de revisión sin resolver |
+| `non_fast_forward` · `deletion` | No hay force-push ni borrado de `main` |
+| Métodos de merge | `merge` y `rebase`. **Squash está deshabilitado**: aplastaría los cuerpos de commit, que son la evidencia de por qué se tomó cada decisión |
+
+El **estado del proyecto** se sigue en los [milestones](../../milestones): un milestone por sprint
+y un issue por sub-problema (SP1–SP7). Para cerrar uno, incluir `Closes #N` en el cuerpo de la PR
+— el avance lo calcula GitHub. No hay ningún documento de estado que mantener a mano.
+
+> **Si una PR queda en «Expected — Waiting for status to be reported»**, el workflow no se disparó.
+> Pasa cuando GitHub reapunta la base de una PR encadenada al mergear su base: el reapuntado no
+> emite evento `pull_request`. Se destraba cerrando y reabriendo la PR (`gh pr close N && gh pr
+> reopen N`), que emite `reopened`.
+
+---
+
 ## Documentación
 
 | Documento | Contenido |
