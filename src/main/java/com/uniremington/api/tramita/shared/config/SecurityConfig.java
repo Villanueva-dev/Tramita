@@ -44,7 +44,7 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties(CorsProperties.class)
+@EnableConfigurationProperties({CorsProperties.class, NotificationProperties.class, AiProperties.class})
 public class SecurityConfig {
 
     /**

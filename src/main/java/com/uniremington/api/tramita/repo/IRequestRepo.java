@@ -9,6 +9,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface IRequestRepo extends JpaRepository<Request, UUID> {
 
+    List<Request> findAllByOrderByCreatedAtDesc();
+
     /**
      * Localización por los dos datos con los que la Coordinación identifica un
      * trámite (FR-011): cédula por igualdad exacta o fragmento del nombre

@@ -8,12 +8,15 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -53,6 +56,31 @@ public class Request {
 
     @Column(name = "student_document", nullable = false, updatable = false)
     private String studentDocument;
+
+        // Datos estructurados del formulario; se separan las asignaturas para conservar su cardinalidad.
+        @Column(name = "student_code", updatable = false)
+        private String studentCode;
+
+        @Column(name = "student_email", updatable = false)
+        private String studentEmail;
+
+        @Column(updatable = false)
+        private String program;
+
+        @Column(updatable = false)
+        private String semester;
+
+        @Column(updatable = false)
+        private String reason;
+
+        @Column(nullable = false, updatable = false)
+        @Builder.Default
+        private String priority = "normal";
+
+        @OneToMany(mappedBy = "request", cascade = jakarta.persistence.CascadeType.ALL,
+            orphanRemoval = true, fetch = FetchType.LAZY)
+        @Builder.Default
+        private List<RequestSubject> subjects = new ArrayList<>();
 
     /**
      * Locking optimista (research.md D6): ante dos avances casi simultáneos solo

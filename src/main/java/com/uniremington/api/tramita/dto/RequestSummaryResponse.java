@@ -9,6 +9,13 @@ public record RequestSummaryResponse(
         WorkflowDefinitionResponse definition,
         String studentName,
         String studentDocument,
+        String studentCode,
+        String studentEmail,
+        String program,
+        String semester,
+        String reason,
+        String priority,
+        java.util.List<SubjectResponse> subjects,
         StateResponse currentState,
         LocalDateTime createdAt) {
 }

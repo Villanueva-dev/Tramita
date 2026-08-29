@@ -21,6 +21,7 @@ import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
 import com.uniremington.api.tramita.repo.IUserRepo;
 import com.uniremington.api.tramita.repo.IWorkflowDefinitionRepo;
+import com.uniremington.api.tramita.service.IRequestNotificationService;
 import com.uniremington.api.tramita.shared.exception.IllegalTransitionException;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
@@ -46,13 +47,16 @@ class RequestServiceImplTest {
     private final IRequestRepo requestRepo = mock(IRequestRepo.class);
     private final IRequestTransitionLogRepo logRepo = mock(IRequestTransitionLogRepo.class);
     private final IUserRepo userRepo = mock(IUserRepo.class);
+    // El validador se aísla aquí: sus reglas tienen pruebas propias y este test cubre el motor.
+    private final RequestBusinessRules businessRules = mock(RequestBusinessRules.class);
+    private final IRequestNotificationService notificationService = mock(IRequestNotificationService.class);
     private final RequestServiceImpl service =
-            new RequestServiceImpl(definitionRepo, requestRepo, logRepo, userRepo);
+            new RequestServiceImpl(definitionRepo, requestRepo, logRepo, userRepo, businessRules, notificationService);
 
     private final User actor = new User();
 
     /**
-     * Definición mínima en memoria: INICIAL → SIGUIENTE → FINAL, más la
+        * Definición mínima en memoria: INICIAL → SIGUIENTE → FINALIZADA, más la
      * devolución SIGUIENTE → INICIAL con nota obligatoria (FR-013/FR-014).
      * Códigos genéricos a propósito: el motor no conoce trámites (US4) y este
      * test tampoco debería.
@@ -62,7 +66,7 @@ class RequestServiceImplTest {
     private final WorkflowState next =
             WorkflowState.builder().code("SIGUIENTE").name("Siguiente").build();
     private final WorkflowState terminal =
-            WorkflowState.builder().code("FINAL").name("Final").finalState(true).build();
+            WorkflowState.builder().code("FINALIZADA").name("Finalizada").finalState(true).build();
     private final WorkflowDefinition definition = WorkflowDefinition.builder()
             .code("TRAMITE_PRUEBA")
             .version(1)
@@ -159,10 +163,10 @@ class RequestServiceImplTest {
     void advanceUndefinedTransitionRejectsWithoutSideEffects() {
         Request request = requestAt(initial);
 
-        // INICIAL → FINAL no existe en la definición (el camino pasa por SIGUIENTE)
+        // INICIAL → FINALIZADA no existe en la definición (el camino pasa por SIGUIENTE)
         assertThatExceptionOfType(IllegalTransitionException.class)
                 .isThrownBy(() -> service.advance(
-                        REQUEST_ID, new AdvanceRequestBody("FINAL", null), EMAIL));
+                        REQUEST_ID, new AdvanceRequestBody("FINALIZADA", null), EMAIL));
 
         assertThat(request.getCurrentState()).isSameAs(initial);
         verify(logRepo, never()).save(any());
@@ -219,6 +223,49 @@ class RequestServiceImplTest {
         assertThatExceptionOfType(ResourceNotFoundException.class)
                 .isThrownBy(() -> service.advance(
                         REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL));
+    }
+
+    @Test
+    @DisplayName("al llegar a FINALIZADA dispara la notificación de cierre")
+    void advanceToFinalizadaTriggersNotification() {
+        Request request = requestAt(next);
+
+        RequestResponse response = service.advance(
+                REQUEST_ID, new AdvanceRequestBody("FINALIZADA", null), EMAIL);
+
+        assertThat(response.currentState().code()).isEqualTo("FINALIZADA");
+        verify(notificationService).notifyFinalized(request);
+    }
+
+    @Test
+    @DisplayName("un final distinto de FINALIZADA no dispara notificación")
+    void advanceToOtherFinalStateDoesNotTriggerNotification() {
+        WorkflowState rejected = WorkflowState.builder().code("RECHAZADA").name("Rechazada").finalState(true).build();
+        WorkflowDefinition rejectionDefinition = WorkflowDefinition.builder()
+                .code("TRAMITE_RECHAZABLE")
+                .version(1)
+                .name("Trámite rechazable")
+                .states(List.of(initial, rejected))
+                .transitions(List.of(WorkflowTransition.builder()
+                        .fromState(initial).toState(rejected)
+                        .responsible("EXTERNO").requiresNote(false).build()))
+                .build();
+        Request request = Request.builder()
+                .definition(rejectionDefinition)
+                .currentState(initial)
+                .studentName("Ana María Pérez")
+                .studentDocument("1144099888")
+                .build();
+        when(requestRepo.findById(REQUEST_ID)).thenReturn(Optional.of(request));
+        when(userRepo.findByEmail(EMAIL)).thenReturn(Optional.of(actor));
+        when(requestRepo.save(any(Request.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(logRepo.save(any(RequestTransitionLog.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        RequestResponse response = service.advance(
+                REQUEST_ID, new AdvanceRequestBody("RECHAZADA", null), EMAIL);
+
+        assertThat(response.currentState().code()).isEqualTo("RECHAZADA");
+        verify(notificationService, never()).notifyFinalized(any(Request.class));
     }
 
     // --- helpers -------------------------------------------------------------------------

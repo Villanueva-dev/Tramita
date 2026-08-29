@@ -10,6 +10,7 @@ import com.uniremington.api.tramita.dto.TimelineEntryResponse;
 import com.uniremington.api.tramita.dto.WorkflowDefinitionResponse;
 import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.model.RequestTransitionLog;
+import com.uniremington.api.tramita.model.RequestSubject;
 import com.uniremington.api.tramita.model.User;
 import com.uniremington.api.tramita.model.WorkflowDefinition;
 import com.uniremington.api.tramita.model.WorkflowState;
@@ -18,6 +19,7 @@ import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
 import com.uniremington.api.tramita.repo.IUserRepo;
 import com.uniremington.api.tramita.repo.IWorkflowDefinitionRepo;
+import com.uniremington.api.tramita.service.IRequestNotificationService;
 import com.uniremington.api.tramita.service.IRequestService;
 import com.uniremington.api.tramita.shared.exception.IllegalTransitionException;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
@@ -38,10 +40,14 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class RequestServiceImpl implements IRequestService {
 
+        private static final String FINALIZED_STATE_CODE = "FINALIZADA";
+
     private final IWorkflowDefinitionRepo definitionRepo;
     private final IRequestRepo requestRepo;
     private final IRequestTransitionLogRepo logRepo;
     private final IUserRepo userRepo;
+        private final RequestBusinessRules businessRules;
+        private final IRequestNotificationService notificationService;
 
     @Override
     @Transactional
@@ -69,13 +75,34 @@ public class RequestServiceImpl implements IRequestService {
                                     initialStates.size()));
         }
         WorkflowState initial = initialStates.getFirst();
+        // Las reglas se ejecutan antes de persistir para impedir entradas inválidas.
+        businessRules.validate(definition, body);
 
         Request request = requestRepo.save(Request.builder()
                 .definition(definition)
                 .currentState(initial)
                 .studentName(body.studentName())
                 .studentDocument(body.studentDocument())
+                // Los datos ampliados se persisten junto con la solicitud, no en el navegador.
+                .studentCode(body.studentCode())
+                .studentEmail(body.studentEmail())
+                .program(body.program())
+                .semester(body.semester())
+                .reason(body.reason())
+                .priority(body.priority() == null ? "normal" : body.priority())
                 .build());
+
+        List<com.uniremington.api.tramita.dto.SubjectRequestBody> subjects =
+                body.subjects() == null ? List.of() : body.subjects();
+        request.getSubjects().addAll(subjects.stream().map(subject -> RequestSubject.builder()
+                .request(request)
+                .code(subject.code())
+                .name(subject.name())
+                .credits(subject.credits())
+                .group(subject.group())
+                .currentGrade(subject.currentGrade())
+                .proposedGrade(subject.proposedGrade())
+                .build()).toList());
 
         // Entrada de nacimiento del timeline (research.md D7): from NULL
         logRepo.save(RequestTransitionLog.builder()
@@ -133,8 +160,12 @@ public class RequestServiceImpl implements IRequestService {
                 .note(note)
                 .build());
         request.moveTo(transition.getToState());
-
-        return toResponse(requestRepo.save(request));
+                Request saved = requestRepo.save(request);
+                // La notificación de cierre es exclusiva de FINALIZADA; los rechazos finales no avisan al estudiante aún.
+                if (FINALIZED_STATE_CODE.equals(transition.getToState().getCode())) {
+                        notificationService.notifyFinalized(saved);
+                }
+                return toResponse(saved);
     }
 
     @Override
@@ -150,6 +181,14 @@ public class RequestServiceImpl implements IRequestService {
                 .map(this::toSummary)
                 .toList();
     }
+
+        @Override
+        @Transactional(readOnly = true)
+        public List<RequestSummaryResponse> findAll() {
+                return requestRepo.findAllByOrderByCreatedAtDesc().stream()
+                                .map(this::toSummary)
+                                .toList();
+        }
 
     /**
      * El timeline es un solo SELECT ordenado (research.md D7/D11). El "en nombre
@@ -191,6 +230,13 @@ public class RequestServiceImpl implements IRequestService {
                         definition.getCode(), definition.getName(), definition.getVersion()),
                 request.getStudentName(),
                 request.getStudentDocument(),
+                request.getStudentCode(),
+                request.getStudentEmail(),
+                request.getProgram(),
+                request.getSemester(),
+                request.getReason(),
+                request.getPriority(),
+                toSubjectResponses(request),
                 toStateResponse(request.getCurrentState()),
                 request.getCreatedAt());
     }
@@ -237,6 +283,13 @@ public class RequestServiceImpl implements IRequestService {
                         definition.getCode(), definition.getName(), definition.getVersion()),
                 request.getStudentName(),
                 request.getStudentDocument(),
+                request.getStudentCode(),
+                request.getStudentEmail(),
+                request.getProgram(),
+                request.getSemester(),
+                request.getReason(),
+                request.getPriority(),
+                toSubjectResponses(request),
                 toStateResponse(current),
                 available,
                 request.getCreatedAt());
@@ -245,4 +298,13 @@ public class RequestServiceImpl implements IRequestService {
     private StateResponse toStateResponse(WorkflowState state) {
         return new StateResponse(state.getCode(), state.getName(), state.isFinalState());
     }
+
+        private List<com.uniremington.api.tramita.dto.SubjectResponse> toSubjectResponses(Request request) {
+                // El mapeo explícito evita exponer entidades JPA y conserva la frontera DTO.
+                return request.getSubjects().stream()
+                                .map(subject -> new com.uniremington.api.tramita.dto.SubjectResponse(
+                                                subject.getCode(), subject.getName(), subject.getCredits(), subject.getGroup(),
+                                                subject.getCurrentGrade(), subject.getProposedGrade()))
+                                .toList();
+        }
 }

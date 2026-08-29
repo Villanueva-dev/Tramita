@@ -35,6 +35,9 @@ public interface IRequestService {
      */
     List<RequestSummaryResponse> search(String query);
 
+    /** Solicitudes de la bandeja protegida para rehidratar el frontend. */
+    List<RequestSummaryResponse> findAll();
+
     /**
      * Timeline completo en orden cronológico (US3, FR-008): cada entrada con su
      * autor real y el responsable del paso según la definición (FR-006).

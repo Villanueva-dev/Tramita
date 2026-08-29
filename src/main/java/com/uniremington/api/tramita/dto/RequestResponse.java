@@ -13,6 +13,13 @@ public record RequestResponse(
         WorkflowDefinitionResponse definition,
         String studentName,
         String studentDocument,
+        String studentCode,
+        String studentEmail,
+        String program,
+        String semester,
+        String reason,
+        String priority,
+        List<SubjectResponse> subjects,
         StateResponse currentState,
         List<AvailableTransitionResponse> availableTransitions,
         LocalDateTime createdAt) {

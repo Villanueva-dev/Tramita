@@ -148,6 +148,119 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /requests/{id}/document:
+    get:
+      summary: Descarga la constancia PDF de una solicitud finalizada
+      description: El documento se genera desde los datos persistidos y solo está disponible al cerrar el trámite.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Documento PDF formal
+          content:
+            application/pdf: {}
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: La solicitud todavía no está finalizada
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /requests/{id}/documents:
+    get:
+      summary: Lista los documentos adjuntos de una solicitud
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Metadatos de documentos adjuntos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Document' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Adjunta un documento PDF a una solicitud
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '200':
+          description: Metadatos del documento creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Document' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422':
+          description: Archivo vacío, no PDF o mayor de 5 MB
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /requests/{id}/documents/{documentId}:
+    get:
+      summary: Descarga un documento adjunto
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Archivo PDF adjunto
+          content:
+            application/pdf: {}
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /requests/{id}/documents/{documentId}/approvals:
+    get:
+      summary: Lista la traza de aprobaciones externas de un documento adjunto
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Evidencias append-only de firma y sello de tiempo del documento
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DocumentApproval' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Registra una firma externa sobre un documento adjunto
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DocumentApprovalRequest' }
+      responses:
+        '200':
+          description: Evidencia registrada con sello UTC y hash del PDF aprobado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentApproval' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422':
+          description: Datos inválidos o fecha de firma futura
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
 components:
   responses:
     Unauthorized:
@@ -189,6 +302,15 @@ components:
         definitionCode: { type: string, example: ADICION_CREDITOS }
         studentName: { type: string, maxLength: 120, example: Ana María Pérez }
         studentDocument: { type: string, maxLength: 20, example: '1144099888' }
+        studentCode: { type: string, maxLength: 30, example: '1090234' }
+        studentEmail: { type: string, format: email, maxLength: 255 }
+        program: { type: string, maxLength: 120, example: Ingeniería de Sistemas }
+        semester: { type: string, maxLength: 50, example: Semestre 7 }
+        reason: { type: string }
+        priority: { type: string, enum: [normal, urgente] }
+        subjects:
+          type: array
+          items: { $ref: '#/components/schemas/SubjectRequest' }
 
     AdvanceRequestBody:
       type: object
@@ -198,6 +320,67 @@ components:
         note:
           type: string
           description: Observación; obligatoria si la transición la exige (FR-014)
+
+    SubjectRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string, maxLength: 30 }
+        name: { type: string, maxLength: 150 }
+        credits: { type: integer, nullable: true }
+        group: { type: string, maxLength: 30, nullable: true }
+        currentGrade: { type: string, maxLength: 20, nullable: true }
+        proposedGrade: { type: string, maxLength: 20, nullable: true }
+
+    SubjectResponse:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        credits: { type: integer, nullable: true }
+        group: { type: string, nullable: true }
+        currentGrade: { type: string, nullable: true }
+        proposedGrade: { type: string, nullable: true }
+
+    Document:
+      type: object
+      required: [id, originalName, contentType, size, sha256, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        originalName: { type: string }
+        contentType: { type: string, example: application/pdf }
+        size: { type: integer, format: int64 }
+        sha256: { type: string, minLength: 64, maxLength: 64 }
+        createdAt: { type: string, format: date-time }
+
+    DocumentApprovalRequest:
+      type: object
+      required: [signerName, signerRole, signatureType, signedAt]
+      properties:
+        signerName: { type: string, maxLength: 120, example: Decanatura de Facultad }
+        signerRole: { type: string, maxLength: 80, example: FACULTAD }
+        signatureType:
+          type: string
+          enum: [DIGITAL, ESCANEADA]
+        signedAt: { type: string, format: date-time }
+        note: { type: string, maxLength: 1000, example: Firma recibida por correo institucional }
+
+    DocumentApproval:
+      type: object
+      required: [id, signerName, signerRole, signatureType, documentSha256, recordedByEmail, signedAt, timestampedAt]
+      properties:
+        id: { type: integer, format: int64, example: 1 }
+        signerName: { type: string, example: Decanatura de Facultad }
+        signerRole: { type: string, example: FACULTAD }
+        signatureType:
+          type: string
+          enum: [DIGITAL, ESCANEADA]
+        documentSha256: { type: string, minLength: 64, maxLength: 64 }
+        recordedByEmail: { type: string, example: coordinacion.cali@uniremington.edu.co }
+        note: { type: string, nullable: true }
+        signedAt: { type: string, format: date-time }
+        timestampedAt: { type: string, format: date-time }
 
     State:
       type: object
@@ -227,6 +410,15 @@ components:
         definition: { $ref: '#/components/schemas/WorkflowDefinition' }
         studentName: { type: string }
         studentDocument: { type: string }
+        studentCode: { type: string, nullable: true }
+        studentEmail: { type: string, nullable: true }
+        program: { type: string, nullable: true }
+        semester: { type: string, nullable: true }
+        reason: { type: string, nullable: true }
+        priority: { type: string, enum: [normal, urgente] }
+        subjects:
+          type: array
+          items: { $ref: '#/components/schemas/SubjectResponse' }
         currentState: { $ref: '#/components/schemas/State' }
         availableTransitions:
           type: array
@@ -242,6 +434,15 @@ components:
         definition: { $ref: '#/components/schemas/WorkflowDefinition' }
         studentName: { type: string }
         studentDocument: { type: string }
+        studentCode: { type: string, nullable: true }
+        studentEmail: { type: string, nullable: true }
+        program: { type: string, nullable: true }
+        semester: { type: string, nullable: true }
+        reason: { type: string, nullable: true }
+        priority: { type: string, enum: [normal, urgente] }
+        subjects:
+          type: array
+          items: { $ref: '#/components/schemas/SubjectResponse' }
         currentState: { $ref: '#/components/schemas/State' }
         createdAt: { type: string, format: date-time }
 

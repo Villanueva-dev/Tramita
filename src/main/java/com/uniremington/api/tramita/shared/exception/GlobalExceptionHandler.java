@@ -81,6 +81,23 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .body(problem);
     }
 
+    /** El proveedor no está habilitado o configurado: 503 sin revelar secretos. */
+    @ExceptionHandler(AiUnavailableException.class)
+    ProblemDetail handleAiUnavailable(AiUnavailableException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+        problem.setTitle("Asistente no disponible");
+        return problem;
+    }
+
+    /** Error del proveedor externo: 502 y ningún detalle interno de la integración. */
+    @ExceptionHandler(AiProviderException.class)
+    ProblemDetail handleAiProvider(AiProviderException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_GATEWAY, "No fue posible consultar el asistente en este momento.");
+        problem.setTitle("Proveedor de IA no disponible");
+        return problem;
+    }
+
     /** Fallback: nada interno (mensaje, stacktrace) se filtra al cliente. */
     @ExceptionHandler(Exception.class)
     ProblemDetail handleUnexpected(Exception ex) {

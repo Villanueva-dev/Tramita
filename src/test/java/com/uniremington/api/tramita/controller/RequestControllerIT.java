@@ -2,6 +2,7 @@ package com.uniremington.api.tramita.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -20,6 +21,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -51,6 +54,9 @@ class RequestControllerIT {
     @Autowired
     private IRequestTransitionLogRepo logRepo;
 
+        @Autowired
+        private JdbcTemplate jdbcTemplate;
+
     // --- US1: registrar ------------------------------------------------------------------
 
     @Test
@@ -72,6 +78,45 @@ class RequestControllerIT {
                 .andExpect(jsonPath("$.availableTransitions[0].targetState.code")
                         .value("EN_FACULTAD"));
     }
+
+                @Test
+                @DisplayName("registrar solicitud completa: persiste datos académicos y asignaturas")
+                void registerPersistsCompleteFormData() throws Exception {
+                                MockHttpSession session = login();
+
+                                mockMvc.perform(post("/api/requests")
+                                                                                                .with(csrf())
+                                                                                                .contentType(MediaType.APPLICATION_JSON)
+                                                                                                .content("""
+                                                                                                                                {
+                                                                                                                                        "definitionCode":"NOVEDAD_NOTAS",
+                                                                                                                                        "studentName":"Estudiante Completo",
+                                                                                                                                        "studentDocument":"1144002200",
+                                                                                                                                        "studentCode":"1090234",
+                                                                                                                                        "studentEmail":"estudiante@remington.edu.co",
+                                                                                                                                        "program":"Ingeniería de Sistemas",
+                                                                                                                                        "semester":"Semestre 7",
+                                                                                                                                        "reason":"La nota registrada no coincide con el acta.",
+                                                                                                                                        "priority":"urgente",
+                                                                                                                                        "subjects":[{
+                                                                                                                                                "code":"IS-704",
+                                                                                                                                                "name":"Arquitectura de Software",
+                                                                                                                                                "credits":3,
+                                                                                                                                                "group":"A1",
+                                                                                                                                                "currentGrade":"2.9",
+                                                                                                                                                "proposedGrade":"3.6"
+                                                                                                                                        }]
+                                                                                                                                }
+                                                                                                                                """)
+                                                                                                .session(session))
+                                                                .andExpect(status().isCreated())
+                                                                .andExpect(jsonPath("$.studentCode").value("1090234"))
+                                                                .andExpect(jsonPath("$.studentEmail").value("estudiante@remington.edu.co"))
+                                                                .andExpect(jsonPath("$.program").value("Ingeniería de Sistemas"))
+                                                                .andExpect(jsonPath("$.priority").value("urgente"))
+                                                                .andExpect(jsonPath("$.subjects[0].code").value("IS-704"))
+                                                                .andExpect(jsonPath("$.subjects[0].proposedGrade").value("3.6"));
+                }
 
     @Test
     @DisplayName("los dos trámites coexisten: cada solicitud nace en el estado inicial de SU definición")
@@ -136,6 +181,10 @@ class RequestControllerIT {
                 .andExpect(jsonPath("$.currentState.isFinal").value(true))
                 // Trámite cerrado: de un estado final no sale nada
                 .andExpect(jsonPath("$.availableTransitions").isEmpty());
+
+        // Sin SMTP en tests, el cierre deja evidencia del fallo email y del fallback manual.
+        assertThat(countNotifications(id, "EMAIL", "FAILED")).isEqualTo(1);
+        assertThat(countNotifications(id, "MANUAL", "PENDING")).isEqualTo(1);
     }
 
     @Test
@@ -311,6 +360,47 @@ class RequestControllerIT {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    @DisplayName("aprobaciones documentales: registra firma externa con sello UTC y conserva el hash aprobado")
+    void documentApprovalsPersistSignatureTrace() throws Exception {
+        MockHttpSession session = login();
+        String requestId = registerAndGetId(session, "ADICION_CREDITOS", "Documento Firmado", "505505");
+        String documentBody = mockMvc.perform(uploadDocument(requestId)
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sha256").exists())
+                .andReturn().getResponse().getContentAsString();
+        String documentId = com.jayway.jsonpath.JsonPath.read(documentBody, "$.id");
+        String approvedHash = com.jayway.jsonpath.JsonPath.read(documentBody, "$.sha256");
+
+        mockMvc.perform(post("/api/requests/" + requestId + "/documents/" + documentId + "/approvals")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "signerName":"Decanatura de Facultad",
+                                  "signerRole":"FACULTAD",
+                                  "signatureType":"ESCANEADA",
+                                  "signedAt":"2026-08-26T10:15:30",
+                                  "note":"Firma recibida por correo institucional"
+                                }
+                                """)
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.signerName").value("Decanatura de Facultad"))
+                .andExpect(jsonPath("$.signatureType").value("ESCANEADA"))
+                .andExpect(jsonPath("$.documentSha256").value(approvedHash))
+                .andExpect(jsonPath("$.recordedByEmail").value(AuthControllerIT.SEED_EMAIL))
+                .andExpect(jsonPath("$.timestampedAt").exists());
+
+        mockMvc.perform(get("/api/requests/" + requestId + "/documents/" + documentId + "/approvals")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].signerRole").value("FACULTAD"))
+                .andExpect(jsonPath("$[0].note").value("Firma recibida por correo institucional"));
+    }
+
     // --- US5: devolución con motivo y cierre por rechazo ---------------------------------
     // US5-4 (rechazo en un trámite que no lo define → 409) vive en
     // WorkflowGenericityIT.rejectionExistsOnlyWhereTheDefinitionDeclaresIt.
@@ -370,6 +460,8 @@ class RequestControllerIT {
         // Cerrado es cerrado: ningún avance posterior es legal (US2-4)
         mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
                 .andExpect(status().isConflict());
+        assertThat(countNotifications(id, "EMAIL", "FAILED")).isZero();
+        assertThat(countNotifications(id, "MANUAL", "PENDING")).isZero();
     }
 
     @Test
@@ -396,6 +488,50 @@ class RequestControllerIT {
                 // aquí, exactamente una y con su motivo
                 .andExpect(jsonPath("$[?(@.toState.code == 'DEVUELTA')].note")
                         .value(org.hamcrest.Matchers.contains("Falta soporte de pago")));
+    }
+
+    @Test
+    @DisplayName("métricas operativas: agrega estados, devoluciones y ciclo sin exponer datos personales")
+    void requestMetricsAggregatesOperationalData() throws Exception {
+        MockHttpSession session = login();
+        String metricsBefore = mockMvc.perform(get("/api/metrics/requests").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").exists())
+                .andExpect(jsonPath("$.byDefinition.ADICION_CREDITOS").exists())
+                .andReturn().getResponse().getContentAsString();
+        long totalBefore = ((Number) com.jayway.jsonpath.JsonPath.read(metricsBefore, "$.total")).longValue();
+        long returnedBefore = ((Number) com.jayway.jsonpath.JsonPath.read(metricsBefore, "$.returnCount")).longValue();
+        long registeredBefore = ((Number) com.jayway.jsonpath.JsonPath.read(metricsBefore, "$.byCurrentState.REGISTRADA")).longValue();
+
+        String returnedId = registerAndGetId(session, "ADICION_CREDITOS", "Métrica Devuelta", "801801");
+        mockMvc.perform(advanceRequest(returnedId, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(advanceRequest(returnedId, "DEVUELTA", "Falta un soporte").session(session))
+                .andExpect(status().isOk());
+
+        String completedId = registerAndGetId(session, "ADICION_CREDITOS", "Métrica Finalizada", "802802");
+        for (String state : new String[] {
+                "EN_FACULTAD", "APROBADA_FACULTAD", "EN_REGISTRO_CALI", "EN_REGISTRO_NACIONAL", "FINALIZADA" }) {
+            mockMvc.perform(advanceRequest(completedId, state, null).session(session))
+                    .andExpect(status().isOk());
+        }
+
+        mockMvc.perform(get("/api/metrics/requests").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value((int) totalBefore + 2))
+                .andExpect(jsonPath("$.byCurrentState.REGISTRADA").value((int) registeredBefore))
+                .andExpect(jsonPath("$.byCurrentState.DEVUELTA").value(org.hamcrest.Matchers.greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.completed").value(org.hamcrest.Matchers.greaterThanOrEqualTo(1)))
+                .andExpect(jsonPath("$.averageCycleHours").isNumber())
+                .andExpect(jsonPath("$.returnCount").value((int) returnedBefore + 1))
+                .andExpect(jsonPath("$.studentName").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("métricas operativas sin sesión: 401")
+    void requestMetricsWithoutSessionReturns401() throws Exception {
+        mockMvc.perform(get("/api/metrics/requests"))
+                .andExpect(status().isUnauthorized());
     }
 
     // --- helpers -------------------------------------------------------------------------
@@ -430,6 +566,29 @@ class RequestControllerIT {
                         .session(session))
                 .andExpect(status().isNoContent());
         return session;
+    }
+
+    private org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder uploadDocument(String requestId) {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "soporte.pdf", "application/pdf", "%PDF-1.4 soporte".getBytes());
+        return multipart("/api/requests/" + requestId + "/documents")
+                .file(file)
+                .with(csrf());
+    }
+
+    private long countNotifications(String requestId, String channel, String status) {
+        return jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM request_notification
+                WHERE request_id = CAST(? AS UUID)
+                  AND channel = ?
+                  AND status = ?
+                """,
+                Long.class,
+                requestId,
+                channel,
+                status);
     }
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder createRequest(
