@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> Trabajo de grado en curso — Ingeniería de Sistemas, Universidad Remington (modalidad Distancia, SNIES 53112, Resolución 015939 del 1 de septiembre de 2023). Equipo de dos personas, plazo ≈ 2,5 meses. **Estado**: el backend ya arrancó — el **Sprint 1 de autenticación (`001-auth-login`) está cerrado y mergeado a `main`** (panorama técnico y arranque en `README.md`); el resto del dominio (trámites) sigue en fase de planteamiento. El chasis Spring Boot 4 / Java 21 se hereda de `../convenia/`.
+> Trabajo de grado en curso — Ingeniería de Sistemas, Universidad Remington (modalidad Distancia, SNIES 53112, Resolución 015939 del 1 de septiembre de 2023). Equipo de dos personas, plazo ≈ 2,5 meses. **Estado**: el backend ya arrancó — el **Sprint 0 de autenticación (`001-auth-login`) y el motor de workflow (`002-workflow-engine`) están cerrados y mergeados a `main`** (panorama técnico y arranque en `README.md`). El estado vigente NO se lleva en un documento: vive en los **milestones e issues de GitHub**, donde cada sub-problema SP1–SP7 es un issue y cada sprint un milestone cuyo avance calcula GitHub. El chasis Spring Boot 4 / Java 21 se hereda de `../convenia/`.
 
 ## Qué se está construyendo
 
@@ -78,8 +78,8 @@ comando ejecutado y su resultado.
 Al citar literatura o normativa institucional, **incluir la referencia exacta** en cada afirmación — alineado con la regla general #4 del CLAUDE.md global.
 
 <!-- SPECKIT START -->
-Feature activa: `002-workflow-engine` (motor de workflow configurable + timeline de auditoría,
-SP1+SP6). Plan e insumos técnicos: `specs/002-workflow-engine/plan.md` (+ `research.md`,
+Última feature entregada: `002-workflow-engine` (motor de workflow configurable + timeline de
+auditoría, SP1+SP6), **mergeada a `main` en la PR #3**. No hay feature activa en el ciclo Spec Kit. Plan e insumos técnicos: `specs/002-workflow-engine/plan.md` (+ `research.md`,
 `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`).
 Diseño: configuración en BD, definiciones versionadas (`UNIQUE(code, version)`), **5 tablas**
 (`workflow_parameter`/`guard_key` diferidos a `003` — research D3), timeline solo-INSERT con

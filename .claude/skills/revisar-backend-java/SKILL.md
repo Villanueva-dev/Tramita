@@ -17,7 +17,7 @@ Leer las reglas duras primero. Ahí está el 80 % del valor.
 - **Spring Security 7** con autenticación por **sesión + cookie `HttpOnly`** (patrón BFF). **No hay JWT y no debe haberlo.**
 - **Flyway posee el schema; Hibernate solo valida** (`ddl-auto: validate`). Todo cambio de schema es una migración nueva.
 - **Errores según RFC 9457** (`application/problem+json`).
-- **Estructura por capas**: `controller/ · dto/ · model/ · repo/ · security/ · service/` (contratos) `· service/impl/` (implementaciones) `· util/ · shared/{config,exception,seed}`. Migración desde package-by-feature **completada el 2026-08-02**; la norma es la constitución v2.0.0 §II.
+- **Estructura por capas**: `controller/ · dto/ · model/ · repo/ · security/ · service/` (contratos) `· service/impl/` (implementaciones) `· util/ · shared/{config,exception,seed}`. Migración desde package-by-feature **completada el 2026-08-02**; la norma es la constitución **v2.2.2** §II (el cambio de estructura entró en la v2.0.0; §II no se modificó desde entonces).
 - **Las interfaces llevan prefijo `I`** (`IUserRepo`, `IAuthService`). Es convención deliberada del proyecto: **NO marcarla como defecto.**
 - La constitución vive en `.specify/memory/constitution.md` y prevalece sobre cualquier práctica.
 

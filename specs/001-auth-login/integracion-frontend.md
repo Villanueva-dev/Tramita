@@ -198,9 +198,12 @@ que cubre solo auth.
 
 > **Actualización 2026-08-16**: el backend `002-workflow-engine` **ya existe y está mergeado a
 > `main`** (PR #3, merge `edcf188`). Su contrato es
-> `specs/002-workflow-engine/contracts/openapi.yaml`. La Fase B está en curso y `lib/types.ts` de
-> la maqueta **no es un borrador de contrato válido**: congela trámites y estados en union types
-> literales, incompatible con un motor configurable por dato. Se reemplaza, no se cablea.
+> `specs/002-workflow-engine/contracts/openapi.yaml`.
+>
+> **Actualización 2026-08-29**: la Fase B del frontend está **terminada y mergeada** (PR #1 del
+> repositorio `tramita-frontend`). El `lib/types.ts` de la maqueta original **no era un borrador de
+> contrato válido** —congelaba trámites y estados en union types literales, incompatible con un
+> motor configurable por dato— y fue reemplazado, no cableado.
 
 ---
 

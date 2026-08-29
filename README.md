@@ -87,7 +87,7 @@ Seis tablas, todas creadas por Flyway.
 funcional `LOWER(email)`; la cuenta la provisiona `CoordinationUserSeeder` por env (nunca
 credenciales en git). Detalle: [`specs/001-auth-login/data-model.md`](specs/001-auth-login/data-model.md).
 
-**Motor de workflow** (`V2.0.0` + semilla `V2.1.0`):
+**Motor de workflow** (`V2.0.0`, semilla `V2.1.0`, endurecimiento de restricciones `V2.2.0`):
 
 - `workflow_definition(code, version, …)` con `UNIQUE(code, version)` — **la versión es
   parte de la identidad**: editar un trámite es insertar la versión siguiente, y cada
@@ -239,7 +239,7 @@ Flujo de humo con `curl` (login → `/me` → password → logout):
 | [`docs/nuevo-proyecto/01-planteamiento/arbol-de-problemas.md`](docs/nuevo-proyecto/01-planteamiento/arbol-de-problemas.md) | Planteamiento (Marco Lógico), alcance y supuestos |
 
 Flujo SDD con **Spec Kit v0.8.12**: `specify → plan → tasks → implement`. La constitución del
-proyecto (5 principios) está en [`.specify/memory/constitution.md`](.specify/memory/constitution.md).
+proyecto (5 principios, **v2.2.2**) está en [`.specify/memory/constitution.md`](.specify/memory/constitution.md).
 
 ---
 
