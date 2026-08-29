@@ -48,6 +48,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Request' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422':
           description: Tipo de trámite inexistente en la configuración, o datos inválidos
@@ -112,6 +113,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Request' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
@@ -150,6 +152,14 @@ paths:
 
 components:
   responses:
+    BadRequest:
+      description: >-
+        Cuerpo ausente, JSON malformado o violación de bean validation. Lo emite el
+        manejador heredado de ResponseEntityExceptionHandler, no código propio: por eso
+        el detail es genérico ("Invalid request content.") y no nombra el campo.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
     Unauthorized:
       description: Sin sesión autenticada de la Coordinación (FR-012)
       content:
