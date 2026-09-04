@@ -204,6 +204,63 @@ class RequestControllerIT {
     }
 
     @Test
+    @DisplayName("créditos negativos no compensan a otra asignatura para burlar el tope (FR-009)")
+    void negativeCreditsCannotOffsetAnotherSubjectToBypassTheLimit() throws Exception {
+        long subjectsBefore = requestRepo.count();
+
+        // 30 y -20 suman 10 y pasarían un tope de 21. La validación de forma los
+        // rechaza antes de que la suma llegue a calcularse.
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0006",
+                          "subjects": [
+                            {"code":"A-1","name":"Uno","credits":30},
+                            {"code":"A-2","name":"Dos","credits":-20}
+                          ]
+                        }""").session(login()))
+                .andExpect(status().isBadRequest());
+
+        assertThat(requestRepo.count()).isEqualTo(subjectsBefore);
+    }
+
+    @Test
+    @DisplayName("supera el tope configurado: 422 con el límite en el detail (FR-008)")
+    void exceedingTheConfiguredCreditLimitIsRejected() throws Exception {
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0007",
+                          "subjects": [
+                            {"code":"A-1","name":"Uno","credits":12},
+                            {"code":"A-2","name":"Dos","credits":10}
+                          ]
+                        }""").session(login()))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("21")));
+    }
+
+    @Test
+    @DisplayName("un motivo que excede la longitud máxima: 400 y no se registra truncado (FR-004)")
+    void anOversizedReasonIsRejectedInsteadOfTruncated() throws Exception {
+        long requestsBefore = requestRepo.count();
+
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0008",
+                          "reason": "%s"
+                        }""".formatted("x".repeat(2001))).session(login()))
+                .andExpect(status().isBadRequest());
+
+        assertThat(requestRepo.count()).isEqualTo(requestsBefore);
+    }
+
+    @Test
     @DisplayName("consultar una solicitud sin sesión: 401 y no se filtra su contenido (FR-021)")
     void readingARequestWithoutSessionLeaksNothing() throws Exception {
         MockHttpSession session = login();

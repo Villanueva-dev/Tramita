@@ -20,6 +20,7 @@ import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
 import com.uniremington.api.tramita.repo.IUserRepo;
 import com.uniremington.api.tramita.repo.IWorkflowDefinitionRepo;
+import com.uniremington.api.tramita.service.IRequestBusinessRules;
 import com.uniremington.api.tramita.service.IRequestService;
 import com.uniremington.api.tramita.shared.exception.IllegalTransitionException;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
@@ -44,6 +45,7 @@ public class RequestServiceImpl implements IRequestService {
     private final IRequestRepo requestRepo;
     private final IRequestTransitionLogRepo logRepo;
     private final IUserRepo userRepo;
+    private final IRequestBusinessRules businessRules;
 
     @Override
     @Transactional
@@ -71,6 +73,10 @@ public class RequestServiceImpl implements IRequestService {
                                     initialStates.size()));
         }
         WorkflowState initial = initialStates.getFirst();
+
+        // Las reglas del trámite se aplican ANTES de persistir: una solicitud que
+        // las incumple no debe existir ni siquiera un instante (US2).
+        businessRules.validate(definition, body);
 
         Request request = requestRepo.save(Request.builder()
                 .definition(definition)

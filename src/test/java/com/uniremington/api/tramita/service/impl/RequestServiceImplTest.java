@@ -21,6 +21,7 @@ import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
 import com.uniremington.api.tramita.repo.IUserRepo;
 import com.uniremington.api.tramita.repo.IWorkflowDefinitionRepo;
+import com.uniremington.api.tramita.service.IRequestBusinessRules;
 import com.uniremington.api.tramita.shared.exception.IllegalTransitionException;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
@@ -46,8 +47,15 @@ class RequestServiceImplTest {
     private final IRequestRepo requestRepo = mock(IRequestRepo.class);
     private final IRequestTransitionLogRepo logRepo = mock(IRequestTransitionLogRepo.class);
     private final IUserRepo userRepo = mock(IUserRepo.class);
+    /**
+     * Las reglas de negocio (003/US2) tienen su propio test unitario. Acá van
+     * mockeadas y permisivas a propósito: estos casos verifican el MOTOR —que no
+     * conoce ningún trámite—, y meterle reglas concretas los ataría a un dominio
+     * que el motor no debe conocer.
+     */
+    private final IRequestBusinessRules businessRules = mock(IRequestBusinessRules.class);
     private final RequestServiceImpl service =
-            new RequestServiceImpl(definitionRepo, requestRepo, logRepo, userRepo);
+            new RequestServiceImpl(definitionRepo, requestRepo, logRepo, userRepo, businessRules);
 
     private final User actor = new User();
 
