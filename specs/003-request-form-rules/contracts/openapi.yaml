@@ -1,0 +1,175 @@
+openapi: 3.1.0
+info:
+  title: Trámita — delta de contrato de la feature 003
+  version: 0.3.0
+  description: |
+    Delta sobre el contrato de la feature 002, que NO se edita (es una feature cerrada y
+    archivada). Aquí se declara únicamente lo que esta feature cambia:
+
+      * `CreateRequestBody` se amplía con los datos del formulario y las asignaturas.
+        Todos los campos nuevos son opcionales: una petición con los tres campos
+        originales sigue siendo válida (FR-006, SC-007).
+      * `Request` incorpora esos datos en la respuesta.
+      * Se declara el 500 de configuración incompleta (FR-010, FR-011).
+
+    Lo no listado aquí se rige por `specs/002-workflow-engine/contracts/openapi.yaml`.
+
+servers:
+  - url: /api
+
+paths:
+  /requests:
+    post:
+      summary: Registrar una solicitud (contrato ampliado)
+      description: |
+        Amplía el POST de la feature 002. El cuerpo mínimo anterior sigue siendo aceptado.
+        Las reglas de negocio configuradas para el trámite se validan antes de registrar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRequestBody' }
+      responses:
+        '201':
+          description: Solicitud registrada en el estado inicial de su trámite
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Request' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/IncompleteConfiguration'
+
+components:
+  responses:
+    BadRequest:
+      description: Cuerpo mal formado o que incumple la validación de forma
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+    Unauthorized:
+      description: Sin sesión válida
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+    UnprocessableContent:
+      description: |
+        La solicitud es sintácticamente válida pero incumple una regla de negocio del
+        trámite: supera el máximo de créditos configurado, o declara una nota fuera del
+        rango configurado (FR-008, FR-012).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: about:blank
+            title: Unprocessable Content
+            status: 422
+            detail: La solicitud supera el máximo configurado de 21 créditos
+
+    IncompleteConfiguration:
+      description: |
+        El trámite no tiene cargado un parámetro que su validación necesita, o lo tiene
+        con un valor no interpretable (FR-010, FR-011). Es un fallo de configuración del
+        sistema, no de la petición: la solicitud NO queda registrada. El cuerpo no revela
+        detalle interno alguno.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: about:blank
+            title: Configuración del trámite incompleta
+            status: 500
+
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457 (https://www.rfc-editor.org/rfc/rfc9457.html)
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+
+    CreateRequestBody:
+      type: object
+      required: [definitionCode, studentName, studentDocument]
+      properties:
+        definitionCode: { type: string, maxLength: 50, example: ADICION_CREDITOS }
+        studentName: { type: string, maxLength: 120, example: Estudiante De Prueba }
+        studentDocument: { type: string, maxLength: 20, example: 'DOC-TEST-0001' }
+        studentCode: { type: string, maxLength: 30, example: 'EST-0001' }
+        program: { type: string, maxLength: 120, example: Ingeniería de Sistemas }
+        semester: { type: string, maxLength: 50, example: '2026-2' }
+        reason:
+          type: string
+          maxLength: 2000
+          description: Motivo de la solicitud (FR-004)
+          example: Requiere cursar una asignatura adicional para completar el plan.
+        subjects:
+          type: array
+          description: Asignaturas del trámite. Opcional; una solicitud sin asignaturas es válida.
+          items: { $ref: '#/components/schemas/SubjectRequestBody' }
+
+    SubjectRequestBody:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string, maxLength: 30, example: 'MAT-101' }
+        name: { type: string, maxLength: 150, example: Cálculo Diferencial }
+        credits:
+          type: integer
+          minimum: 1
+          maximum: 30
+          description: |
+            Créditos de la asignatura. Debe ser positivo (FR-009): ningún valor puede
+            restar del total y situar por debajo del límite una solicitud que lo excede.
+            La cota superior es de sanidad de entrada, sin respaldo normativo.
+          example: 3
+        group: { type: string, maxLength: 30, example: 'G1' }
+        currentGrade:
+          type: number
+          format: double
+          description: Nota actual. Numérica (D3); su rango válido lo fija la configuración del trámite.
+          example: 2.8
+        proposedGrade:
+          type: number
+          format: double
+          description: Nota propuesta. Numérica (D3).
+          example: 3.5
+
+    SubjectResponse:
+      type: object
+      properties:
+        code: { type: string }
+        name: { type: string }
+        credits: { type: integer }
+        group: { type: string }
+        currentGrade: { type: number, format: double }
+        proposedGrade: { type: number, format: double }
+
+    Request:
+      type: object
+      description: |
+        Respuesta de una solicitud, ampliada con los datos del formulario. NO incluye
+        ningún dato de contacto del estudiante (FR-020, constitución §III).
+      properties:
+        id: { type: string, format: uuid }
+        definitionCode: { type: string }
+        currentState: { type: string }
+        studentName: { type: string }
+        studentDocument: { type: string }
+        studentCode: { type: string }
+        program: { type: string }
+        semester: { type: string }
+        reason: { type: string }
+        subjects:
+          type: array
+          items: { $ref: '#/components/schemas/SubjectResponse' }
+        createdAt: { type: string, format: date-time }
