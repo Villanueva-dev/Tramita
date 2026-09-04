@@ -22,7 +22,10 @@ import com.uniremington.api.tramita.repo.IUserRepo;
 import com.uniremington.api.tramita.repo.IWorkflowDefinitionRepo;
 import com.uniremington.api.tramita.service.IRequestBusinessRules;
 import com.uniremington.api.tramita.service.IRequestService;
+import com.uniremington.api.tramita.service.IWorkflowGuard;
+import com.uniremington.api.tramita.shared.exception.GuardRejectedException;
 import com.uniremington.api.tramita.shared.exception.IllegalTransitionException;
+import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationException;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
 import java.util.List;
@@ -46,6 +49,14 @@ public class RequestServiceImpl implements IRequestService {
     private final IRequestTransitionLogRepo logRepo;
     private final IUserRepo userRepo;
     private final IRequestBusinessRules businessRules;
+
+    /**
+     * Todas las guardas registradas como bean (research.md D5). Se recorre por
+     * clave en vez de indexarse en un Map porque su tamaño es del orden de las
+     * transiciones condicionadas del sistema —hoy cero— y un Map en el
+     * constructor solo agregaría un modo de fallo al arranque.
+     */
+    private final List<IWorkflowGuard> guards;
 
     @Override
     @Transactional
@@ -152,6 +163,11 @@ public class RequestServiceImpl implements IRequestService {
                     "Esta transición exige una observación con el motivo");
         }
 
+        // Antes de tocar el timeline: una entrada de una transición que no llegó a
+        // ocurrir sería una mentira en el historial, y la trazabilidad es la tesis
+        // del sistema (FR-016)
+        evaluateGuard(transition, request);
+
         logRepo.save(RequestTransitionLog.builder()
                 .request(request)
                 .fromState(current)
@@ -162,6 +178,41 @@ public class RequestServiceImpl implements IRequestService {
         request.moveTo(transition.getToState());
 
         return toResponse(requestRepo.save(request));
+    }
+
+    /**
+     * Resuelve por nombre la guarda que la transición declara y la evalúa
+     * (FR-016, research.md D5). El motor no sabe qué evalúa: solo que la
+     * definición nombró una regla y que alguien registrada la atiende.
+     *
+     * Sin guard_key no hay nada que resolver y el paso se comporta como en la
+     * feature 002 (FR-017) — el caso de todas las transiciones sembradas hoy.
+     *
+     * Una clave sin implementación NO se omite: bloquea (FR-019). Omitirla
+     * ejecutaría una transición cuya condición nadie verificó, que es el fallo
+     * abierto que esta feature vino a cerrar. Y es 500, no 422, por lo mismo que
+     * un parámetro faltante: la petición está bien, la configuración no.
+     */
+    private void evaluateGuard(WorkflowTransition transition, Request request) {
+        String guardKey = transition.getGuardKey();
+        if (guardKey == null) {
+            return;
+        }
+
+        IWorkflowGuard guard = guards.stream()
+                .filter(candidate -> guardKey.equals(candidate.guardKey()))
+                .findFirst()
+                .orElseThrow(() -> new IncompleteConfigurationException(
+                        "La transición %s → %s declara la guarda '%s', que no tiene implementación registrada"
+                                .formatted(
+                                        transition.getFromState().getCode(),
+                                        transition.getToState().getCode(),
+                                        guardKey)));
+
+        if (!guard.isSatisfiedBy(request)) {
+            throw new GuardRejectedException(
+                    "La regla '%s' no se cumple para esta solicitud".formatted(guardKey));
+        }
     }
 
     @Override

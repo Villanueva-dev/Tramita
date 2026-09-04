@@ -20,9 +20,9 @@ import lombok.NoArgsConstructor;
  * Paso permitido entre dos estados de una definición (data-model.md). Avances y
  * devoluciones son la misma cosa para el motor (FR-013): una devolución es una
  * transición hacia un estado anterior que la configuración marca con
- * requiresNote — el motivo obligatorio de FR-014 (research.md D4). Sin
- * guard_key: las guardas de reglas de negocio llegan en la feature 003 con SP2
- * (research.md D3).
+ * requiresNote — el motivo obligatorio de FR-014 (research.md D4). Desde la
+ * feature 003 puede además condicionarse a una regla de negocio nombrada
+ * (guardKey, FR-015).
  */
 @Entity
 @Table(name = "workflow_transition")
@@ -59,4 +59,15 @@ public class WorkflowTransition {
     /** true = el motor exige observación al recorrerla (FR-014). */
     @Column(name = "requires_note", nullable = false)
     private boolean requiresNote;
+
+    /**
+     * Nombre de la regla de negocio que condiciona el paso (FR-015). Solo el
+     * nombre: el motor lo resuelve contra las implementaciones de IWorkflowGuard
+     * registradas y nunca conoce el trámite (FR-018, research.md D5).
+     *
+     * NULL = sin guarda, comportamiento idéntico al de la feature 002 (FR-017).
+     * Es el caso de todas las transiciones sembradas por V2.1.0.
+     */
+    @Column(name = "guard_key")
+    private String guardKey;
 }

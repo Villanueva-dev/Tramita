@@ -155,18 +155,18 @@ cuando no, sin que el motor conozca ningún trámite.
 
 ### Tests primero (RED)
 
-- [ ] T041 [P] [US4] Crear el test del motor con una **guarda de prueba** (implementación de `IWorkflowGuard` declarada solo en el árbol de tests): US4-1 la transición procede cuando la regla se cumple; US4-2 se bloquea sin alterar el estado cuando no se cumple, informando qué regla falló.
-- [ ] T042 [P] [US4] Agregar US4-3 (**FR-017**): una transición con `guard_key` nulo se comporta exactamente como en la 002, sin validación adicional. Todas las transiciones ya sembradas están en este caso.
-- [ ] T043 [P] [US4] Agregar US4-4 (**FR-018**): dos definiciones distintas que declaran la misma clave de guarda la evalúan correctamente, sin que el motor incorpore conocimiento de ninguna.
-- [ ] T044 [P] [US4] Agregar US4-5 (**FR-019**): una transición con una `guard_key` sin implementación registrada se bloquea con `IncompleteConfigurationException` y **no** se ejecuta omitiendo la guarda.
-- [ ] T045 [US4] Verificar RED con `./mvnw clean test`.
+- [x] T041 [P] [US4] Crear el test del motor con una **guarda de prueba** (implementación de `IWorkflowGuard` declarada solo en el árbol de tests): US4-1 la transición procede cuando la regla se cumple; US4-2 se bloquea sin alterar el estado cuando no se cumple, informando qué regla falló.
+- [x] T042 [P] [US4] Agregar US4-3 (**FR-017**): una transición con `guard_key` nulo se comporta exactamente como en la 002, sin validación adicional. Todas las transiciones ya sembradas están en este caso.
+- [x] T043 [P] [US4] Agregar US4-4 (**FR-018**): dos definiciones distintas que declaran la misma clave de guarda la evalúan correctamente, sin que el motor incorpore conocimiento de ninguna.
+- [x] T044 [P] [US4] Agregar US4-5 (**FR-019**): una transición con una `guard_key` sin implementación registrada se bloquea con `IncompleteConfigurationException` y **no** se ejecuta omitiendo la guarda.
+- [x] T045 [US4] Verificar RED con `./mvnw clean test`.
 
 ### Implementación
 
-- [ ] T046 [P] [US4] Crear el contrato `src/main/java/com/uniremington/api/tramita/service/IWorkflowGuard.java` con el método que declara la clave que atiende y el método de evaluación. Javadoc con el racional de D5: se resuelve por registro de beans, **no** por enum (recompilaría el motor con cada guarda) ni por reflection (rompería en runtime sin aviso del compilador).
-- [ ] T047 [US4] Ampliar `src/main/java/com/uniremington/api/tramita/model/WorkflowTransition.java` con `guardKey` (`@Column(name = "guard_key")`, nullable). El comentario que hoy dice «las guardas llegan en la feature 003» se reemplaza por la documentación real del campo.
-- [ ] T048 [US4] Cablear en `RequestServiceImpl.advance()` la resolución de la guarda: recibir la colección de `IWorkflowGuard` inyectada por Spring, resolver por clave, lanzar `IncompleteConfigurationException` si la clave no tiene implementación (FR-019), y evaluar antes de ejecutar la transición.
-- [ ] T049 [US4] Verde: `./mvnw clean verify`.
+- [x] T046 [P] [US4] Crear el contrato `src/main/java/com/uniremington/api/tramita/service/IWorkflowGuard.java` con el método que declara la clave que atiende y el método de evaluación. Javadoc con el racional de D5: se resuelve por registro de beans, **no** por enum (recompilaría el motor con cada guarda) ni por reflection (rompería en runtime sin aviso del compilador).
+- [x] T047 [US4] Ampliar `src/main/java/com/uniremington/api/tramita/model/WorkflowTransition.java` con `guardKey` (`@Column(name = "guard_key")`, nullable). El comentario que hoy dice «las guardas llegan en la feature 003» se reemplaza por la documentación real del campo.
+- [x] T048 [US4] Cablear en `RequestServiceImpl.advance()` la resolución de la guarda: recibir la colección de `IWorkflowGuard` inyectada por Spring, resolver por clave, lanzar `IncompleteConfigurationException` si la clave no tiene implementación (FR-019), y evaluar antes de ejecutar la transición.
+- [x] T049 [US4] Verde: `./mvnw clean verify`.
 
 **Checkpoint**: US4 entregable. Se entrega el mecanismo **sin sembrar ninguna guarda en producción** — la tensión con el Principio I que Complexity Tracking declaró. La guarda de prueba vive solo en el árbol de tests.
 
