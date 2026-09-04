@@ -115,6 +115,116 @@ class RequestControllerIT {
                 .andExpect(jsonPath("$.detail").exists());
     }
 
+    // --- 003 / US1: el formulario del trámite vive en el sistema --------------------------
+
+    @Test
+    @DisplayName("registrar con el formulario completo: 201 y devuelve las dos asignaturas íntegras (FR-001, FR-002)")
+    void registerPersistsTheWholeFormWithItsSubjects() throws Exception {
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0001",
+                          "studentCode": "EST-0001",
+                          "program": "Ingeniería de Sistemas",
+                          "semester": "2026-2",
+                          "reason": "Requiere una asignatura adicional para completar el plan.",
+                          "subjects": [
+                            {"code":"MAT-101","name":"Cálculo Diferencial","credits":3,"group":"G1"},
+                            {"code":"FIS-201","name":"Física I","credits":4,"group":"G2"}
+                          ]
+                        }""").session(login()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.studentCode").value("EST-0001"))
+                .andExpect(jsonPath("$.program").value("Ingeniería de Sistemas"))
+                .andExpect(jsonPath("$.semester").value("2026-2"))
+                .andExpect(jsonPath("$.reason")
+                        .value("Requiere una asignatura adicional para completar el plan."))
+                // La cardinalidad se conserva y cada asignatura mantiene SUS propios datos:
+                // no alcanza con contar dos, hay que ver que no se mezclaron entre sí.
+                .andExpect(jsonPath("$.subjects.length()").value(2))
+                .andExpect(jsonPath("$.subjects[0].code").value("MAT-101"))
+                .andExpect(jsonPath("$.subjects[0].name").value("Cálculo Diferencial"))
+                .andExpect(jsonPath("$.subjects[0].credits").value(3))
+                .andExpect(jsonPath("$.subjects[0].group").value("G1"))
+                .andExpect(jsonPath("$.subjects[1].code").value("FIS-201"))
+                .andExpect(jsonPath("$.subjects[1].credits").value(4))
+                .andExpect(jsonPath("$.subjects[1].group").value("G2"));
+    }
+
+    @Test
+    @DisplayName("novedad de notas captura la nota actual y la propuesta sobre la misma estructura (FR-003)")
+    void registerCapturesGradesOnTheSameSubjectStructure() throws Exception {
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "NOVEDAD_NOTAS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0002",
+                          "subjects": [
+                            {"code":"MAT-101","name":"Cálculo Diferencial",
+                             "currentGrade":2.80,"proposedGrade":3.50}
+                          ]
+                        }""").session(login()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.subjects.length()").value(1))
+                .andExpect(jsonPath("$.subjects[0].currentGrade").value(2.80))
+                .andExpect(jsonPath("$.subjects[0].proposedGrade").value(3.50));
+    }
+
+    @Test
+    @DisplayName("el cuerpo mínimo de la 002 sigue registrando, con la lista de asignaturas vacía (FR-006)")
+    void registerWithTheLegacyMinimalBodyStillWorks() throws Exception {
+        mockMvc.perform(createRequest("ADICION_CREDITOS", "Estudiante De Prueba", "DOC-TEST-0003")
+                        .session(login()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.subjects").isArray())
+                .andExpect(jsonPath("$.subjects.length()").value(0))
+                // Los campos nuevos quedan nulos, no en blanco ni con un default inventado
+                .andExpect(jsonPath("$.studentCode").doesNotExist())
+                .andExpect(jsonPath("$.reason").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("ningún dato de contacto del estudiante se almacena ni se devuelve (FR-020)")
+    void registerNeverPersistsNorReturnsStudentContactData() throws Exception {
+        // Aunque el cliente lo mande, el sistema no tiene dónde guardarlo: el campo
+        // se ignora y no aparece en la respuesta. Su consumidor era SP7, fuera de alcance.
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0004",
+                          "studentEmail": "no-deberia-persistirse@example.test"
+                        }""").session(login()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.studentEmail").doesNotExist())
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.not(
+                                org.hamcrest.Matchers.containsString("no-deberia-persistirse"))));
+    }
+
+    @Test
+    @DisplayName("consultar una solicitud sin sesión: 401 y no se filtra su contenido (FR-021)")
+    void readingARequestWithoutSessionLeaksNothing() throws Exception {
+        MockHttpSession session = login();
+        String id = mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Reservado",
+                          "studentDocument": "DOC-TEST-0005",
+                          "program": "Programa Reservado"
+                        }""").session(session))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString()
+                .replaceAll("^.*?\"id\":\"([0-9a-f-]+)\".*$", "$1");
+
+        mockMvc.perform(get("/api/requests/" + id))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.not(
+                                org.hamcrest.Matchers.containsString("Programa Reservado"))));
+    }
+
     // --- US2: avanzar (el motor sobre la semilla real) -----------------------------------
 
     @Test
@@ -439,5 +549,14 @@ class RequestControllerIT {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"definitionCode\":\"%s\",\"studentName\":\"%s\",\"studentDocument\":\"%s\"}"
                         .formatted(definitionCode, studentName, studentDocument));
+    }
+
+    /** Registro con el cuerpo completo de la 003: el JSON se pasa tal cual. */
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
+            createRequestWithForm(String jsonBody) {
+        return post("/api/requests")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonBody);
     }
 }

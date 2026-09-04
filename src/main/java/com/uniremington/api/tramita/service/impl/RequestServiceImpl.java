@@ -6,9 +6,11 @@ import com.uniremington.api.tramita.dto.CreateRequestBody;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
 import com.uniremington.api.tramita.dto.StateResponse;
+import com.uniremington.api.tramita.dto.SubjectResponse;
 import com.uniremington.api.tramita.dto.TimelineEntryResponse;
 import com.uniremington.api.tramita.dto.WorkflowDefinitionResponse;
 import com.uniremington.api.tramita.model.Request;
+import com.uniremington.api.tramita.model.RequestSubject;
 import com.uniremington.api.tramita.model.RequestTransitionLog;
 import com.uniremington.api.tramita.model.User;
 import com.uniremington.api.tramita.model.WorkflowDefinition;
@@ -75,7 +77,26 @@ public class RequestServiceImpl implements IRequestService {
                 .currentState(initial)
                 .studentName(body.studentName())
                 .studentDocument(body.studentDocument())
+                .studentCode(body.studentCode())
+                .program(body.program())
+                .semester(body.semester())
+                .reason(body.reason())
                 .build());
+
+        // Las asignaturas se persisten por cascada desde la solicitud. El lado
+        // dueño de la relación es RequestSubject, así que hay que setearlo: sin
+        // .request(request) la FK saldría nula y la inserción fallaría.
+        request.getSubjects().addAll(body.subjects().stream()
+                .map(subject -> RequestSubject.builder()
+                        .request(request)
+                        .code(subject.code())
+                        .name(subject.name())
+                        .credits(subject.credits())
+                        .group(subject.group())
+                        .currentGrade(subject.currentGrade())
+                        .proposedGrade(subject.proposedGrade())
+                        .build())
+                .toList());
 
         // Entrada de nacimiento del timeline (research.md D7): from NULL
         logRepo.save(RequestTransitionLog.builder()
@@ -237,9 +258,22 @@ public class RequestServiceImpl implements IRequestService {
                         definition.getCode(), definition.getName(), definition.getVersion()),
                 request.getStudentName(),
                 request.getStudentDocument(),
+                request.getStudentCode(),
+                request.getProgram(),
+                request.getSemester(),
+                request.getReason(),
+                toSubjectResponses(request),
                 toStateResponse(current),
                 available,
                 request.getCreatedAt());
+    }
+
+    private List<SubjectResponse> toSubjectResponses(Request request) {
+        return request.getSubjects().stream()
+                .map(subject -> new SubjectResponse(
+                        subject.getCode(), subject.getName(), subject.getCredits(),
+                        subject.getGroup(), subject.getCurrentGrade(), subject.getProposedGrade()))
+                .toList();
     }
 
     private StateResponse toStateResponse(WorkflowState state) {
