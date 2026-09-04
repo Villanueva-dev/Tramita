@@ -51,6 +51,9 @@ class RequestControllerIT {
     @Autowired
     private IRequestTransitionLogRepo logRepo;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     // --- US1: registrar ------------------------------------------------------------------
 
     @Test
@@ -258,6 +261,107 @@ class RequestControllerIT {
                 .andExpect(status().isBadRequest());
 
         assertThat(requestRepo.count()).isEqualTo(requestsBefore);
+    }
+
+    // --- 003 / US3: la regla se ajusta sin desplegar --------------------------------------
+
+    @Test
+    @DisplayName("cambiar el tope en la configuración cambia el veredicto sin redesplegar (SC-005)")
+    void changingTheConfiguredLimitChangesTheOutcomeWithoutRedeploying() throws Exception {
+        MockHttpSession session = login();
+        String body = """
+                {
+                  "definitionCode": "ADICION_CREDITOS",
+                  "studentName": "Estudiante De Prueba",
+                  "studentDocument": "DOC-TEST-0009",
+                  "subjects": [
+                    {"code":"A-1","name":"Uno","credits":12},
+                    {"code":"A-2","name":"Dos","credits":10}
+                  ]
+                }""";
+
+        // 22 créditos contra el tope sembrado de 21
+        mockMvc.perform(createRequestWithForm(body).session(session))
+                .andExpect(status().isUnprocessableContent());
+
+        String original = maxCreditsOf("ADICION_CREDITOS");
+        try {
+            setMaxCredits("ADICION_CREDITOS", "24");
+
+            // Misma aplicación corriendo, mismo contexto: solo cambió una fila
+            mockMvc.perform(createRequestWithForm(body).session(session))
+                    .andExpect(status().isCreated());
+        } finally {
+            setMaxCredits("ADICION_CREDITOS", original);
+        }
+    }
+
+    @Test
+    @DisplayName("cada trámite se valida contra el tope de SU definición (FR-014)")
+    void eachProcedureIsValidatedAgainstItsOwnConfiguredLimit() throws Exception {
+        MockHttpSession session = login();
+        String originalAdicion = maxCreditsOf("ADICION_CREDITOS");
+        try {
+            setMaxCredits("ADICION_CREDITOS", "10");
+            jdbcTemplate.update("""
+                    INSERT INTO workflow_parameter (id, definition_id, parameter_key, parameter_value)
+                    SELECT gen_random_uuid(), id, 'MAX_CREDITS', '30'
+                    FROM workflow_definition WHERE code = 'NOVEDAD_NOTAS' AND version = 1""");
+
+            String subjects = """
+                    "subjects": [{"code":"A-1","name":"Uno","credits":20}]""";
+
+            // 20 créditos: excede el tope de adición (10) y no el de novedad (30)
+            mockMvc.perform(createRequestWithForm("""
+                            {"definitionCode":"ADICION_CREDITOS","studentName":"Estudiante De Prueba",
+                             "studentDocument":"DOC-TEST-0010", %s}""".formatted(subjects))
+                            .session(session))
+                    .andExpect(status().isUnprocessableContent());
+
+            mockMvc.perform(createRequestWithForm("""
+                            {"definitionCode":"NOVEDAD_NOTAS","studentName":"Estudiante De Prueba",
+                             "studentDocument":"DOC-TEST-0011", %s}""".formatted(subjects))
+                            .session(session))
+                    .andExpect(status().isCreated());
+        } finally {
+            setMaxCredits("ADICION_CREDITOS", originalAdicion);
+            jdbcTemplate.update("""
+                    DELETE FROM workflow_parameter WHERE parameter_key = 'MAX_CREDITS'
+                      AND definition_id IN (SELECT id FROM workflow_definition
+                                            WHERE code = 'NOVEDAD_NOTAS')""");
+        }
+    }
+
+    @Test
+    @DisplayName("cada versión de una definición lleva sus propios parámetros (FR-013)")
+    void eachDefinitionVersionCarriesItsOwnParameters() throws Exception {
+        MockHttpSession session = login();
+        // 18 créditos: los admite el tope 21 de la v1 y los rechaza el 15 de la v2.
+        // El veredicto delata contra qué versión se validó.
+        String body = """
+                {
+                  "definitionCode": "ADICION_CREDITOS",
+                  "studentName": "Estudiante De Prueba",
+                  "studentDocument": "DOC-TEST-0012",
+                  "subjects": [{"code":"A-1","name":"Uno","credits":18}]
+                }""";
+
+        try {
+            publishSecondVersionWithMaxCredits("15");
+
+            mockMvc.perform(createRequestWithForm(body).session(session))
+                    .andExpect(status().isUnprocessableContent())
+                    // El detail nombra 15 y no 21: se aplicó el parámetro de la
+                    // versión vigente, no el de la definición anterior.
+                    .andExpect(jsonPath("$.detail")
+                            .value(org.hamcrest.Matchers.containsString("15")));
+
+            // Y el parámetro de la v1 quedó intacto: publicar una versión nueva no
+            // reescribe las reglas de la anterior.
+            assertThat(maxCreditsOf("ADICION_CREDITOS")).isEqualTo("21");
+        } finally {
+            dropSecondVersion();
+        }
     }
 
     @Test
@@ -615,5 +719,63 @@ class RequestControllerIT {
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(jsonBody);
+    }
+
+    // --- Manipulación de la configuración (US3) -------------------------------------------
+    // Se toca la fila directamente y no un endpoint: SC-005 afirma que ajustar una
+    // regla es un cambio de CONFIGURACIÓN, y esta feature no introduce una interfaz
+    // de administración. El UPDATE es exactamente el gesto que el criterio describe.
+
+    private String maxCreditsOf(String definitionCode) {
+        return jdbcTemplate.queryForObject("""
+                SELECT p.parameter_value FROM workflow_parameter p
+                JOIN workflow_definition d ON d.id = p.definition_id
+                WHERE d.code = ? AND d.version = 1 AND p.parameter_key = 'MAX_CREDITS'""",
+                String.class, definitionCode);
+    }
+
+    private void setMaxCredits(String definitionCode, String value) {
+        jdbcTemplate.update("""
+                UPDATE workflow_parameter SET parameter_value = ?
+                WHERE parameter_key = 'MAX_CREDITS' AND definition_id =
+                      (SELECT id FROM workflow_definition WHERE code = ? AND version = 1)""",
+                value, definitionCode);
+    }
+
+    /**
+     * Publica una v2 de adición de créditos con su propio tope. Le basta un estado
+     * inicial: registrar solo exige exactamente uno, y este test no avanza la
+     * solicitud.
+     */
+    private void publishSecondVersionWithMaxCredits(String maxCredits) {
+        jdbcTemplate.update("""
+                INSERT INTO workflow_definition (id, code, version, name, created_at)
+                VALUES (gen_random_uuid(), 'ADICION_CREDITOS', 2, 'Adición de créditos v2', now())""");
+        jdbcTemplate.update("""
+                INSERT INTO workflow_state (id, definition_id, code, name, is_initial, is_final)
+                SELECT gen_random_uuid(), id, 'REGISTRADA', 'Registrada', TRUE, FALSE
+                FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2""");
+        jdbcTemplate.update("""
+                INSERT INTO workflow_parameter (id, definition_id, parameter_key, parameter_value)
+                SELECT gen_random_uuid(), id, 'MAX_CREDITS', ?
+                FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2""",
+                maxCredits);
+    }
+
+    /**
+     * Borra la v2 de prueba. NO limpia solicitudes: el test que la usa está
+     * diseñado para que ninguna llegue a registrarse, porque el timeline es
+     * append-only y su trigger rechaza el DELETE (SC-002). Una solicitud creada
+     * contra esta versión sería imposible de limpiar sin violar esa garantía.
+     */
+    private void dropSecondVersion() {
+        jdbcTemplate.update("""
+                DELETE FROM workflow_parameter WHERE definition_id IN (
+                    SELECT id FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2)""");
+        jdbcTemplate.update("""
+                DELETE FROM workflow_state WHERE definition_id IN (
+                    SELECT id FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2)""");
+        jdbcTemplate.update(
+                "DELETE FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2");
     }
 }

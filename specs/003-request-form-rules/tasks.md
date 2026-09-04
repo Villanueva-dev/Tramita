@@ -132,15 +132,15 @@ rechazada pasa a aceptarse, sin recompilar ni redesplegar.
 
 ### Tests primero (RED)
 
-- [ ] T035 [P] [US3] En `src/test/java/com/uniremington/api/tramita/controller/RequestControllerIT.java`, agregar US3-1 (**SC-005**): con el tope en un valor, una solicitud se rechaza; tras actualizar la fila de `workflow_parameter`, la misma solicitud se acepta — todo dentro del mismo test, sin reiniciar el contexto.
-- [ ] T036 [P] [US3] Agregar US3-2 (**FR-014**): dos definiciones con topes distintos validan cada una contra el suyo.
-- [ ] T037 [P] [US3] Agregar US3-3 (**FR-013**): con dos versiones de la misma definición y topes distintos, una solicitud registrada contra la v1 sigue validándose con el tope de la v1 aunque la v2 tenga otro. Es la garantía de versionado que la 002 estableció en D2.
-- [ ] T038 [US3] Verificar RED con `./mvnw clean test -Dtest=RequestControllerIT`.
+- [x] T035 [P] [US3] En `src/test/java/com/uniremington/api/tramita/controller/RequestControllerIT.java`, agregar US3-1 (**SC-005**): con el tope en un valor, una solicitud se rechaza; tras actualizar la fila de `workflow_parameter`, la misma solicitud se acepta — todo dentro del mismo test, sin reiniciar el contexto.
+- [x] T036 [P] [US3] Agregar US3-2 (**FR-014**): dos definiciones con topes distintos validan cada una contra el suyo.
+- [x] T037 [P] [US3] Agregar US3-3 (**FR-013**): con dos versiones de la misma definición y topes distintos, una solicitud registrada contra la v1 sigue validándose con el tope de la v1 aunque la v2 tenga otro. Es la garantía de versionado que la 002 estableció en D2.
+- [x] T038 [US3] Verificar RED con `./mvnw clean test -Dtest=RequestControllerIT`.
 
 ### Implementación
 
-- [ ] T039 [US3] Ajustar lo que haga falta para que los tres tests pasen. Si el diseño de la Phase 4 quedó correcto, esta historia **no requiere código nuevo**: la FK de `workflow_parameter` apunta a la versión de la definición, y con eso FR-013 se cumple sin lógica adicional (data-model.md). Si hiciera falta código, es señal de que el parámetro se está resolviendo por `code` en vez de por la definición concreta de la solicitud — corregirlo ahí.
-- [ ] T040 [US3] Verde: `./mvnw clean verify`.
+- [x] T039 [US3] Ajustar lo que haga falta para que los tres tests pasen. Si el diseño de la Phase 4 quedó correcto, esta historia **no requiere código nuevo**: la FK de `workflow_parameter` apunta a la versión de la definición, y con eso FR-013 se cumple sin lógica adicional (data-model.md). Si hiciera falta código, es señal de que el parámetro se está resolviendo por `code` en vez de por la definición concreta de la solicitud — corregirlo ahí.
+- [x] T040 [US3] Verde: `./mvnw clean verify`.
 
 **Checkpoint**: US3 entregable. SC-005 queda demostrado con un test, no con una afirmación.
 
