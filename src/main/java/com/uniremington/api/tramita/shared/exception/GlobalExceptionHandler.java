@@ -81,6 +81,22 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .body(problem);
     }
 
+    /**
+     * Configuración de negocio ausente o inválida → 500 (research.md D2).
+     *
+     * No es 422: la petición de la Coordinación está bien; lo que falta es un
+     * parámetro que el operador no cargó. Devolver 422 la mandaría a corregir un
+     * formulario correcto. El diagnóstico nombra el parámetro y la definición, así
+     * que se loguea del lado servidor y al cliente va solo el título (FR-010, FR-011).
+     */
+    @ExceptionHandler(IncompleteConfigurationException.class)
+    ProblemDetail handleIncompleteConfiguration(IncompleteConfigurationException ex) {
+        log.error("Configuración de negocio incompleta", ex);
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.INTERNAL_SERVER_ERROR);
+        problem.setTitle("Configuración del trámite incompleta");
+        return problem;
+    }
+
     /** Fallback: nada interno (mensaje, stacktrace) se filtra al cliente. */
     @ExceptionHandler(Exception.class)
     ProblemDetail handleUnexpected(Exception ex) {

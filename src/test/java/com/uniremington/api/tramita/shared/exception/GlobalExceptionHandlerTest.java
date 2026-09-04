@@ -30,4 +30,21 @@ class GlobalExceptionHandlerTest {
         // Nada del mensaje del provider (clase, id) llega al cliente
         assertThat(problem.getDetail()).doesNotContain("Request", "uuid-interno");
     }
+
+    @Test
+    @DisplayName("configuración incompleta: 500 con título fijo y sin el diagnóstico interno")
+    void incompleteConfigurationMapsTo500WithoutLeakingDiagnostic() {
+        var exception = new IncompleteConfigurationException(
+                "MAX_CREDITS ausente para definition_id=un-uuid-interno");
+
+        ProblemDetail problem = handler.handleIncompleteConfiguration(exception);
+
+        // 500 y no 422: la falla es de configuración del sistema, no del formulario
+        // que envió la Coordinación (research.md D2, FR-010).
+        assertThat(problem.getStatus()).isEqualTo(500);
+        assertThat(problem.getTitle()).isEqualTo("Configuración del trámite incompleta");
+        // El diagnóstico nombra el parámetro y el id de la definición: nada de eso
+        // puede llegar al cliente.
+        assertThat(problem.getDetail()).isNull();
+    }
 }
