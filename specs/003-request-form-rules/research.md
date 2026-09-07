@@ -169,7 +169,9 @@ apilan encima (restricciones tecnológicas: Flyway posee el schema).
 
 **Qué NO se porta del prototipo en `V2.3.0`**: la columna del correo del estudiante (FR-020,
 constitución §III — su único consumidor era SP7, fuera de alcance) y la columna de prioridad
-(fuera del alcance por decisión de producto: sin respaldo en las entrevistas, diferida a SP5).
+(fuera del alcance por decisión de producto: la fuente la registra como deseable y no
+bloqueante para la primera versión —Q20,
+`material-coord/2026-06-04-entrevista3-sintesis-analitica.md:165-168`—, diferida a SP5).
 
 ## D10 — El total de créditos no se persiste
 

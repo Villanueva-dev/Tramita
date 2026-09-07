@@ -32,7 +32,9 @@ con filas ya existentes.
 **No se agregan** (D9):
 
 - `student_email` — FR-020, constitución §III. Su consumidor era SP7, fuera de alcance.
-- `priority` — fuera del alcance por decisión de producto; sin respaldo en las entrevistas.
+- `priority` — fuera del alcance por decisión de producto. La fuente primaria la respalda como
+  deseable pero no bloqueante para la primera versión (Q20,
+  `material-coord/2026-06-04-entrevista3-sintesis-analitica.md:165-168`).
 
 `reason` es `VARCHAR(2000)` y no `TEXT`: FR-004 exige una longitud máxima, y declararla en la
 columna hace que la restricción exista también fuera del caso de uso. `TEXT` —lo que usa el

@@ -17,7 +17,10 @@ import java.util.List;
  * NO hay campo de correo del estudiante: su consumidor era SP7, fuera de alcance
  * (FR-020, constitución §III). Si un cliente lo envía, se ignora.
  *
- * NO hay campo de prioridad: sin respaldo en las entrevistas, diferido a SP5.
+ * NO hay campo de prioridad. La coordinación atiende por orden de llegada y no tiene
+ * procedimiento formal de priorización; una bandera de prioridad quedó registrada como
+ * deseable pero no bloqueante para la primera versión (Q20 de la tercera entrevista,
+ * material-coord/2026-06-04-entrevista3-sintesis-analitica.md:165-168). Diferido a SP5.
  */
 public record CreateRequestBody(
         @NotBlank @Size(max = 50) String definitionCode,
