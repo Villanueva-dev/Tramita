@@ -136,6 +136,40 @@ Con `MAX_CREDITS = 21`, enviar asignaturas que sumen 22.
 
 **Esperado**: `422` con `detail` indicando el límite. La solicitud **no** queda registrada.
 
+## 3b. Qué trámites capturan créditos se configura, no se codifica (FR-009a)
+
+`ADICION_CREDITOS` declara `CAPTURES_CREDITS = true`; `NOVEDAD_NOTAS` no lo declara, porque su
+formato oficial no tiene columna de créditos.
+
+**Omitir el dato no esquiva el tope** — una asignatura sin `credits` en un trámite que los captura:
+
+```sh
+curl -s -b cookies.txt -X POST http://localhost:8080/api/requests \
+  -H 'Content-Type: application/json' -H "X-XSRF-TOKEN: $TOKEN" \
+  -d '{"definitionCode":"ADICION_CREDITOS","studentName":"Estudiante De Prueba",
+       "studentDocument":"DOC-TEST-0001",
+       "subjects":[{"code":"MAT-101","name":"Cálculo Diferencial"}]}'
+```
+
+**Esperado**: `422`. Antes de FR-009a esto respondía `201` y el tope no llegaba a evaluarse.
+
+**Un dato de más es del cliente, no del servidor** — créditos en un trámite que no los captura:
+
+```sh
+curl -s -b cookies.txt -X POST http://localhost:8080/api/requests \
+  -H 'Content-Type: application/json' -H "X-XSRF-TOKEN: $TOKEN" \
+  -d '{"definitionCode":"NOVEDAD_NOTAS","studentName":"Estudiante De Prueba",
+       "studentDocument":"DOC-TEST-0001",
+       "subjects":[{"code":"A-1","name":"Uno","credits":3,"proposedGrade":4.2}]}'
+```
+
+**Esperado**: `422` con «no captura créditos». Antes respondía `500`, culpando al servidor de un
+dato de más de quien envía —y dejando un `log.error` por un error que no era del sistema—.
+
+> El paso 5 sigue devolviendo `500` y eso es correcto: ahí el trámite **declara** capturar créditos
+> y le falta su tope, que sí es configuración rota. Distinguir los dos casos es justamente el
+> propósito de `CAPTURES_CREDITS`.
+
 ## 4. Los créditos negativos no burlan el tope (FR-009) — el caso que el prototipo permitía
 
 ```sh

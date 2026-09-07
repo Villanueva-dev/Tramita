@@ -9,8 +9,11 @@ info:
       * `CreateRequestBody` se amplía con los datos del formulario y las asignaturas.
         Todos los campos nuevos son opcionales: una petición con los tres campos
         originales sigue siendo válida (FR-006, SC-007).
-      * `Request` incorpora esos datos en la respuesta.
+      * `Request` incorpora esos datos en la respuesta: se listan SOLO los campos
+        nuevos, y lo heredado del 002 no se redeclara.
       * Se declara el 500 de configuración incompleta (FR-010, FR-011).
+      * Se agregan dos causas de 422 en el registro (FR-009a): una asignatura sin
+        créditos en un trámite que los captura, y créditos declarados en uno que no.
 
     Lo no listado aquí se rige por `specs/002-workflow-engine/contracts/openapi.yaml`.
 
@@ -157,14 +160,15 @@ components:
     Request:
       type: object
       description: |
-        Respuesta de una solicitud, ampliada con los datos del formulario. NO incluye
-        ningún dato de contacto del estudiante (FR-020, constitución §III).
+        SOLO los campos que esta feature AGREGA a la respuesta de una solicitud. El
+        resto —id, definition, currentState, availableTransitions, studentName,
+        studentDocument, createdAt— se hereda sin cambios del contrato de la 002 y NO
+        se redeclara aquí: redeclararlo ya produjo una divergencia real, con
+        `definition` y `currentState` descritos como strings cuando el backend
+        devuelve objetos, y `availableTransitions` ausente aunque siempre viaja.
+
+        NO incluye ningún dato de contacto del estudiante (FR-020, constitución §III).
       properties:
-        id: { type: string, format: uuid }
-        definitionCode: { type: string }
-        currentState: { type: string }
-        studentName: { type: string }
-        studentDocument: { type: string }
         studentCode: { type: string }
         program: { type: string }
         semester: { type: string }
@@ -172,4 +176,3 @@ components:
         subjects:
           type: array
           items: { $ref: '#/components/schemas/SubjectResponse' }
-        createdAt: { type: string, format: date-time }

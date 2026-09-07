@@ -11,6 +11,7 @@ import com.uniremington.api.tramita.shared.exception.UnprocessableRequestExcepti
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -31,6 +32,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class RequestBusinessRulesImpl implements IRequestBusinessRules {
 
+    private static final String CAPTURES_CREDITS = "CAPTURES_CREDITS";
     private static final String MAX_CREDITS = "MAX_CREDITS";
     private static final String MIN_GRADE = "MIN_GRADE";
     private static final String MAX_GRADE = "MAX_GRADE";
@@ -49,18 +51,64 @@ public class RequestBusinessRulesImpl implements IRequestBusinessRules {
                 .map(SubjectRequestBody::credits)
                 .filter(Objects::nonNull)
                 .toList();
-        // Sin créditos declarados, la regla no aplica y su parámetro no se exige.
-        if (declared.isEmpty()) {
+
+        if (!capturesCredits(definition)) {
+            // El formato oficial de novedad de notas no tiene columna de créditos
+            // (material-coord/2026-06-03-coord-formato-novedad-notas.docx): recibirlos
+            // es un dato de más del cliente, no una configuración rota del servidor.
+            if (!declared.isEmpty()) {
+                throw new UnprocessableRequestException(
+                        "Este trámite no captura créditos: sus asignaturas no deben declararlos");
+            }
             return;
         }
 
+        // La configuración se valida antes que el dato del cliente: si el trámite declara
+        // capturar créditos pero le falta su tope, el defecto es del servidor y no puede
+        // presentarse como un error de quien envía la solicitud.
         int maximum = requirePositiveInteger(definition, MAX_CREDITS);
+
+        // Omitir el dato NO puede ser la forma de esquivar el tope: sin esta guarda, una
+        // solicitud sin créditos se registraba con 201 y la validación no llegaba a correr.
+        if (declared.size() != subjects.size()) {
+            throw new UnprocessableRequestException(
+                    "Este trámite exige declarar los créditos de cada asignatura");
+        }
+
         int requested = declared.stream().mapToInt(Integer::intValue).sum();
         if (requested > maximum) {
             throw new UnprocessableRequestException(
                     "La solicitud suma %d créditos y el máximo configurado para este trámite es %d"
                             .formatted(requested, maximum));
         }
+    }
+
+    /**
+     * Un trámite captura créditos solo si lo declara. La ausencia del parámetro es el
+     * caso por defecto —no captura— y por eso NO es configuración incompleta: obligar a
+     * declararlo encarecería crear un trámite nuevo, que es lo que el motor abarata.
+     *
+     * Un valor que no sea true ni false SÍ es configuración rota: leerlo como false
+     * dejaría a un trámite que sí captura créditos rechazando toda solicitud con un 422,
+     * culpando al usuario de un error que no cometió.
+     */
+    private boolean capturesCredits(WorkflowDefinition definition) {
+        Optional<String> configured = parameterRepo
+                .findByDefinitionIdAndKey(definition.getId(), CAPTURES_CREDITS)
+                .map(WorkflowParameter::getValue);
+        if (configured.isEmpty()) {
+            return false;
+        }
+        String value = configured.get().trim();
+        if ("true".equalsIgnoreCase(value)) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(value)) {
+            return false;
+        }
+        throw new IncompleteConfigurationException(
+                "El parámetro %s de la definición %s tiene un valor no interpretable"
+                        .formatted(CAPTURES_CREDITS, definition.getId()));
     }
 
     private void validateGrades(WorkflowDefinition definition, List<SubjectRequestBody> subjects) {

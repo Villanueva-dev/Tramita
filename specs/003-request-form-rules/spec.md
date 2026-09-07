@@ -75,9 +75,10 @@ registra.
 3. **Given** el mismo trámite, **When** una solicitud declara una asignatura con créditos negativos o
    cero, **Then** el sistema la rechaza, y el valor no puede usarse para reducir el total y quedar
    por debajo del límite.
-4. **Given** un trámite cuyo máximo de créditos **no** está configurado, **When** la Coordinación
-   registra una solicitud para ese trámite, **Then** el sistema **rechaza la operación informando
-   que la configuración está incompleta**, y en ningún caso la registra como si no hubiera límite.
+4. **Given** un trámite que **declara capturar créditos** pero cuyo máximo **no** está configurado,
+   **When** la Coordinación registra una solicitud para ese trámite, **Then** el sistema **rechaza la
+   operación informando que la configuración está incompleta**, y en ningún caso la registra como si
+   no hubiera límite.
 5. **Given** un trámite con un rango de notas configurado, **When** una solicitud declara una nota
    fuera de ese rango o que no es un valor numérico, **Then** el sistema la rechaza indicando el
    rango admitido.
@@ -88,6 +89,12 @@ registra.
 7. **Given** el formulario de un trámite, **When** la Coordinación envía un motivo que excede la
    longitud máxima admitida, **Then** el sistema rechaza la solicitud en la captura y no la registra
    truncada.
+8. **Given** un trámite que declara capturar créditos, **When** una solicitud incluye una asignatura
+   que no los declara, **Then** el sistema la rechaza: omitir el dato **MUST NOT** ser una forma de
+   que el tope no llegue a evaluarse.
+9. **Given** un trámite que **no** declara capturar créditos, **When** una solicitud los declara,
+   **Then** el sistema la rechaza **como dato de más de quien la envía**, y **MUST NOT** presentarlo
+   como una configuración incompleta del servidor.
 
 ---
 
@@ -198,8 +205,14 @@ trámite concreto.
 - **FR-008**: El sistema MUST validar que el total de créditos de una solicitud no supere el máximo
   configurado para su trámite, y MUST rechazar la solicitud que lo supere indicando el límite.
 - **FR-009**: Los créditos de una asignatura MUST ser un valor positivo y acotado. El sistema MUST
-  rechazar una asignatura con créditos nulos, cero o negativos, de modo que ningún valor pueda restar
-  del total y situar una solicitud excedida por debajo del límite.
+  rechazar una asignatura con créditos cero o negativos, de modo que ningún valor pueda restar del
+  total y situar una solicitud excedida por debajo del límite.
+- **FR-009a**: Qué trámites capturan créditos MUST ser configuración de la definición, no una
+  decisión escrita en el código. En un trámite que los captura, el sistema MUST rechazar la solicitud
+  cuya asignatura no los declare —omitir el dato no puede evitar que el tope se evalúe—; en un
+  trámite que no los captura, MUST rechazar la solicitud que los declare, atribuyéndolo al dato
+  enviado y no a la configuración. La ausencia de la declaración significa que el trámite **no**
+  captura créditos, de modo que definir un trámite nuevo no exija cargar parámetros que no usa.
 - **FR-010**: Cuando el parámetro de negocio que una validación necesita no está configurado para ese
   trámite, el sistema MUST rechazar la operación señalando que la configuración está incompleta.
   El sistema MUST NOT registrar la solicitud como si el límite no existiera.
@@ -265,8 +278,11 @@ trámite concreto.
   en el momento de la captura, antes de entrar a la cadena de aprobación.
 - **SC-003**: Ninguna combinación de valores de créditos permite registrar una solicitud cuyo total
   real supere el máximo configurado.
-- **SC-004**: El 100 % de los intentos de registrar una solicitud para un trámite con configuración
-  de negocio incompleta se rechazan de forma visible; ninguno queda registrado sin validar.
+- **SC-004**: El 100 % de los intentos de registrar una solicitud para un trámite al que le falta un
+  parámetro **que sus validaciones aplicables necesitan** se rechazan de forma visible; ninguno queda
+  registrado sin validar. Un parámetro que ninguna validación de ese trámite usa no se exige: lo que
+  la medida persigue es que ninguna validación quede sin ejecutarse en silencio, no que toda
+  definición cargue el vocabulario completo.
 - **SC-005**: Cambiar el máximo de créditos de un trámite requiere únicamente ajustar su
   configuración: sin modificar el código de la aplicación ni desplegar una versión nueva. El valor
   nuevo rige para las solicitudes registradas a partir de ese momento.
@@ -292,8 +308,11 @@ trámite concreto.
   trámites de la feature 002.** Esta feature no introduce una interfaz de administración: SC-005 se
   satisface con el mecanismo existente.
 - **`prioridad` y `fecha de vencimiento` quedan fuera de esta feature.** Se difieren a SP5, coherente
-  con el recorte ya decidido: no tienen respaldo en las entrevistas, y su consumidor natural es la
-  bandeja de trabajo del Sprint 3.
+  con el recorte ya decidido. La fuente primaria no las omite: registra que la coordinación
+  atiende por orden de llegada, sin procedimiento formal de priorización, y que una bandera de
+  prioridad es deseable pero **no bloqueante para la primera versión** (Q20,
+  `material-coord/2026-06-04-entrevista3-sintesis-analitica.md:165-168`). Su consumidor natural
+  es la bandeja de trabajo del Sprint 3.
 
 ## Respaldo normativo pendiente
 

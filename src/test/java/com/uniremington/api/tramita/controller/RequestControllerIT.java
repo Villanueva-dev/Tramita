@@ -123,7 +123,8 @@ class RequestControllerIT {
     @Test
     @DisplayName("registrar con el formulario completo: 201 y devuelve las dos asignaturas íntegras (FR-001, FR-002)")
     void registerPersistsTheWholeFormWithItsSubjects() throws Exception {
-        mockMvc.perform(createRequestWithForm("""
+        MockHttpSession session = login();
+        String created = mockMvc.perform(createRequestWithForm("""
                         {
                           "definitionCode": "ADICION_CREDITOS",
                           "studentName": "Estudiante De Prueba",
@@ -136,7 +137,7 @@ class RequestControllerIT {
                             {"code":"MAT-101","name":"Cálculo Diferencial","credits":3,"group":"G1"},
                             {"code":"FIS-201","name":"Física I","credits":4,"group":"G2"}
                           ]
-                        }""").session(login()))
+                        }""").session(session))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.studentCode").value("EST-0001"))
                 .andExpect(jsonPath("$.program").value("Ingeniería de Sistemas"))
@@ -152,7 +153,26 @@ class RequestControllerIT {
                 .andExpect(jsonPath("$.subjects[0].group").value("G1"))
                 .andExpect(jsonPath("$.subjects[1].code").value("FIS-201"))
                 .andExpect(jsonPath("$.subjects[1].credits").value(4))
-                .andExpect(jsonPath("$.subjects[1].group").value("G2"));
+                .andExpect(jsonPath("$.subjects[1].group").value("G2"))
+                .andReturn().getResponse().getContentAsString();
+
+        // El 201 devuelve la entidad que quedó en memoria, así que por sí solo NO prueba
+        // que las asignaturas se hayan escrito: sin la cascada, request_subject quedaría
+        // vacía y todas las aserciones de arriba seguirían pasando. Hay que releerla.
+        // Se compara por código y no por posición porque el orden de lectura no está
+        // garantizado: la colección no declara criterio de ordenamiento.
+        String id = com.jayway.jsonpath.JsonPath.read(created, "$.id");
+        mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.subjects.length()").value(2))
+                .andExpect(jsonPath("$.subjects[*].code",
+                        org.hamcrest.Matchers.containsInAnyOrder("MAT-101", "FIS-201")))
+                .andExpect(jsonPath("$.subjects[?(@.code=='MAT-101')].credits",
+                        org.hamcrest.Matchers.contains(3)))
+                .andExpect(jsonPath("$.subjects[?(@.code=='MAT-101')].name",
+                        org.hamcrest.Matchers.contains("Cálculo Diferencial")))
+                .andExpect(jsonPath("$.subjects[?(@.code=='FIS-201')].credits",
+                        org.hamcrest.Matchers.contains(4)));
     }
 
     @Test
@@ -185,6 +205,42 @@ class RequestControllerIT {
                 // Los campos nuevos quedan nulos, no en blanco ni con un default inventado
                 .andExpect(jsonPath("$.studentCode").doesNotExist())
                 .andExpect(jsonPath("$.reason").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("un trámite que captura créditos rechaza la asignatura que no los declara (FR-009)")
+    void registerRejectsSubjectsWithoutCreditsWhenTheTradeCapturesThem() throws Exception {
+        // Omitir el dato era la forma de esquivar el tope: la validación no llegaba a
+        // correr y la solicitud se registraba con 201 sin límite alguno aplicado.
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0011",
+                          "subjects": [{"code":"MAT-101","name":"Cálculo Diferencial"}]
+                        }""").session(login()))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.detail",
+                        org.hamcrest.Matchers.containsString("créditos")));
+    }
+
+    @Test
+    @DisplayName("una novedad de notas rechaza los créditos con 422 del cliente, no con un 500 (FR-009)")
+    void registerRejectsCreditsOnATradeThatDoesNotCaptureThem() throws Exception {
+        // El formato oficial de novedad de notas no tiene columna de créditos. Recibirlos
+        // es un dato de más de quien envía, no una configuración rota del servidor: antes
+        // devolvía 500 y dejaba un log.error por un error que no era del sistema.
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "NOVEDAD_NOTAS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0012",
+                          "subjects": [{"code":"MAT-101","name":"Cálculo Diferencial","credits":3,
+                                        "currentGrade":2.80,"proposedGrade":3.50}]
+                        }""").session(login()))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.detail",
+                        org.hamcrest.Matchers.containsString("no captura créditos")));
     }
 
     @Test
@@ -303,10 +359,17 @@ class RequestControllerIT {
         String originalAdicion = maxCreditsOf("ADICION_CREDITOS");
         try {
             setMaxCredits("ADICION_CREDITOS", "10");
+            // Novedad de notas no captura créditos en la configuración real, así que para
+            // que sirva como "el otro trámite con su propio tope" hay que declararle
+            // ambas cosas. Se revierte en el finally.
             jdbcTemplate.update("""
                     INSERT INTO workflow_parameter (id, definition_id, parameter_key, parameter_value)
-                    SELECT gen_random_uuid(), id, 'MAX_CREDITS', '30'
-                    FROM workflow_definition WHERE code = 'NOVEDAD_NOTAS' AND version = 1""");
+                    SELECT gen_random_uuid(), id, p.parameter_key, p.parameter_value
+                    FROM workflow_definition d
+                             CROSS JOIN (VALUES ('MAX_CREDITS', '30'),
+                                                ('CAPTURES_CREDITS', 'true'))
+                        AS p(parameter_key, parameter_value)
+                    WHERE d.code = 'NOVEDAD_NOTAS' AND d.version = 1""");
 
             String subjects = """
                     "subjects": [{"code":"A-1","name":"Uno","credits":20}]""";
@@ -326,9 +389,10 @@ class RequestControllerIT {
         } finally {
             setMaxCredits("ADICION_CREDITOS", originalAdicion);
             jdbcTemplate.update("""
-                    DELETE FROM workflow_parameter WHERE parameter_key = 'MAX_CREDITS'
-                      AND definition_id IN (SELECT id FROM workflow_definition
-                                            WHERE code = 'NOVEDAD_NOTAS')""");
+                    DELETE FROM workflow_parameter
+                     WHERE parameter_key IN ('MAX_CREDITS', 'CAPTURES_CREDITS')
+                       AND definition_id IN (SELECT id FROM workflow_definition
+                                             WHERE code = 'NOVEDAD_NOTAS')""");
         }
     }
 
@@ -760,6 +824,12 @@ class RequestControllerIT {
                 SELECT gen_random_uuid(), id, 'MAX_CREDITS', ?
                 FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2""",
                 maxCredits);
+        // Los parámetros son de la VERSIÓN, no del código del trámite (FR-013): una v2
+        // no hereda nada de la v1 y tiene que declarar también que captura créditos.
+        jdbcTemplate.update("""
+                INSERT INTO workflow_parameter (id, definition_id, parameter_key, parameter_value)
+                SELECT gen_random_uuid(), id, 'CAPTURES_CREDITS', 'true'
+                FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2""");
     }
 
     /**
