@@ -3,8 +3,10 @@ info:
   title: Trámita — delta de contrato de la feature 003
   version: 0.3.0
   description: |
-    Delta sobre el contrato de la feature 002, que NO se edita (es una feature cerrada y
-    archivada). Aquí se declara únicamente lo que esta feature cambia:
+    Delta sobre el contrato de la feature 002: su ESTRUCTURA no se altera —es una feature
+    cerrada— y lo que aquí no aparece se rige por ella. Sí se corrigieron en su archivo los
+    datos de ejemplo con forma de documento de identidad (T050, FR-022), que no cambian el
+    contrato. Aquí se declara únicamente lo que esta feature cambia:
 
       * `CreateRequestBody` se amplía con los datos del formulario y las asignaturas.
         Todos los campos nuevos son opcionales: una petición con los tres campos

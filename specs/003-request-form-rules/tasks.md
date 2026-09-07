@@ -178,7 +178,7 @@ cuando no, sin que el motor conozca ningún trámite.
 - [x] T051 [P] Revisar que ninguna clase nueva use `@Data`, `@Setter` ni imports comodín de Lombok en entidades, y que ningún servicio se inyecte por su implementación en vez de por su interfaz.
 - [x] T052 Ejecutar el `quickstart.md` completo contra la instancia local, incluidos los pasos 4, 5 y 6 —los que reproducen los fallos del prototipo— y el paso 8, que comprueba con `\d request_subject` que las notas son `numeric(3,2)` y no `character varying`.
 - [x] T053 Correr `docker start tramita-postgres && ./mvnw clean verify` una última vez y confirmar que el número de tests es mayor que el baseline anotado en T001.
-- [ ] T054 Marcar las tareas cumplidas en este archivo y cerrar el issue #9 desde el cuerpo de la PR con `Closes #9`, para que el milestone del Sprint 1 avance solo.
+- [x] T054 Marcar las tareas cumplidas en este archivo y cerrar el issue #9 desde el cuerpo de la PR con `Closes #9`, para que el milestone del Sprint 1 avance solo.
 
 ---
 

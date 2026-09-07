@@ -41,7 +41,7 @@ verificable.
 | FR-002 asignaturas con su cardinalidad | US1-1, US1-2, US1-3 |
 | FR-003 misma estructura en ambos trámites | US1-1, US1-2 |
 | FR-004 motivo acotado | US2-7 |
-| FR-005 datos capturados inmutables | US1-5 |
+| FR-005 datos capturados inmutables | — (garantía estructural, ver nota) |
 | FR-006 compatibilidad del contrato | US1-4 |
 | FR-007 parámetros como configuración | US3-1 |
 | FR-008 tope de créditos | US2-1, US2-2 |
@@ -85,3 +85,10 @@ El máximo de créditos entra como **provisional y no auditado** (constitución 
 respaldo es derivado y el reglamento estudiantil no se ha obtenido. Ver la sección «Respaldo
 normativo pendiente» de la spec. Esto no bloquea la planificación —el diseño hace del valor un dato
 configurable— pero debe declararse en la defensa.
+
+> **Nota sobre FR-005.** No tiene escenario que lo ejercite, y es deliberado: la API no expone
+> ningún camino de escritura sobre los datos capturados —no hay `PUT` ni `PATCH`, las columnas
+> son `updatable = false` y la entidad no tiene setters—, así que no existe una entrada que
+> pueda intentar la modificación y ser rechazada. Declararlo trazado a US1-5 afirmaba una
+> cobertura que ningún test daba. Si en algún sprint aparece un camino de edición, este
+> requisito pasa a necesitar su escenario.

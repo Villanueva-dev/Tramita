@@ -265,7 +265,7 @@ class RequestControllerIT {
     @Test
     @DisplayName("créditos negativos no compensan a otra asignatura para burlar el tope (FR-009)")
     void negativeCreditsCannotOffsetAnotherSubjectToBypassTheLimit() throws Exception {
-        long subjectsBefore = requestRepo.count();
+        long requestsBefore = requestRepo.count();
 
         // 30 y -20 suman 10 y pasarían un tope de 21. La validación de forma los
         // rechaza antes de que la suma llegue a calcularse.
@@ -281,7 +281,7 @@ class RequestControllerIT {
                         }""").session(login()))
                 .andExpect(status().isBadRequest());
 
-        assertThat(requestRepo.count()).isEqualTo(subjectsBefore);
+        assertThat(requestRepo.count()).isEqualTo(requestsBefore);
     }
 
     @Test

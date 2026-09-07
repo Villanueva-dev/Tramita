@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -113,7 +114,7 @@ public class RequestBusinessRulesImpl implements IRequestBusinessRules {
 
     private void validateGrades(WorkflowDefinition definition, List<SubjectRequestBody> subjects) {
         List<BigDecimal> declared = subjects.stream()
-                .flatMap(subject -> java.util.stream.Stream.of(
+                .flatMap(subject -> Stream.of(
                         subject.currentGrade(), subject.proposedGrade()))
                 .filter(Objects::nonNull)
                 .toList();
