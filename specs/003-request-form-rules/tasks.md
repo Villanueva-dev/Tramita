@@ -174,10 +174,10 @@ cuando no, sin que el motor conozca ningún trámite.
 
 ## Phase 7: Polish & cross-cutting
 
-- [ ] T050 [P] Reemplazar el identificador con forma de cédula por un valor inequívocamente sintético en las **6 ocurrencias de 4 archivos** heredadas de `main` (**FR-022**, constitución §III): `specs/002-workflow-engine/contracts/openapi.yaml:201`, `specs/002-workflow-engine/quickstart.md:67` y `:91`, `src/test/java/com/uniremington/api/tramita/service/impl/RequestServiceImplTest.java:92` y `:235`, `src/test/java/com/uniremington/api/tramita/controller/RequestControllerIT.java:61`. Confirmar con `rg -n '1144099888' --hidden -g '!.git'` → sin resultados. **No** reescribir el historial de `main` (D11).
-- [ ] T051 [P] Revisar que ninguna clase nueva use `@Data`, `@Setter` ni imports comodín de Lombok en entidades, y que ningún servicio se inyecte por su implementación en vez de por su interfaz.
-- [ ] T052 Ejecutar el `quickstart.md` completo contra la instancia local, incluidos los pasos 4, 5 y 6 —los que reproducen los fallos del prototipo— y el paso 8, que comprueba con `\d request_subject` que las notas son `numeric(3,2)` y no `character varying`.
-- [ ] T053 Correr `docker start tramita-postgres && ./mvnw clean verify` una última vez y confirmar que el número de tests es mayor que el baseline anotado en T001.
+- [x] T050 [P] Reemplazar el identificador con forma de cédula por un valor inequívocamente sintético en las **6 ocurrencias de 4 archivos** heredadas de `main` (**FR-022**, constitución §III): `specs/002-workflow-engine/contracts/openapi.yaml:201`, `specs/002-workflow-engine/quickstart.md:67` y `:91`, `src/test/java/com/uniremington/api/tramita/service/impl/RequestServiceImplTest.java:92` y `:235`, `src/test/java/com/uniremington/api/tramita/controller/RequestControllerIT.java:61`. Confirmar con `rg -n '1144099888' --hidden -g '!.git' -g '!specs/003-request-form-rules/tasks.md'` → sin resultados. (La exclusión es necesaria: el literal aparece en este mismo enunciado.) **No** reescribir el historial de `main` (D11).
+- [x] T051 [P] Revisar que ninguna clase nueva use `@Data`, `@Setter` ni imports comodín de Lombok en entidades, y que ningún servicio se inyecte por su implementación en vez de por su interfaz.
+- [x] T052 Ejecutar el `quickstart.md` completo contra la instancia local, incluidos los pasos 4, 5 y 6 —los que reproducen los fallos del prototipo— y el paso 8, que comprueba con `\d request_subject` que las notas son `numeric(3,2)` y no `character varying`.
+- [x] T053 Correr `docker start tramita-postgres && ./mvnw clean verify` una última vez y confirmar que el número de tests es mayor que el baseline anotado en T001.
 - [ ] T054 Marcar las tareas cumplidas en este archivo y cerrar el issue #9 desde el cuerpo de la PR con `Closes #9`, para que el milestone del Sprint 1 avance solo.
 
 ---

@@ -10,15 +10,92 @@ docker start tramita-postgres && docker ps
 set -a; source .env; set +a; SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 ```
 
+> ⚠️ **Las contraseñas del `.env` van entre comillas simples.** `source` no lee el archivo como
+> texto: lo ejecuta como shell, y por lo tanto expande `$`. Una clave que contenga `$$` se
+> convierte en el PID del proceso —distinto en cada ejecución—, así que lo que llega a la
+> aplicación **no es lo que dice el archivo**. Falla en silencio: el arranque es normal y el
+> login rebota con `401`.
+>
+> ```
+> SEED_COORD_PASSWORD='clave$$con$signos'   # comillas SIMPLES; las dobles no alcanzan
+> ```
+>
+> Comprobarlo antes de sospechar de la base:
+>
+> ```sh
+> RAW=$(rg -N '^SEED_COORD_PASSWORD=' .env | sed 's/^[^=]*=//')
+> set -a; source .env; set +a
+> echo "crudo ${#RAW} vs cargado ${#SEED_COORD_PASSWORD}"
+> ```
+>
+> Descontando las dos comillas, las longitudes deben coincidir.
+
 ## Autenticación
 
-Todas las operaciones exigen sesión (FR-021).
+Todas las operaciones exigen sesión (FR-021). El backend aplica CSRF *double-submit* (D4), así
+que el login necesita **dos** peticiones: una que materialice la cookie `XSRF-TOKEN`, y el POST
+que la devuelve en el header `X-XSRF-TOKEN`.
 
 ```sh
-curl -s -c cookies.txt -X POST http://localhost:8080/api/auth/login \
+# 1. Materializa la cookie XSRF-TOKEN. Responde 401: es lo esperado, todavía no hay sesión.
+curl -s -o /dev/null -c cookies.txt http://localhost:8080/api/auth/me
+
+TOKEN=$(rg -N 'XSRF-TOKEN' cookies.txt | awk '{print $NF}')
+
+# 2. Login
+curl -s -b cookies.txt -c cookies.txt -X POST http://localhost:8080/api/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"<usuario>","password":"<clave>"}'
+  -H "X-XSRF-TOKEN: $TOKEN" \
+  -d "$(jq -n --arg e "$SEED_COORD_EMAIL" --arg p "$SEED_COORD_PASSWORD" \
+        '{email:$e,password:$p}')"
 ```
+
+**Esperado**: `204` sin cuerpo. Confirmar la sesión:
+
+```sh
+curl -s -b cookies.txt http://localhost:8080/api/auth/me
+```
+
+**Esperado**: `200` con el email de la cuenta.
+
+> El campo es `email`, no `username`: así lo declara `LoginRequest`. Las credenciales son las
+> de `SEED_COORD_EMAIL` / `SEED_COORD_PASSWORD` del `.env`.
+
+### Diagnóstico de un `401`
+
+Hay **dos** `401` distintos y el título del `problem+json` dice cuál es. No diagnosticar sin leerlo:
+
+| Título | Origen | Significa |
+|---|---|---|
+| `"Autenticación requerida"` | entry point (`SecurityConfig`) | la petición **no llegó** al filtro de login |
+| `"Credenciales inválidas"` | `AuthFailureHandler` | el filtro corrió y la credencial no validó |
+
+- **`"Autenticación requerida"` en el POST del login** = falta el paso 1, o el header
+  `X-XSRF-TOKEN`. El `CsrfFilter` responde `403`; ese `403` dispara un forward interno a `/error`,
+  que no es `permitAll`, y el entry point lo convierte en `401`. **El síntoma miente: la causa
+  es CSRF.**
+- **`"Credenciales inválidas"`** = la clave no valida contra el hash. Comprobarlo sin HTTP antes
+  de tocar la base —no consume intentos de login ni dispara el throttling (`429`)—:
+
+  ```sh
+  ./mvnw -q dependency:build-classpath -Dmdep.outputFile=/tmp/cp.txt
+  export DB_HASH=$(docker exec -i tramita-postgres psql -U postgres -d tramita-db -tAc \
+    "SELECT password_hash FROM users WHERE email='<correo>';")
+  export PWD_LITERAL='<la clave, entre comillas SIMPLES>'
+  printf '%s\n' \
+    'import org.springframework.security.crypto.factory.PasswordEncoderFactories;' \
+    'var enc = PasswordEncoderFactories.createDelegatingPasswordEncoder();' \
+    'System.out.println("RESULTADO: " + enc.matches(System.getenv("PWD_LITERAL"), System.getenv("DB_HASH")));' \
+    '/exit' > /tmp/check.jsh
+  jshell --class-path "$(</tmp/cp.txt)" -s /tmp/check.jsh
+  ```
+
+  Si devuelve `true` y el login igual falla, el problema es la expansión del `.env` (ver Arranque).
+
+> ⛔ **No borrar la fila de `users`.** `request_transition_log.actor_id` la referencia por FK, y
+> el timeline es inmutable por trigger (`trg_timeline_immutable`, FR-007): las filas que sostienen
+> esa FK no se pueden borrar. Desactivar el trigger para destrabar un login anularía justamente
+> la trazabilidad que la feature 002 existe para garantizar.
 
 ## 1. El contrato anterior sigue funcionando (FR-006, SC-007)
 
@@ -130,37 +207,92 @@ docker exec -i tramita-postgres psql -U postgres -d tramita-db \
 **Esperado**: sin reiniciar la aplicación, una solicitud de 22 créditos que antes daba `422`
 ahora responde `201`.
 
-## 8. Las notas se validan contra el rango configurado (FR-012)
-
-Enviar una asignatura con `proposedGrade` fuera del rango configurado.
-
-**Esperado**: `422` indicando el rango admitido. Verificar además que la columna es numérica:
+Restaurar después —si no, el tope queda en 24 y el paso 3 de la próxima corrida falla por este
+residuo y no por un defecto real—:
 
 ```sh
 docker exec -i tramita-postgres psql -U postgres -d tramita-db \
-  -c "\d request_subject" | grep grade
+  -c "UPDATE workflow_parameter SET parameter_value = '21' WHERE parameter_key = 'MAX_CREDITS';"
+```
+
+## 8. Las notas se validan contra el rango configurado (FR-012)
+
+`NOVEDAD_NOTAS` tiene configurados `MIN_GRADE = 0.0` y `MAX_GRADE = 5.0`.
+
+```sh
+curl -s -b cookies.txt -X POST http://localhost:8080/api/requests \
+  -H 'Content-Type: application/json' -H "X-XSRF-TOKEN: $TOKEN" \
+  -d '{"definitionCode":"NOVEDAD_NOTAS","studentName":"Estudiante De Prueba",
+       "studentDocument":"DOC-TEST-0001",
+       "subjects":[{"code":"A-1","name":"Uno","currentGrade":2.5,"proposedGrade":7.5}]}'
+```
+
+**Esperado**: `422` con `detail` = «Las notas deben estar entre 0.0 y 5.0».
+
+> ⚠️ **No incluir `credits` en una solicitud de `NOVEDAD_NOTAS`.** Ese trámite no captura
+> créditos y por eso no tiene `MAX_CREDITS` configurado; si se envían créditos, la regla se
+> activa, exige el parámetro ausente y responde `500` de configuración incompleta. Es el
+> comportamiento correcto (`RequestBusinessRulesImpl`: un parámetro solo se exige cuando la
+> validación que lo usa aplica), pero se confunde fácil con un defecto.
+
+Control con una nota válida (`4.2`): **esperado `201`**, y la nota vuelve como **número**, no
+como string —`"proposedGrade":4.2`— que es el cambio de contrato de la decisión D3.
+
+Verificar además que la columna es numérica:
+
+```sh
+docker exec -i tramita-postgres psql -U postgres -d tramita-db \
+  -c "\d request_subject" | rg grade
 ```
 
 **Esperado**: `numeric(3,2)`, no `character varying`.
 
 ## 9. Una transición sin guarda se comporta como en la 002 (FR-017)
 
-Avanzar cualquier solicitud por una transición existente (todas quedan con `guard_key` nulo).
+Avanzar una solicitud recién registrada por una transición existente (todas quedan con
+`guard_key` nulo):
 
-**Esperado**: mismo comportamiento que antes de esta feature.
+```sh
+curl -s -b cookies.txt -X POST "http://localhost:8080/api/requests/$ID/transitions" \
+  -H 'Content-Type: application/json' -H "X-XSRF-TOKEN: $TOKEN" \
+  -d '{"targetStateCode":"EN_PREPARACION"}'
+```
+
+**Esperado**: `200`, `currentState` actualizado, y una entrada nueva en el timeline —mismo
+comportamiento que antes de esta feature.
 
 ## 10. Una guarda desconocida bloquea la transición (FR-019)
+
+Marcar la transición **que se va a ejercitar**, no una cualquiera:
 
 ```sh
 docker exec -i tramita-postgres psql -U postgres -d tramita-db \
   -c "UPDATE workflow_transition SET guard_key = 'REGLA_INEXISTENTE'
-      WHERE id = (SELECT id FROM workflow_transition LIMIT 1);"
+      WHERE definition_id = (SELECT id FROM workflow_definition
+                             WHERE code='ADICION_CREDITOS' AND version=1)
+        AND from_state_id = (SELECT s.id FROM workflow_state s
+                             JOIN workflow_definition d ON d.id = s.definition_id
+                             WHERE d.code='ADICION_CREDITOS' AND d.version=1
+                               AND s.code='REGISTRADA');"
 ```
 
-**Esperado**: esa transición responde `500` de configuración inválida y **no** altera el
-estado de la solicitud. Nunca debe ejecutarse omitiendo la guarda que no supo evaluar.
+> ⚠️ **No usar `WHERE id = (SELECT id FROM workflow_transition LIMIT 1)`.** Un `LIMIT` sin
+> `ORDER BY` no es determinista: puede marcar una transición de otro trámite, la solicitud
+> avanzaría con `200` y el paso daría un falso verde sin haber ejercitado ninguna guarda.
 
-Revertir con `UPDATE workflow_transition SET guard_key = NULL;`.
+Intentar avanzar por esa transición.
+
+**Esperado**: `500` de configuración inválida, **sin `detail` interno**, y la solicitud **sigue
+en `REGISTRADA`**. Nunca debe ejecutarse omitiendo la guarda que no supo evaluar. Confirmarlo:
+
+```sh
+docker exec -i tramita-postgres psql -U postgres -d tramita-db \
+  -c "SELECT s.code FROM request r JOIN workflow_state s ON s.id = r.current_state_id
+      WHERE r.id = '<id>';"
+```
+
+Revertir con `UPDATE workflow_transition SET guard_key = NULL;` y confirmar que quedan **0**
+transiciones con guarda.
 
 ## Apagado
 
