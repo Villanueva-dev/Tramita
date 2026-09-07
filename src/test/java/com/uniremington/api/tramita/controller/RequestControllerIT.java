@@ -51,6 +51,9 @@ class RequestControllerIT {
     @Autowired
     private IRequestTransitionLogRepo logRepo;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     // --- US1: registrar ------------------------------------------------------------------
 
     @Test
@@ -58,7 +61,7 @@ class RequestControllerIT {
     void registerCreatesRequestInInitialStateOfItsDefinition() throws Exception {
         MockHttpSession session = login();
 
-        mockMvc.perform(createRequest("ADICION_CREDITOS", "Ana María Pérez", "1144099888")
+        mockMvc.perform(createRequest("ADICION_CREDITOS", "Ana María Pérez", "DOC-PRUEBA-001")
                         .session(session))
                 .andExpect(status().isCreated())
                 .andExpect(header().exists("Location"))
@@ -113,6 +116,338 @@ class RequestControllerIT {
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.detail").exists());
+    }
+
+    // --- 003 / US1: el formulario del trámite vive en el sistema --------------------------
+
+    @Test
+    @DisplayName("registrar con el formulario completo: 201 y devuelve las dos asignaturas íntegras (FR-001, FR-002)")
+    void registerPersistsTheWholeFormWithItsSubjects() throws Exception {
+        MockHttpSession session = login();
+        String created = mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0001",
+                          "studentCode": "EST-0001",
+                          "program": "Ingeniería de Sistemas",
+                          "semester": "2026-2",
+                          "reason": "Requiere una asignatura adicional para completar el plan.",
+                          "subjects": [
+                            {"code":"MAT-101","name":"Cálculo Diferencial","credits":3,"group":"G1"},
+                            {"code":"FIS-201","name":"Física I","credits":4,"group":"G2"}
+                          ]
+                        }""").session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.studentCode").value("EST-0001"))
+                .andExpect(jsonPath("$.program").value("Ingeniería de Sistemas"))
+                .andExpect(jsonPath("$.semester").value("2026-2"))
+                .andExpect(jsonPath("$.reason")
+                        .value("Requiere una asignatura adicional para completar el plan."))
+                // La cardinalidad se conserva y cada asignatura mantiene SUS propios datos:
+                // no alcanza con contar dos, hay que ver que no se mezclaron entre sí.
+                .andExpect(jsonPath("$.subjects.length()").value(2))
+                .andExpect(jsonPath("$.subjects[0].code").value("MAT-101"))
+                .andExpect(jsonPath("$.subjects[0].name").value("Cálculo Diferencial"))
+                .andExpect(jsonPath("$.subjects[0].credits").value(3))
+                .andExpect(jsonPath("$.subjects[0].group").value("G1"))
+                .andExpect(jsonPath("$.subjects[1].code").value("FIS-201"))
+                .andExpect(jsonPath("$.subjects[1].credits").value(4))
+                .andExpect(jsonPath("$.subjects[1].group").value("G2"))
+                .andReturn().getResponse().getContentAsString();
+
+        // El 201 devuelve la entidad que quedó en memoria, así que por sí solo NO prueba
+        // que las asignaturas se hayan escrito: sin la cascada, request_subject quedaría
+        // vacía y todas las aserciones de arriba seguirían pasando. Hay que releerla.
+        // Se compara por código y no por posición porque el orden de lectura no está
+        // garantizado: la colección no declara criterio de ordenamiento.
+        String id = com.jayway.jsonpath.JsonPath.read(created, "$.id");
+        mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.subjects.length()").value(2))
+                .andExpect(jsonPath("$.subjects[*].code",
+                        org.hamcrest.Matchers.containsInAnyOrder("MAT-101", "FIS-201")))
+                .andExpect(jsonPath("$.subjects[?(@.code=='MAT-101')].credits",
+                        org.hamcrest.Matchers.contains(3)))
+                .andExpect(jsonPath("$.subjects[?(@.code=='MAT-101')].name",
+                        org.hamcrest.Matchers.contains("Cálculo Diferencial")))
+                .andExpect(jsonPath("$.subjects[?(@.code=='FIS-201')].credits",
+                        org.hamcrest.Matchers.contains(4)));
+    }
+
+    @Test
+    @DisplayName("novedad de notas captura la nota actual y la propuesta sobre la misma estructura (FR-003)")
+    void registerCapturesGradesOnTheSameSubjectStructure() throws Exception {
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "NOVEDAD_NOTAS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0002",
+                          "subjects": [
+                            {"code":"MAT-101","name":"Cálculo Diferencial",
+                             "currentGrade":2.80,"proposedGrade":3.50}
+                          ]
+                        }""").session(login()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.subjects.length()").value(1))
+                .andExpect(jsonPath("$.subjects[0].currentGrade").value(2.80))
+                .andExpect(jsonPath("$.subjects[0].proposedGrade").value(3.50));
+    }
+
+    @Test
+    @DisplayName("el cuerpo mínimo de la 002 sigue registrando, con la lista de asignaturas vacía (FR-006)")
+    void registerWithTheLegacyMinimalBodyStillWorks() throws Exception {
+        mockMvc.perform(createRequest("ADICION_CREDITOS", "Estudiante De Prueba", "DOC-TEST-0003")
+                        .session(login()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.subjects").isArray())
+                .andExpect(jsonPath("$.subjects.length()").value(0))
+                // Los campos nuevos quedan nulos, no en blanco ni con un default inventado
+                .andExpect(jsonPath("$.studentCode").doesNotExist())
+                .andExpect(jsonPath("$.reason").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("un trámite que captura créditos rechaza la asignatura que no los declara (FR-009)")
+    void registerRejectsSubjectsWithoutCreditsWhenTheTradeCapturesThem() throws Exception {
+        // Omitir el dato era la forma de esquivar el tope: la validación no llegaba a
+        // correr y la solicitud se registraba con 201 sin límite alguno aplicado.
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0011",
+                          "subjects": [{"code":"MAT-101","name":"Cálculo Diferencial"}]
+                        }""").session(login()))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.detail",
+                        org.hamcrest.Matchers.containsString("créditos")));
+    }
+
+    @Test
+    @DisplayName("una novedad de notas rechaza los créditos con 422 del cliente, no con un 500 (FR-009)")
+    void registerRejectsCreditsOnATradeThatDoesNotCaptureThem() throws Exception {
+        // El formato oficial de novedad de notas no tiene columna de créditos. Recibirlos
+        // es un dato de más de quien envía, no una configuración rota del servidor: antes
+        // devolvía 500 y dejaba un log.error por un error que no era del sistema.
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "NOVEDAD_NOTAS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0012",
+                          "subjects": [{"code":"MAT-101","name":"Cálculo Diferencial","credits":3,
+                                        "currentGrade":2.80,"proposedGrade":3.50}]
+                        }""").session(login()))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.detail",
+                        org.hamcrest.Matchers.containsString("no captura créditos")));
+    }
+
+    @Test
+    @DisplayName("ningún dato de contacto del estudiante se almacena ni se devuelve (FR-020)")
+    void registerNeverPersistsNorReturnsStudentContactData() throws Exception {
+        // Aunque el cliente lo mande, el sistema no tiene dónde guardarlo: el campo
+        // se ignora y no aparece en la respuesta. Su consumidor era SP7, fuera de alcance.
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0004",
+                          "studentEmail": "no-deberia-persistirse@example.test"
+                        }""").session(login()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.studentEmail").doesNotExist())
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.not(
+                                org.hamcrest.Matchers.containsString("no-deberia-persistirse"))));
+    }
+
+    @Test
+    @DisplayName("créditos negativos no compensan a otra asignatura para burlar el tope (FR-009)")
+    void negativeCreditsCannotOffsetAnotherSubjectToBypassTheLimit() throws Exception {
+        long requestsBefore = requestRepo.count();
+
+        // 30 y -20 suman 10 y pasarían un tope de 21. La validación de forma los
+        // rechaza antes de que la suma llegue a calcularse.
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0006",
+                          "subjects": [
+                            {"code":"A-1","name":"Uno","credits":30},
+                            {"code":"A-2","name":"Dos","credits":-20}
+                          ]
+                        }""").session(login()))
+                .andExpect(status().isBadRequest());
+
+        assertThat(requestRepo.count()).isEqualTo(requestsBefore);
+    }
+
+    @Test
+    @DisplayName("supera el tope configurado: 422 con el límite en el detail (FR-008)")
+    void exceedingTheConfiguredCreditLimitIsRejected() throws Exception {
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0007",
+                          "subjects": [
+                            {"code":"A-1","name":"Uno","credits":12},
+                            {"code":"A-2","name":"Dos","credits":10}
+                          ]
+                        }""").session(login()))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("21")));
+    }
+
+    @Test
+    @DisplayName("un motivo que excede la longitud máxima: 400 y no se registra truncado (FR-004)")
+    void anOversizedReasonIsRejectedInsteadOfTruncated() throws Exception {
+        long requestsBefore = requestRepo.count();
+
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0008",
+                          "reason": "%s"
+                        }""".formatted("x".repeat(2001))).session(login()))
+                .andExpect(status().isBadRequest());
+
+        assertThat(requestRepo.count()).isEqualTo(requestsBefore);
+    }
+
+    // --- 003 / US3: la regla se ajusta sin desplegar --------------------------------------
+
+    @Test
+    @DisplayName("cambiar el tope en la configuración cambia el veredicto sin redesplegar (SC-005)")
+    void changingTheConfiguredLimitChangesTheOutcomeWithoutRedeploying() throws Exception {
+        MockHttpSession session = login();
+        String body = """
+                {
+                  "definitionCode": "ADICION_CREDITOS",
+                  "studentName": "Estudiante De Prueba",
+                  "studentDocument": "DOC-TEST-0009",
+                  "subjects": [
+                    {"code":"A-1","name":"Uno","credits":12},
+                    {"code":"A-2","name":"Dos","credits":10}
+                  ]
+                }""";
+
+        // 22 créditos contra el tope sembrado de 21
+        mockMvc.perform(createRequestWithForm(body).session(session))
+                .andExpect(status().isUnprocessableContent());
+
+        String original = maxCreditsOf("ADICION_CREDITOS");
+        try {
+            setMaxCredits("ADICION_CREDITOS", "24");
+
+            // Misma aplicación corriendo, mismo contexto: solo cambió una fila
+            mockMvc.perform(createRequestWithForm(body).session(session))
+                    .andExpect(status().isCreated());
+        } finally {
+            setMaxCredits("ADICION_CREDITOS", original);
+        }
+    }
+
+    @Test
+    @DisplayName("cada trámite se valida contra el tope de SU definición (FR-014)")
+    void eachProcedureIsValidatedAgainstItsOwnConfiguredLimit() throws Exception {
+        MockHttpSession session = login();
+        String originalAdicion = maxCreditsOf("ADICION_CREDITOS");
+        try {
+            setMaxCredits("ADICION_CREDITOS", "10");
+            // Novedad de notas no captura créditos en la configuración real, así que para
+            // que sirva como "el otro trámite con su propio tope" hay que declararle
+            // ambas cosas. Se revierte en el finally.
+            jdbcTemplate.update("""
+                    INSERT INTO workflow_parameter (id, definition_id, parameter_key, parameter_value)
+                    SELECT gen_random_uuid(), id, p.parameter_key, p.parameter_value
+                    FROM workflow_definition d
+                             CROSS JOIN (VALUES ('MAX_CREDITS', '30'),
+                                                ('CAPTURES_CREDITS', 'true'))
+                        AS p(parameter_key, parameter_value)
+                    WHERE d.code = 'NOVEDAD_NOTAS' AND d.version = 1""");
+
+            String subjects = """
+                    "subjects": [{"code":"A-1","name":"Uno","credits":20}]""";
+
+            // 20 créditos: excede el tope de adición (10) y no el de novedad (30)
+            mockMvc.perform(createRequestWithForm("""
+                            {"definitionCode":"ADICION_CREDITOS","studentName":"Estudiante De Prueba",
+                             "studentDocument":"DOC-TEST-0010", %s}""".formatted(subjects))
+                            .session(session))
+                    .andExpect(status().isUnprocessableContent());
+
+            mockMvc.perform(createRequestWithForm("""
+                            {"definitionCode":"NOVEDAD_NOTAS","studentName":"Estudiante De Prueba",
+                             "studentDocument":"DOC-TEST-0011", %s}""".formatted(subjects))
+                            .session(session))
+                    .andExpect(status().isCreated());
+        } finally {
+            setMaxCredits("ADICION_CREDITOS", originalAdicion);
+            jdbcTemplate.update("""
+                    DELETE FROM workflow_parameter
+                     WHERE parameter_key IN ('MAX_CREDITS', 'CAPTURES_CREDITS')
+                       AND definition_id IN (SELECT id FROM workflow_definition
+                                             WHERE code = 'NOVEDAD_NOTAS')""");
+        }
+    }
+
+    @Test
+    @DisplayName("cada versión de una definición lleva sus propios parámetros (FR-013)")
+    void eachDefinitionVersionCarriesItsOwnParameters() throws Exception {
+        MockHttpSession session = login();
+        // 18 créditos: los admite el tope 21 de la v1 y los rechaza el 15 de la v2.
+        // El veredicto delata contra qué versión se validó.
+        String body = """
+                {
+                  "definitionCode": "ADICION_CREDITOS",
+                  "studentName": "Estudiante De Prueba",
+                  "studentDocument": "DOC-TEST-0012",
+                  "subjects": [{"code":"A-1","name":"Uno","credits":18}]
+                }""";
+
+        try {
+            publishSecondVersionWithMaxCredits("15");
+
+            mockMvc.perform(createRequestWithForm(body).session(session))
+                    .andExpect(status().isUnprocessableContent())
+                    // El detail nombra 15 y no 21: se aplicó el parámetro de la
+                    // versión vigente, no el de la definición anterior.
+                    .andExpect(jsonPath("$.detail")
+                            .value(org.hamcrest.Matchers.containsString("15")));
+
+            // Y el parámetro de la v1 quedó intacto: publicar una versión nueva no
+            // reescribe las reglas de la anterior.
+            assertThat(maxCreditsOf("ADICION_CREDITOS")).isEqualTo("21");
+        } finally {
+            dropSecondVersion();
+        }
+    }
+
+    @Test
+    @DisplayName("consultar una solicitud sin sesión: 401 y no se filtra su contenido (FR-021)")
+    void readingARequestWithoutSessionLeaksNothing() throws Exception {
+        MockHttpSession session = login();
+        String id = mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Reservado",
+                          "studentDocument": "DOC-TEST-0005",
+                          "program": "Programa Reservado"
+                        }""").session(session))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString()
+                .replaceAll("^.*?\"id\":\"([0-9a-f-]+)\".*$", "$1");
+
+        mockMvc.perform(get("/api/requests/" + id))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().string(
+                        org.hamcrest.Matchers.not(
+                                org.hamcrest.Matchers.containsString("Programa Reservado"))));
     }
 
     // --- US2: avanzar (el motor sobre la semilla real) -----------------------------------
@@ -439,5 +774,78 @@ class RequestControllerIT {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"definitionCode\":\"%s\",\"studentName\":\"%s\",\"studentDocument\":\"%s\"}"
                         .formatted(definitionCode, studentName, studentDocument));
+    }
+
+    /** Registro con el cuerpo completo de la 003: el JSON se pasa tal cual. */
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
+            createRequestWithForm(String jsonBody) {
+        return post("/api/requests")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonBody);
+    }
+
+    // --- Manipulación de la configuración (US3) -------------------------------------------
+    // Se toca la fila directamente y no un endpoint: SC-005 afirma que ajustar una
+    // regla es un cambio de CONFIGURACIÓN, y esta feature no introduce una interfaz
+    // de administración. El UPDATE es exactamente el gesto que el criterio describe.
+
+    private String maxCreditsOf(String definitionCode) {
+        return jdbcTemplate.queryForObject("""
+                SELECT p.parameter_value FROM workflow_parameter p
+                JOIN workflow_definition d ON d.id = p.definition_id
+                WHERE d.code = ? AND d.version = 1 AND p.parameter_key = 'MAX_CREDITS'""",
+                String.class, definitionCode);
+    }
+
+    private void setMaxCredits(String definitionCode, String value) {
+        jdbcTemplate.update("""
+                UPDATE workflow_parameter SET parameter_value = ?
+                WHERE parameter_key = 'MAX_CREDITS' AND definition_id =
+                      (SELECT id FROM workflow_definition WHERE code = ? AND version = 1)""",
+                value, definitionCode);
+    }
+
+    /**
+     * Publica una v2 de adición de créditos con su propio tope. Le basta un estado
+     * inicial: registrar solo exige exactamente uno, y este test no avanza la
+     * solicitud.
+     */
+    private void publishSecondVersionWithMaxCredits(String maxCredits) {
+        jdbcTemplate.update("""
+                INSERT INTO workflow_definition (id, code, version, name, created_at)
+                VALUES (gen_random_uuid(), 'ADICION_CREDITOS', 2, 'Adición de créditos v2', now())""");
+        jdbcTemplate.update("""
+                INSERT INTO workflow_state (id, definition_id, code, name, is_initial, is_final)
+                SELECT gen_random_uuid(), id, 'REGISTRADA', 'Registrada', TRUE, FALSE
+                FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2""");
+        jdbcTemplate.update("""
+                INSERT INTO workflow_parameter (id, definition_id, parameter_key, parameter_value)
+                SELECT gen_random_uuid(), id, 'MAX_CREDITS', ?
+                FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2""",
+                maxCredits);
+        // Los parámetros son de la VERSIÓN, no del código del trámite (FR-013): una v2
+        // no hereda nada de la v1 y tiene que declarar también que captura créditos.
+        jdbcTemplate.update("""
+                INSERT INTO workflow_parameter (id, definition_id, parameter_key, parameter_value)
+                SELECT gen_random_uuid(), id, 'CAPTURES_CREDITS', 'true'
+                FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2""");
+    }
+
+    /**
+     * Borra la v2 de prueba. NO limpia solicitudes: el test que la usa está
+     * diseñado para que ninguna llegue a registrarse, porque el timeline es
+     * append-only y su trigger rechaza el DELETE (SC-002). Una solicitud creada
+     * contra esta versión sería imposible de limpiar sin violar esa garantía.
+     */
+    private void dropSecondVersion() {
+        jdbcTemplate.update("""
+                DELETE FROM workflow_parameter WHERE definition_id IN (
+                    SELECT id FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2)""");
+        jdbcTemplate.update("""
+                DELETE FROM workflow_state WHERE definition_id IN (
+                    SELECT id FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2)""");
+        jdbcTemplate.update(
+                "DELETE FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2");
     }
 }

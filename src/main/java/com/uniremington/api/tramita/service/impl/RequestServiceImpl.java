@@ -6,9 +6,11 @@ import com.uniremington.api.tramita.dto.CreateRequestBody;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
 import com.uniremington.api.tramita.dto.StateResponse;
+import com.uniremington.api.tramita.dto.SubjectResponse;
 import com.uniremington.api.tramita.dto.TimelineEntryResponse;
 import com.uniremington.api.tramita.dto.WorkflowDefinitionResponse;
 import com.uniremington.api.tramita.model.Request;
+import com.uniremington.api.tramita.model.RequestSubject;
 import com.uniremington.api.tramita.model.RequestTransitionLog;
 import com.uniremington.api.tramita.model.User;
 import com.uniremington.api.tramita.model.WorkflowDefinition;
@@ -18,8 +20,12 @@ import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
 import com.uniremington.api.tramita.repo.IUserRepo;
 import com.uniremington.api.tramita.repo.IWorkflowDefinitionRepo;
+import com.uniremington.api.tramita.service.IRequestBusinessRules;
 import com.uniremington.api.tramita.service.IRequestService;
+import com.uniremington.api.tramita.service.IWorkflowGuard;
+import com.uniremington.api.tramita.shared.exception.GuardRejectedException;
 import com.uniremington.api.tramita.shared.exception.IllegalTransitionException;
+import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationException;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
 import java.util.List;
@@ -42,6 +48,15 @@ public class RequestServiceImpl implements IRequestService {
     private final IRequestRepo requestRepo;
     private final IRequestTransitionLogRepo logRepo;
     private final IUserRepo userRepo;
+    private final IRequestBusinessRules businessRules;
+
+    /**
+     * Todas las guardas registradas como bean (research.md D5). Se recorre por
+     * clave en vez de indexarse en un Map porque su tamaño es del orden de las
+     * transiciones condicionadas del sistema —hoy cero— y un Map en el
+     * constructor solo agregaría un modo de fallo al arranque.
+     */
+    private final List<IWorkflowGuard> guards;
 
     @Override
     @Transactional
@@ -70,12 +85,35 @@ public class RequestServiceImpl implements IRequestService {
         }
         WorkflowState initial = initialStates.getFirst();
 
+        // Las reglas del trámite se aplican ANTES de persistir: una solicitud que
+        // las incumple no debe existir ni siquiera un instante (US2).
+        businessRules.validate(definition, body);
+
         Request request = requestRepo.save(Request.builder()
                 .definition(definition)
                 .currentState(initial)
                 .studentName(body.studentName())
                 .studentDocument(body.studentDocument())
+                .studentCode(body.studentCode())
+                .program(body.program())
+                .semester(body.semester())
+                .reason(body.reason())
                 .build());
+
+        // Las asignaturas se persisten por cascada desde la solicitud. El lado
+        // dueño de la relación es RequestSubject, así que hay que setearlo: sin
+        // .request(request) la FK saldría nula y la inserción fallaría.
+        request.getSubjects().addAll(body.subjects().stream()
+                .map(subject -> RequestSubject.builder()
+                        .request(request)
+                        .code(subject.code())
+                        .name(subject.name())
+                        .credits(subject.credits())
+                        .group(subject.group())
+                        .currentGrade(subject.currentGrade())
+                        .proposedGrade(subject.proposedGrade())
+                        .build())
+                .toList());
 
         // Entrada de nacimiento del timeline (research.md D7): from NULL
         logRepo.save(RequestTransitionLog.builder()
@@ -125,6 +163,11 @@ public class RequestServiceImpl implements IRequestService {
                     "Esta transición exige una observación con el motivo");
         }
 
+        // Antes de tocar el timeline: una entrada de una transición que no llegó a
+        // ocurrir sería una mentira en el historial, y la trazabilidad es la tesis
+        // del sistema (FR-016)
+        evaluateGuard(transition, request);
+
         logRepo.save(RequestTransitionLog.builder()
                 .request(request)
                 .fromState(current)
@@ -135,6 +178,41 @@ public class RequestServiceImpl implements IRequestService {
         request.moveTo(transition.getToState());
 
         return toResponse(requestRepo.save(request));
+    }
+
+    /**
+     * Resuelve por nombre la guarda que la transición declara y la evalúa
+     * (FR-016, research.md D5). El motor no sabe qué evalúa: solo que la
+     * definición nombró una regla y que alguien registrada la atiende.
+     *
+     * Sin guard_key no hay nada que resolver y el paso se comporta como en la
+     * feature 002 (FR-017) — el caso de todas las transiciones sembradas hoy.
+     *
+     * Una clave sin implementación NO se omite: bloquea (FR-019). Omitirla
+     * ejecutaría una transición cuya condición nadie verificó, que es el fallo
+     * abierto que esta feature vino a cerrar. Y es 500, no 422, por lo mismo que
+     * un parámetro faltante: la petición está bien, la configuración no.
+     */
+    private void evaluateGuard(WorkflowTransition transition, Request request) {
+        String guardKey = transition.getGuardKey();
+        if (guardKey == null) {
+            return;
+        }
+
+        IWorkflowGuard guard = guards.stream()
+                .filter(candidate -> guardKey.equals(candidate.guardKey()))
+                .findFirst()
+                .orElseThrow(() -> new IncompleteConfigurationException(
+                        "La transición %s → %s declara la guarda '%s', que no tiene implementación registrada"
+                                .formatted(
+                                        transition.getFromState().getCode(),
+                                        transition.getToState().getCode(),
+                                        guardKey)));
+
+        if (!guard.isSatisfiedBy(request)) {
+            throw new GuardRejectedException(
+                    "La regla '%s' no se cumple para esta solicitud".formatted(guardKey));
+        }
     }
 
     @Override
@@ -237,9 +315,22 @@ public class RequestServiceImpl implements IRequestService {
                         definition.getCode(), definition.getName(), definition.getVersion()),
                 request.getStudentName(),
                 request.getStudentDocument(),
+                request.getStudentCode(),
+                request.getProgram(),
+                request.getSemester(),
+                request.getReason(),
+                toSubjectResponses(request),
                 toStateResponse(current),
                 available,
                 request.getCreatedAt());
+    }
+
+    private List<SubjectResponse> toSubjectResponses(Request request) {
+        return request.getSubjects().stream()
+                .map(subject -> new SubjectResponse(
+                        subject.getCode(), subject.getName(), subject.getCredits(),
+                        subject.getGroup(), subject.getCurrentGrade(), subject.getProposedGrade()))
+                .toList();
     }
 
     private StateResponse toStateResponse(WorkflowState state) {

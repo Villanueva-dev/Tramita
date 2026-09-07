@@ -90,12 +90,18 @@ issue por SP1–SP7), no en un archivo. Se cierra con `Closes #N` en el cuerpo d
 Al citar literatura o normativa institucional, **incluir la referencia exacta** en cada afirmación — alineado con la regla general #4 del CLAUDE.md global.
 
 <!-- SPECKIT START -->
-Última feature entregada: `002-workflow-engine` (motor de workflow configurable + timeline de
-auditoría, SP1+SP6), **mergeada a `main` en la PR #3**. No hay feature activa en el ciclo Spec Kit. Plan e insumos técnicos: `specs/002-workflow-engine/plan.md` (+ `research.md`,
-`data-model.md`, `contracts/openapi.yaml`, `quickstart.md`).
-Diseño: configuración en BD, definiciones versionadas (`UNIQUE(code, version)`), **5 tablas**
-(`workflow_parameter`/`guard_key` diferidos a `003` — research D3), timeline solo-INSERT con
-trigger, locking optimista `@Version`. Sin dependencias nuevas.
+Feature **activa**: `003-request-form-rules` (SP2 — formularios validados + reglas de negocio
+configurables por trámite, cierra el Sprint 1 / issue #9). Fase actual: **plan cerrado**, pendiente
+`/speckit-tasks`. Plan e insumos técnicos: `specs/003-request-form-rules/plan.md` (+ `research.md`
+con D1–D11, `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`).
+Diseño: parámetros de negocio en BD por definición (`workflow_parameter`, `UNIQUE(definition_id,
+parameter_key)`), `workflow_transition.guard_key` con guardas resueltas por nombre contra un
+registro de beans, notas en `NUMERIC(3,2)`, configuración ausente o inválida = error 500 del
+servidor y NUNCA aceptación silenciosa. Migraciones `V2.3.0` y `V3.0.0`. Sin dependencias nuevas.
+El código se porta del prototipo de referencia `origin/router-ia` (`82ece40`), que **no se mergea**.
+Última feature entregada: `002-workflow-engine` (motor de workflow + timeline, SP1+SP6),
+**mergeada en la PR #3** — configuración en BD, definiciones versionadas (`UNIQUE(code, version)`),
+5 tablas, timeline solo-INSERT con trigger, locking optimista `@Version`.
 Stack: Java 21 · Spring Boot 4.0.7 (Security 7, Data JPA, Validation, WebMVC) · PostgreSQL + Flyway
 (validate) · BCrypt · Lombok · Testcontainers (test).
 Paquete `com.uniremington.api.tramita`, estructura **package-by-layer**: `controller/`,

@@ -64,7 +64,7 @@ curl -s -b cookies.txt http://localhost:8080/api/workflow-definitions
 # Registrar una solicitud de adición de créditos (US1)
 curl -s -b cookies.txt -X POST http://localhost:8080/api/requests \
   -H 'Content-Type: application/json' -H "X-XSRF-TOKEN: $XSRF" \
-  -d '{"definitionCode":"ADICION_CREDITOS","studentName":"Ana María Pérez","studentDocument":"1144099888"}'
+  -d '{"definitionCode":"ADICION_CREDITOS","studentName":"Ana María Pérez","studentDocument":"DOC-PRUEBA-001"}'
 # → 201, nace en REGISTRADA; availableTransitions dice a dónde puede ir
 # Guardar el id devuelto:
 ID=<uuid>
@@ -88,7 +88,7 @@ curl -s -b cookies.txt -X POST http://localhost:8080/api/requests/$ID/transition
   -d '{"targetStateCode":"DEVUELTA","note":"Falta firma del formato en la casilla 2"}'
 
 # Localizar por cédula o nombre (US3, FR-011)
-curl -s -b cookies.txt 'http://localhost:8080/api/requests?search=1144099888'
+curl -s -b cookies.txt 'http://localhost:8080/api/requests?search=DOC-PRUEBA-001'
 
 # Timeline completo: nacimiento + avances + devolución con su motivo (US3, SC-006)
 curl -s -b cookies.txt http://localhost:8080/api/requests/$ID/timeline

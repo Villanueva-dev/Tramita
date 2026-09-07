@@ -21,7 +21,11 @@ import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
 import com.uniremington.api.tramita.repo.IUserRepo;
 import com.uniremington.api.tramita.repo.IWorkflowDefinitionRepo;
+import com.uniremington.api.tramita.service.IRequestBusinessRules;
+import com.uniremington.api.tramita.service.IWorkflowGuard;
+import com.uniremington.api.tramita.shared.exception.GuardRejectedException;
 import com.uniremington.api.tramita.shared.exception.IllegalTransitionException;
+import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationException;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
 import java.util.List;
@@ -46,8 +50,15 @@ class RequestServiceImplTest {
     private final IRequestRepo requestRepo = mock(IRequestRepo.class);
     private final IRequestTransitionLogRepo logRepo = mock(IRequestTransitionLogRepo.class);
     private final IUserRepo userRepo = mock(IUserRepo.class);
-    private final RequestServiceImpl service =
-            new RequestServiceImpl(definitionRepo, requestRepo, logRepo, userRepo);
+    /**
+     * Las reglas de negocio (003/US2) tienen su propio test unitario. Acá van
+     * mockeadas y permisivas a propósito: estos casos verifican el MOTOR —que no
+     * conoce ningún trámite—, y meterle reglas concretas los ataría a un dominio
+     * que el motor no debe conocer.
+     */
+    private final IRequestBusinessRules businessRules = mock(IRequestBusinessRules.class);
+    /** Sin guardas registradas: los casos de US1–US3 no las ejercitan (FR-017). */
+    private final RequestServiceImpl service = serviceWith();
 
     private final User actor = new User();
 
@@ -89,7 +100,7 @@ class RequestServiceImplTest {
         stubHappyPath();
 
         RequestResponse response = service.register(
-                new CreateRequestBody("TRAMITE_PRUEBA", "Ana María Pérez", "1144099888"), EMAIL);
+                new CreateRequestBody("TRAMITE_PRUEBA", "Ana María Pérez", "DOC-PRUEBA-001"), EMAIL);
 
         // La respuesta refleja el nacimiento: estado inicial y transiciones derivadas
         assertThat(response.currentState().code()).isEqualTo("INICIAL");
@@ -221,18 +232,159 @@ class RequestServiceImplTest {
                         REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL));
     }
 
+    // --- US4: guardas de transición ------------------------------------------------------
+
+    private static final String GUARD_KEY = "REGLA_DE_PRUEBA";
+
+    /**
+     * Guarda de prueba: vive SOLO en el árbol de tests. Esta feature entrega el
+     * mecanismo y ninguna guarda de producción (research.md D5), así que esta es la
+     * única implementación que existe. Cuenta evaluaciones para poder afirmar que
+     * una transición sin guard_key no la consulta (FR-017).
+     */
+    private static final class TestGuard implements IWorkflowGuard {
+
+        private final String key;
+        private final boolean verdict;
+        private int evaluations;
+
+        private TestGuard(String key, boolean verdict) {
+            this.key = key;
+            this.verdict = verdict;
+        }
+
+        @Override
+        public String guardKey() {
+            return key;
+        }
+
+        @Override
+        public boolean isSatisfiedBy(Request request) {
+            evaluations++;
+            return verdict;
+        }
+    }
+
+    /** Definición mínima INICIAL → SIGUIENTE condicionada por la clave dada. */
+    private WorkflowDefinition definitionGuardedBy(String code, String guardKey) {
+        return WorkflowDefinition.builder()
+                .code(code)
+                .version(1)
+                .name("Trámite con guarda")
+                .states(List.of(initial, next))
+                .transitions(List.of(WorkflowTransition.builder()
+                        .fromState(initial).toState(next)
+                        .responsible("COORDINACION").requiresNote(false)
+                        .guardKey(guardKey).build()))
+                .build();
+    }
+
+    @Test
+    @DisplayName("guarda satisfecha: la transición procede como cualquier otra (US4-1)")
+    void advanceWithSatisfiedGuardProceeds() {
+        TestGuard guard = new TestGuard(GUARD_KEY, true);
+        Request request = requestAt(initial, definitionGuardedBy("CON_GUARDA", GUARD_KEY));
+
+        RequestResponse response = serviceWith(guard)
+                .advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL);
+
+        assertThat(response.currentState().code()).isEqualTo("SIGUIENTE");
+        assertThat(request.getCurrentState()).isSameAs(next);
+        assertThat(guard.evaluations).isEqualTo(1);
+        verify(logRepo).save(any());
+    }
+
+    @Test
+    @DisplayName("guarda no satisfecha: 409, sin efectos, y el detalle nombra la regla (US4-2)")
+    void advanceWithUnsatisfiedGuardBlocksWithoutSideEffects() {
+        TestGuard guard = new TestGuard(GUARD_KEY, false);
+        Request request = requestAt(initial, definitionGuardedBy("CON_GUARDA", GUARD_KEY));
+
+        // El tipo es la afirmación: GuardRejectedException, no su padre. Si el motor
+        // dejara de resolver la guarda y cayera en el "transición no definida" de
+        // arriba, lanzaría IllegalTransitionException y este caso fallaría.
+        assertThatExceptionOfType(GuardRejectedException.class)
+                .isThrownBy(() -> serviceWith(guard)
+                        .advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL))
+                .withMessageContaining(GUARD_KEY);
+
+        assertThat(request.getCurrentState()).isSameAs(initial);
+        verify(logRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("transición sin guarda: se comporta como en la 002 y no consulta regla alguna (US4-3, FR-017)")
+    void advanceWithoutGuardKeySkipsEvaluationEntirely() {
+        // La definición de siempre: todas sus transiciones tienen guard_key nulo,
+        // como las que V2.1.0 dejó sembradas. La guarda registrada NIEGA, así que si
+        // el motor la consultara este avance fallaría en vez de proceder.
+        TestGuard guard = new TestGuard(GUARD_KEY, false);
+        Request request = requestAt(initial);
+
+        RequestResponse response = serviceWith(guard)
+                .advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL);
+
+        assertThat(response.currentState().code()).isEqualTo("SIGUIENTE");
+        assertThat(request.getCurrentState()).isSameAs(next);
+        assertThat(guard.evaluations).isZero();
+    }
+
+    @Test
+    @DisplayName("dos definiciones con la misma clave: ambas la evalúan sin que el motor conozca el trámite (US4-4, FR-018)")
+    void advanceResolvesSameGuardKeyAcrossDifferentDefinitions() {
+        TestGuard guard = new TestGuard(GUARD_KEY, true);
+        RequestServiceImpl guarded = serviceWith(guard);
+
+        requestAt(initial, definitionGuardedBy("ADICION_PRUEBA", GUARD_KEY));
+        assertThat(guarded.advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL)
+                .currentState().code()).isEqualTo("SIGUIENTE");
+
+        requestAt(initial, definitionGuardedBy("NOVEDAD_PRUEBA", GUARD_KEY));
+        assertThat(guarded.advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL)
+                .currentState().code()).isEqualTo("SIGUIENTE");
+
+        assertThat(guard.evaluations).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("clave sin implementación registrada: 500 de configuración y la transición NO se ejecuta (US4-5, FR-019)")
+    void advanceWithUnknownGuardKeyFailsClosed() {
+        Request request =
+                requestAt(initial, definitionGuardedBy("CON_GUARDA", "REGLA_INEXISTENTE"));
+
+        // Sin guardas registradas la clave no resuelve. Falla cerrado: omitirla
+        // ejecutaría una transición cuya condición nadie llegó a evaluar.
+        assertThatExceptionOfType(IncompleteConfigurationException.class)
+                .isThrownBy(() -> serviceWith()
+                        .advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL));
+
+        assertThat(request.getCurrentState()).isSameAs(initial);
+        verify(logRepo, never()).save(any());
+    }
+
     // --- helpers -------------------------------------------------------------------------
 
     private static final java.util.UUID REQUEST_ID =
             java.util.UUID.fromString("00000000-0000-0000-0000-000000000001");
 
+    /** Motor con las guardas dadas registradas; sin argumentos, ninguna. */
+    private RequestServiceImpl serviceWith(IWorkflowGuard... guards) {
+        return new RequestServiceImpl(
+                definitionRepo, requestRepo, logRepo, userRepo, businessRules, List.of(guards));
+    }
+
     /** Solicitud del trámite de prueba parada en el estado dado, con stubs de I/O listos. */
     private Request requestAt(WorkflowState state) {
+        return requestAt(state, definition);
+    }
+
+    /** Igual, para una definición distinta de la de siempre (US4). */
+    private Request requestAt(WorkflowState state, WorkflowDefinition definition) {
         Request request = Request.builder()
                 .definition(definition)
                 .currentState(state)
                 .studentName("Ana María Pérez")
-                .studentDocument("1144099888")
+                .studentDocument("DOC-PRUEBA-001")
                 .build();
         when(requestRepo.findById(REQUEST_ID)).thenReturn(Optional.of(request));
         when(userRepo.findByEmail(EMAIL)).thenReturn(Optional.of(actor));

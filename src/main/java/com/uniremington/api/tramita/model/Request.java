@@ -1,5 +1,6 @@
 package com.uniremington.api.tramita.model;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -8,11 +9,14 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -53,6 +57,36 @@ public class Request {
 
     @Column(name = "student_document", nullable = false, updatable = false)
     private String studentDocument;
+
+    /**
+     * Datos académicos del formulario (FR-001). Opcionales: una solicitud creada
+     * con el cuerpo mínimo de la 002 sigue siendo válida (FR-006).
+     *
+     * NO existe un campo de correo del estudiante: su único consumidor previsto
+     * era la notificación (SP7), fuera del alcance de este sprint. El dato entra
+     * cuando exista quien lo use (FR-020, constitución §III).
+     */
+    @Column(name = "student_code", updatable = false, length = 30)
+    private String studentCode;
+
+    @Column(updatable = false, length = 120)
+    private String program;
+
+    @Column(updatable = false, length = 50)
+    private String semester;
+
+    @Column(updatable = false, length = 2000)
+    private String reason;
+
+    /**
+     * Asignaturas del trámite (FR-002). Se separan en su propia tabla para
+     * conservar la cardinalidad: un trámite involucra N asignaturas, cada una con
+     * sus propios datos.
+     */
+    @OneToMany(mappedBy = "request", cascade = CascadeType.ALL,
+            orphanRemoval = true, fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<RequestSubject> subjects = new ArrayList<>();
 
     /**
      * Locking optimista (research.md D6): ante dos avances casi simultáneos solo
