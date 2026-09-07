@@ -61,7 +61,7 @@ class RequestControllerIT {
     void registerCreatesRequestInInitialStateOfItsDefinition() throws Exception {
         MockHttpSession session = login();
 
-        mockMvc.perform(createRequest("ADICION_CREDITOS", "Ana María Pérez", "1144099888")
+        mockMvc.perform(createRequest("ADICION_CREDITOS", "Ana María Pérez", "DOC-PRUEBA-001")
                         .session(session))
                 .andExpect(status().isCreated())
                 .andExpect(header().exists("Location"))

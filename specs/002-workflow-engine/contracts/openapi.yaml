@@ -198,7 +198,7 @@ components:
       properties:
         definitionCode: { type: string, example: ADICION_CREDITOS }
         studentName: { type: string, maxLength: 120, example: Ana María Pérez }
-        studentDocument: { type: string, maxLength: 20, example: '1144099888' }
+        studentDocument: { type: string, maxLength: 20, example: 'DOC-PRUEBA-001' }
 
     AdvanceRequestBody:
       type: object

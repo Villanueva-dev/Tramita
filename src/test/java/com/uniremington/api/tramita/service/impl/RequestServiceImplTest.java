@@ -100,7 +100,7 @@ class RequestServiceImplTest {
         stubHappyPath();
 
         RequestResponse response = service.register(
-                new CreateRequestBody("TRAMITE_PRUEBA", "Ana María Pérez", "1144099888"), EMAIL);
+                new CreateRequestBody("TRAMITE_PRUEBA", "Ana María Pérez", "DOC-PRUEBA-001"), EMAIL);
 
         // La respuesta refleja el nacimiento: estado inicial y transiciones derivadas
         assertThat(response.currentState().code()).isEqualTo("INICIAL");
@@ -384,7 +384,7 @@ class RequestServiceImplTest {
                 .definition(definition)
                 .currentState(state)
                 .studentName("Ana María Pérez")
-                .studentDocument("1144099888")
+                .studentDocument("DOC-PRUEBA-001")
                 .build();
         when(requestRepo.findById(REQUEST_ID)).thenReturn(Optional.of(request));
         when(userRepo.findByEmail(EMAIL)).thenReturn(Optional.of(actor));
