@@ -1,9 +1,50 @@
 <!--
 Sync Impact Report — Constitución de Trámita
 ============================================
-Cambio de versión: 2.2.1 → 2.2.2
-Ratificada: 2026-07-02 | Última enmienda: 2026-08-16
-Bump: PATCH (corrección de una afirmación factual del reporte de la v2.2.1)
+Cambio de versión: 2.2.2 → 2.3.0
+Ratificada: 2026-07-02 | Última enmienda: 2026-09-13
+Bump: MINOR (dos principios nuevos: §VI y §VII)
+
+Enmienda 2026-09-13 — v2.3.0
+----------------------------
+Se ratifican DOS principios que vivían en `docs/nuevo-proyecto/02-constitucion/
+draft-principios.md` y que nunca entraron a esta constitución: la configurabilidad del
+motor (§III del borrador) y la trazabilidad inmutable (§IV del borrador).
+
+Origen: auditoría de la cita «Principio III», que nombra cosas distintas según qué
+documento se abra — «Workflow configurable por dato» en el borrador, «Seguridad por
+defecto» aquí. La tesis arquitectónica del proyecto no estaba en su propio documento de
+gobernanza.
+
+Evidencia de que no estaban, re-ejecutable (§IV):
+  grep -ic "configurab" .specify/memory/constitution.md          → 0 antes de esta enmienda
+  grep -ic "inmutab"    .specify/memory/constitution.md          → 0 antes de esta enmienda
+  git log --oneline -S 'configurab' -- .specify/memory/constitution.md → cero commits
+Probado además con nueve patrones (por dato, parametriz, parámetro, maquinaria,
+genericidad, timeline, PDF) y con `grep -F` literal: todos en 0. No se habían quitado:
+nunca se incorporaron.
+
+Por qué MINOR: «Gobernanza» fija MINOR para principio nuevo. No se redefine ni se elimina
+ninguno de los cinco vigentes, de modo que no es MAJOR.
+
+Por qué APENDIZADOS y no insertados en el orden del borrador: existen más de veinte citas
+a los Principios I, III, IV y V en specs/001-auth-login, specs/002-workflow-engine y
+specs/003-request-form-rules, todas posteriores a la ratificación y correctas contra esta
+numeración. Insertar en medio las habría roto todas.
+
+Corrección respecto del borrador: su §IV describía el mecanismo como «UPDATE y DELETE
+revocados a nivel SQL» sobre una tabla `solicitud_event`. El código NO hace eso: usa el
+trigger `trg_timeline_immutable` BEFORE UPDATE OR DELETE sobre `request_transition_log`
+(V2.0.0__Create_workflow_tables.sql:80-88). El §VII se redactó contra el código y fija la
+garantía sin fijar el mecanismo.
+
+Lo que deliberadamente NO se ratifica:
+- El invariante «sin PDF no hay trámite cerrado», que el borrador colgaba de su §III. Hoy
+  `grep -ric pdf src/main/java` → 0 y el motor no impide llegar a un estado final sin PDF
+  (RequestServiceImpl:144 solo impide avanzar DESDE uno). Ratificarlo pondría aquí una
+  regla que el código incumple. Se registra en la spec de SP3 (issue #10).
+- «Class y QF son cajas negras» y «chasis heredado de Convenia»: la ratificación los
+  degradó a «Restricciones tecnológicas» de forma deliberada y ahí se quedan.
 
 Enmienda 2026-08-16 (b) — ERRATA de la v2.2.1
 ---------------------------------------------
@@ -105,6 +146,8 @@ Principios vigentes:
 - III. Seguridad por defecto              ← enmendado en 2.2.0
 - IV.  Decisiones defendibles y trazables ← enmendado en 2.1.0 y 2.2.0
 - V.   Testing del comportamiento sensible
+- VI.  Workflow configurable por dato     ← nuevo en 2.3.0
+- VII. Trazabilidad inmutable del trámite ← nuevo en 2.3.0
 
 Secciones: Restricciones tecnológicas · Idioma y convenciones · Proceso y gestión
 (Scrum, sprints de 2 semanas) · Gobernanza
@@ -219,6 +262,44 @@ testea lo trivial por dogma. Los tests se priorizan por valor, no por cobertura 
 **Rationale**: con un primer sprint de dos semanas, el esfuerzo de testing se invierte
 donde el riesgo lo justifica, no en inflar una métrica de cobertura.
 
+### VI. Workflow configurable por dato, no por código
+
+El motor DEBE modelar los trámites del alcance —adición de créditos y novedad de notas— con
+la misma maquinaria, parametrizada por configuración persistida en base de datos. Dos
+code-paths casi idénticos, uno por trámite, son una violación de este principio y no una
+optimización. Incorporar un trámite nuevo cuya estructura ya está cubierta NO DEBE requerir
+desplegar código.
+
+**Rationale**: es la pregunta de investigación misma del proyecto — *«¿puede un motor de
+workflow configurable reducir tiempo, re-trabajo y opacidad en la tramitación de adición de
+créditos y novedad de notas?»* (`docs/nuevo-proyecto/01-planteamiento/arbol-de-problemas.md`,
+§6). La genericidad es el aporte académico: sin ella el sistema colapsa a «dos formularios
+con flujo cableado», que es exactamente el statu quo de Word + correo que viene a reemplazar.
+
+**Tensión declarada con el §I (KISS + YAGNI)**: el §I prohíbe abstracciones especulativas.
+Aquí la configurabilidad NO es especulación: es el requisito. Existen dos trámites reales con
+estructura idéntica y un tercero documentado —el Reglamento de Homologaciones, Acuerdo n.º 17
+del 3 de octubre de 2023— cuyas reglas cambian por facultad. El principio es falsable: un
+trámite de esa misma familia que exigiera tocar código lo refutaría.
+
+### VII. Trazabilidad inmutable del trámite
+
+Toda transición de estado DEBE generar una entrada de auditoría inmutable, de modo que el
+histórico completo de una solicitud pueda reconstruirse en cualquier momento. La inmutabilidad
+se garantiza **en la base de datos**, no por disciplina del código de aplicación: la tabla del
+timeline solo admite INSERT y rechaza UPDATE y DELETE aunque se intenten por acceso directo al
+motor de datos.
+
+**Rationale**: el sistema combate tres variables —tiempo de ciclo, re-trabajo y opacidad
+(árbol §6)— y ninguna es medible sin un histórico en el que se pueda confiar. Sin trazabilidad
+inmutable el sistema pierde su justificación frente al proceso manual, cuyo problema central
+es precisamente que el estado vive en correos y en la memoria de una persona.
+
+**Estado**: implementado en la feature `002-workflow-engine`. El mecanismo vigente es el
+trigger `trg_timeline_immutable` (`BEFORE UPDATE OR DELETE` sobre `request_transition_log`,
+`V2.0.0__Create_workflow_tables.sql`). El principio exige la **garantía** a nivel de base de
+datos; no fija el mecanismo, que puede cambiar mientras la garantía se conserve.
+
 ## Restricciones tecnológicas
 
 - Stack fijo, chasis heredado de Convenia: **Spring Boot 4 / Java 21 / PostgreSQL**, Maven.
@@ -253,4 +334,4 @@ especificación y plan verifica su alineación con estos principios; toda comple
 introducida debe justificarse explícitamente. La guía operativa del día a día vive en
 `CLAUDE.md`.
 
-**Versión**: 2.2.2 | **Ratificada**: 2026-07-02 | **Última enmienda**: 2026-08-16
+**Versión**: 2.3.0 | **Ratificada**: 2026-07-02 | **Última enmienda**: 2026-09-13
