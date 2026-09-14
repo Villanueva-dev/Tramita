@@ -13,9 +13,13 @@ info:
         originales sigue siendo válida (FR-006, SC-007).
       * `Request` incorpora esos datos en la respuesta: se listan SOLO los campos
         nuevos, y lo heredado del 002 no se redeclara.
-      * Se declara el 500 de configuración incompleta (FR-010, FR-011).
+      * Se declara el 500 de configuración incompleta (FR-010, FR-011, FR-019), que
+        alcanza tanto al registro como a las transiciones.
       * Se agregan dos causas de 422 en el registro (FR-009a): una asignatura sin
         créditos en un trámite que los captura, y créditos declarados en uno que no.
+      * `POST /requests/{id}/transitions` suma una causa nueva al 409 —la guarda de la
+        transición no se cumple (FR-016)— y el 500 de una guarda que ninguna
+        implementación atiende (FR-019). Los demás códigos de ese endpoint no cambian.
 
     Lo no listado aquí se rige por `specs/002-workflow-engine/contracts/openapi.yaml`.
 
@@ -49,6 +53,39 @@ paths:
         '500':
           $ref: '#/components/responses/IncompleteConfiguration'
 
+  /requests/{id}/transitions:
+    post:
+      summary: Avanzar una solicitud (dos resultados nuevos por las guardas de negocio)
+      description: |
+        El endpoint es el de la feature 002 y su comportamiento no cambia. Aquí se declaran
+        únicamente los dos resultados que la 003 agregó al evaluar la guarda que la transición
+        declara: el 409 gana una causa (FR-016) y aparece un 500 (FR-019). Los códigos que no
+        se listan —200, 400, 401, 404, 422— se rigen por
+        `specs/002-workflow-engine/contracts/openapi.yaml` sin modificación, y el cuerpo de
+        la petición (`AdvanceRequestBody`) tampoco cambia, por eso no se redeclara acá.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '409':
+          description: |
+            A las causas de la feature 002 —transición no definida desde el estado actual,
+            estado final, conflicto de concurrencia— se suma una: la transición existe pero
+            está condicionada a una regla de negocio que la solicitud no cumple (FR-016).
+
+            ATENCIÓN, cliente: las causas NO son distinguibles por el status ni por el
+            título. Todas responden `409` con el título "Transición no permitida" y solo
+            cambia el `detail`, que es texto libre y no es contrato. Es una decisión
+            deliberada del servidor: el conflicto es con el estado del recurso en los dos
+            casos. Si alguna vez hiciera falta ramificar por causa, el servidor agregaría un
+            campo de extensión al problem+json, y ese campo se declararía aquí.
+
+            En todos los casos el estado no cambia y no se escribe timeline.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '500':
+          $ref: '#/components/responses/IncompleteConfiguration'
+
 components:
   responses:
     BadRequest:
@@ -79,10 +116,19 @@ components:
 
     IncompleteConfiguration:
       description: |
-        El trámite no tiene cargado un parámetro que su validación necesita, o lo tiene
-        con un valor no interpretable (FR-010, FR-011). Es un fallo de configuración del
-        sistema, no de la petición: la solicitud NO queda registrada. El cuerpo no revela
-        detalle interno alguno.
+        La configuración del trámite está incompleta o es inválida. Dos causas, según el
+        endpoint:
+
+          * en el registro, el trámite no tiene cargado un parámetro que su validación
+            necesita, o lo tiene con un valor no interpretable (FR-010, FR-011);
+          * en una transición, la transición declara una guarda que ninguna implementación
+            atiende (FR-019). El sistema NO ejecuta la transición omitiendo una regla que
+            no supo evaluar: bloquear es la conducta correcta, no un efecto colateral.
+
+        En ambos casos es un fallo de configuración del sistema, no de la petición, y la
+        operación no se aplica: la solicitud no queda registrada, o la transición no ocurre
+        y no se escribe timeline. Reintentar la misma petición no ayuda hasta que se corrija
+        la configuración. El cuerpo no revela detalle interno alguno.
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
