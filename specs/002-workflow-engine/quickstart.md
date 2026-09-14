@@ -65,7 +65,8 @@ curl -s -b cookies.txt http://localhost:8080/api/workflow-definitions
 curl -s -b cookies.txt -X POST http://localhost:8080/api/requests \
   -H 'Content-Type: application/json' -H "X-XSRF-TOKEN: $XSRF" \
   -d '{"definitionCode":"ADICION_CREDITOS","studentName":"Ana María Pérez","studentDocument":"DOC-PRUEBA-001"}'
-# → 201, nace en REGISTRADA; availableTransitions dice a dónde puede ir
+# → 201, nace en EN_COORDINACION; availableTransitions dice a dónde puede ir
+# (dos salidas: EN_FACULTAD para avanzar y DEVUELTA para devolver al estudiante)
 # Guardar el id devuelto:
 ID=<uuid>
 
