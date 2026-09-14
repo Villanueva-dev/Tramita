@@ -2,7 +2,7 @@
 
 > **Estado**: versión `1.0.0`, línea base previa a la **entrevista N.º 3** con la Coordinación Académica de la Sede Cali. **Pendiente de validación** con tutor (no asignado todavía, ver memoria `project-tutor-status`) y con la coordinadora.
 > **Fecha**: 2026-06-01.
-> **Política de no-duplicación**: este documento referencia `../01-planteamiento/arbol-de-problemas.md` y `../02-constitucion/draft-principios.md` en vez de reescribir lo que ya está ahí. Si una sección remite, esa es la fuente de verdad — el PRD no la suplanta. La trazabilidad explícita está al final del documento.
+> **Política de no-duplicación**: este documento referencia `../01-planteamiento/arbol-de-problemas.md` y la constitución ratificada (`../../../.specify/memory/constitution.md`) en vez de reescribir lo que ya está ahí. Sus citas a principios usaban la numeración de `../02-constitucion/draft-principios.md`, anterior a la ratificación del 2026-07-02; quedaron repuntadas a la constitución vigente el 2026-09-13. Si una sección remite, esa es la fuente de verdad — el PRD no la suplanta. La trazabilidad explícita está al final del documento.
 
 ---
 
@@ -82,7 +82,7 @@
 
 ## 3. User journeys
 
-Cada journey describe el camino del trámite **desde la perspectiva del usuario**. Los detalles técnicos del motor de workflow viven en la constitución, Principio III.
+Cada journey describe el camino del trámite **desde la perspectiva del usuario**. Los detalles técnicos del motor de workflow viven en la constitución, Principio VI (workflow configurable por dato).
 
 ### 3.1 Journey — Adición de créditos
 
@@ -99,8 +99,8 @@ Cada journey describe el camino del trámite **desde la perspectiva del usuario*
 **Garantías invisibles para el usuario**:
 
 - Cada transición queda registrada de forma **inmutable**. Cuando un estudiante pregunta "¿cómo va mi trámite?", la coord ve el timeline en menos de un minuto y responde con certeza (ataca **opacidad** del árbol §6).
-- El PDF formal es **obligatorio** para cerrar el trámite — sin PDF generado, el estado no puede llegar a Finalizado (Principio III, invariante de cierre).
-- Class y QF NO se integran con Trámita. La coord es el puente humano que asienta el PDF en QF (Principio VI).
+- El PDF formal es **obligatorio** para cerrar el trámite — sin PDF generado, el estado no puede llegar a Finalizado. Es un invariante de SP3 (issue #10), no un principio constitucional: la constitución no lo ratifica porque hoy el motor no lo impone.
+- Class y QF NO se integran con Trámita. La coord es el puente humano que asienta el PDF en QF (constitución, «Restricciones tecnológicas»).
 
 **Pendientes de validar**: validación de cupo de asignatura (pregunta #11), normativa aplicable al formato del PDF (pregunta #7), firma digital vs sello electrónico (pregunta #1). **Resuelto en E3-p2**: Q21 — la coordinación captura la solicitud; el estudiante no accede al sistema (Q22–Q23).
 
@@ -124,7 +124,7 @@ El **esqueleto es idéntico** al de adición de créditos. Lo que cambia:
 
 El esqueleto operativo es **el mismo**: capturar → validar → aprobar → generar PDF → asentar → **notificar** (aviso de cierre al estudiante). Lo que cambia entre trámites es: nombre y campos del formulario, plantilla del PDF, secuencia de aprobaciones. El paso "consultar" es interno (la coordinación usa el cockpit para responder al estudiante de forma mediada), no una vista del estudiante en el sistema.
 
-Esto **es configuración, no código distinto**. Si Trámita logra modelar los dos trámites con la misma maquinaria parametrizada (Principio III), está demostrada la **pregunta de investigación** del árbol §6: *"¿puede un motor de workflow configurable reducir tiempo, re-trabajo y opacidad en la tramitación de adición de créditos y novedad de notas?"*
+Esto **es configuración, no código distinto**. Si Trámita logra modelar los dos trámites con la misma maquinaria parametrizada (Principio VI), está demostrada la **pregunta de investigación** del árbol §6: *"¿puede un motor de workflow configurable reducir tiempo, re-trabajo y opacidad en la tramitación de adición de créditos y novedad de notas?"*
 
 Es **el aporte académico del proyecto**, y por eso aparece visible en este PRD — no solo en el árbol.
 
@@ -142,7 +142,7 @@ Es **el aporte académico del proyecto**, y por eso aparece visible en este PRD 
 
 **Fuera del alcance del MVP**:
 
-- Integración técnica con Class o QF (Principio VI — son cajas negras).
+- Integración técnica con Class o QF (constitución, «Restricciones tecnológicas» — son cajas negras).
 - Otros procesos académicos (homologaciones, cancelaciones, reingresos, etc.).
 - Otras sedes de la Universidad Remington.
 - App móvil nativa.
@@ -185,7 +185,7 @@ Mapeo de los sub-problemas SP1–SP7 del árbol §7 a épicas con su Definition 
 **Funcionalidad observable al cierre**:
 
 - Al aprobarse una solicitud, Trámita genera el PDF formal manualmente.
-- Cada aprobación queda registrada con timestamp y comentario (Principio IV).
+- Cada aprobación queda registrada con timestamp y comentario (Principio VII — trazabilidad inmutable).
 - El PDF lleva un **sello electrónico verificable** (hash + timestamp). Decisión cerrada como fallback frente a firma digital institucional, sujeta a confirmación en entrevista 3 pregunta #1.
 
 **Demo a la coord**: aprobar una solicitud, descargar el PDF generado, verificar que el sello existe y es verificable. Preguntas de validación: *"¿Este PDF es asentable en QF tal como está? ¿Le falta algún campo, sello o pie de firma para que Registro lo acepte?"*
@@ -270,7 +270,7 @@ Memoria engram: `proyecto-grado/constitution-tech-decisions`.
 2. Mapping DTO ↔ entidad **manual con records**, **NO MapStruct** — KISS para 2 trámites con ~5-10 entidades.
 3. Auditoría con tabla `solicitud_event` append-only, **NO Hibernate Envers ni listener custom** — timeline de eventos de dominio explícitos.
 4. **Multi-tenancy eliminada** del stack (single-tenant explícito).
-5. **PDF formal como invariante** del Principio III — sin PDF no hay trámite cerrado.
+5. **PDF formal como invariante** de SP3 (issue #10) — sin PDF no hay trámite cerrado. No es principio constitucional.
 6. Plazo 2,5 meses declarado en § Governance como vara de medir KISS automática.
 7. Nombre del producto: **Trámita** (esdrújula, nombre propio acuñado).
 8. Constitución pasó de 5 a 6 principios; agregado VI (Class y QF como cajas negras).
