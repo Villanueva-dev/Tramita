@@ -57,7 +57,7 @@ class RequestControllerIT {
     // --- US1: registrar ------------------------------------------------------------------
 
     @Test
-    @DisplayName("registrar adición de créditos: 201 + Location, nace en REGISTRADA con sus transiciones")
+    @DisplayName("registrar adición de créditos: 201 + Location, nace en EN_COORDINACION con sus transiciones")
     void registerCreatesRequestInInitialStateOfItsDefinition() throws Exception {
         MockHttpSession session = login();
 
@@ -69,11 +69,13 @@ class RequestControllerIT {
                 .andExpect(jsonPath("$.definition.code").value("ADICION_CREDITOS"))
                 .andExpect(jsonPath("$.definition.version").value(1))
                 .andExpect(jsonPath("$.studentName").value("Ana María Pérez"))
-                .andExpect(jsonPath("$.currentState.code").value("REGISTRADA"))
+                .andExpect(jsonPath("$.currentState.code").value("EN_COORDINACION"))
                 .andExpect(jsonPath("$.currentState.isFinal").value(false))
-                // Las transiciones salen de la definición, no de código a medida
-                .andExpect(jsonPath("$.availableTransitions[0].targetState.code")
-                        .value("EN_FACULTAD"));
+                // Las transiciones salen de la definición, no de código a medida.
+                // Desde EN_COORDINACION hay dos: avanzar o devolver — se asertan
+                // sin orden porque la definición no promete ninguno.
+                .andExpect(jsonPath("$.availableTransitions[*].targetState.code",
+                        org.hamcrest.Matchers.containsInAnyOrder("EN_FACULTAD", "DEVUELTA")));
     }
 
     @Test
@@ -84,12 +86,12 @@ class RequestControllerIT {
         mockMvc.perform(createRequest("ADICION_CREDITOS", "Estudiante Uno", "111")
                         .session(session))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.currentState.code").value("REGISTRADA"))
-                .andExpect(jsonPath("$.availableTransitions[0].targetState.code")
-                        .value("EN_FACULTAD"));
+                .andExpect(jsonPath("$.currentState.code").value("EN_COORDINACION"))
+                .andExpect(jsonPath("$.availableTransitions[*].targetState.code",
+                        org.hamcrest.Matchers.containsInAnyOrder("EN_FACULTAD", "DEVUELTA")));
 
-        // Novedad de notas arranca igual (REGISTRADA) pero su camino es propio:
-        // hacia EN_PREPARACION — la diferencia vive en la definición (US4/FR-010)
+        // Novedad de notas conserva REGISTRADA y su camino es propio: hacia
+        // EN_PREPARACION — cada definición nombra sus estados (US4/FR-010)
         mockMvc.perform(createRequest("NOVEDAD_NOTAS", "Estudiante Dos", "222")
                         .session(session))
                 .andExpect(status().isCreated())
@@ -479,14 +481,14 @@ class RequestControllerIT {
         MockHttpSession session = login();
         String id = registerAndGetId(session, "ADICION_CREDITOS", "Saltarina Ilegal", "302");
 
-        // REGISTRADA → FINALIZADA no está definida: el camino pasa por la facultad
+        // EN_COORDINACION → FINALIZADA no está definida: el camino pasa por la facultad
         mockMvc.perform(advanceRequest(id, "FINALIZADA", null).session(session))
                 .andExpect(status().isConflict())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.detail").exists());
 
         // La prueba de que el estado no se corrompió: la transición legal desde
-        // REGISTRADA sigue disponible y funciona
+        // EN_COORDINACION sigue disponible y funciona
         mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentState.code").value("EN_FACULTAD"));
@@ -504,7 +506,7 @@ class RequestControllerIT {
 
         assertThat(logRepo.count()).isEqualTo(logEntriesBefore);
 
-        // El estado sigue siendo REGISTRADA: el avance legal aún es EN_FACULTAD
+        // El estado sigue siendo EN_COORDINACION: el avance legal aún es EN_FACULTAD
         mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
                 .andExpect(status().isOk());
     }
@@ -526,11 +528,11 @@ class RequestControllerIT {
                 .andExpect(jsonPath("$.length()").value(3))
                 // Nacimiento (research.md D7): sin from y sin responsable de paso
                 .andExpect(jsonPath("$[0].fromState").value(org.hamcrest.Matchers.nullValue()))
-                .andExpect(jsonPath("$[0].toState.code").value("REGISTRADA"))
+                .andExpect(jsonPath("$[0].toState.code").value("EN_COORDINACION"))
                 .andExpect(jsonPath("$[0].actorEmail").value(AuthControllerIT.SEED_EMAIL))
                 .andExpect(jsonPath("$[0].occurredAt").exists())
                 // El envío a facultad lo hace la Coordinación en nombre propio
-                .andExpect(jsonPath("$[1].fromState.code").value("REGISTRADA"))
+                .andExpect(jsonPath("$[1].fromState.code").value("EN_COORDINACION"))
                 .andExpect(jsonPath("$[1].toState.code").value("EN_FACULTAD"))
                 .andExpect(jsonPath("$[1].responsible").value("COORDINACION"))
                 // La aprobación es del decano; la registró la Coordinación en su
@@ -552,7 +554,7 @@ class RequestControllerIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].studentName").value("Búsqueda Extraordinaria"))
-                .andExpect(jsonPath("$[0].currentState.code").value("REGISTRADA"));
+                .andExpect(jsonPath("$[0].currentState.code").value("EN_COORDINACION"));
 
         // Por fragmento del nombre, case-insensitive (FR-011)
         mockMvc.perform(get("/api/requests").param("search", "extraordinaria").session(session))
@@ -623,9 +625,9 @@ class RequestControllerIT {
         mockMvc.perform(get("/api/requests/" + id).session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(id))
-                .andExpect(jsonPath("$.currentState.code").value("REGISTRADA"))
-                .andExpect(jsonPath("$.availableTransitions[0].targetState.code")
-                        .value("EN_FACULTAD"));
+                .andExpect(jsonPath("$.currentState.code").value("EN_COORDINACION"))
+                .andExpect(jsonPath("$.availableTransitions[*].targetState.code",
+                        org.hamcrest.Matchers.containsInAnyOrder("EN_FACULTAD", "DEVUELTA")));
 
         mockMvc.perform(get("/api/requests/00000000-0000-0000-0000-00000000dead")
                         .session(session))
@@ -716,21 +718,85 @@ class RequestControllerIT {
                 .andExpect(status().isOk());
         mockMvc.perform(advanceRequest(id, "DEVUELTA", "Falta soporte de pago").session(session))
                 .andExpect(status().isOk());
-        // Corregida: la Coordinación la reenvía a la facultad
+        // Corregida: vuelve a la Coordinación, que la revisa antes de reenviarla
+        mockMvc.perform(advanceRequest(id, "EN_COORDINACION", null).session(session))
+                .andExpect(status().isOk());
         mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/requests/" + id + "/timeline").session(session))
-                .andExpect(jsonPath("$.length()").value(4))
-                // Nada se sobrescribió: nacimiento, envío, devolución y reenvío conviven
+                .andExpect(jsonPath("$.length()").value(5))
+                // Nada se sobrescribió: nacimiento, envío, devolución, re-revisión
+                // y reenvío conviven
                 .andExpect(jsonPath("$[1].toState.code").value("EN_FACULTAD"))
                 .andExpect(jsonPath("$[2].toState.code").value("DEVUELTA"))
                 .andExpect(jsonPath("$[2].note").value("Falta soporte de pago"))
-                .andExpect(jsonPath("$[3].toState.code").value("EN_FACULTAD"))
+                .andExpect(jsonPath("$[3].toState.code").value("EN_COORDINACION"))
+                .andExpect(jsonPath("$[4].toState.code").value("EN_FACULTAD"))
                 // SC-007: las devoluciones se cuentan filtrando el timeline —
                 // aquí, exactamente una y con su motivo
                 .andExpect(jsonPath("$[?(@.toState.code == 'DEVUELTA')].note")
                         .value(org.hamcrest.Matchers.contains("Falta soporte de pago")));
+    }
+
+    // --- H1: la revisión de la Coordinación y su devolución al estudiante -----------------
+    // Fuente: entrevista 1 a la Coordinación de la Sede Cali — «Yo reviso si está
+    // bien. Si está mal, se lo regreso». El sistema no devuelve nada: registra que
+    // la Coordinación devolvió, cuándo y por qué (cockpit, no orquestador).
+
+    @Test
+    @DisplayName("la Coordinación devuelve en su propia revisión: EN_COORDINACION → DEVUELTA con motivo")
+    void coordinationReturnsDuringItsOwnReview() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Devuelta En Revision", "705");
+
+        mockMvc.perform(advanceRequest(id, "DEVUELTA", "El formato vino sin la firma escaneada")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.code").value("DEVUELTA"));
+
+        // El motivo es el único dato que el correo no deja medible (FR-014)
+        mockMvc.perform(get("/api/requests/" + id + "/timeline").session(session))
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[1].fromState.code").value("EN_COORDINACION"))
+                .andExpect(jsonPath("$[1].toState.code").value("DEVUELTA"))
+                .andExpect(jsonPath("$[1].note").value("El formato vino sin la firma escaneada"))
+                .andExpect(jsonPath("$[1].responsible").value("COORDINACION"));
+    }
+
+    @Test
+    @DisplayName("devolver en la revisión sin motivo: 422 y la solicitud no se mueve")
+    void coordinationReturnWithoutReasonIsRejected() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Sin Motivo Revision", "706");
+
+        mockMvc.perform(advanceRequest(id, "DEVUELTA", null).session(session))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+
+        mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(jsonPath("$.currentState.code").value("EN_COORDINACION"));
+        mockMvc.perform(get("/api/requests/" + id + "/timeline").session(session))
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    @DisplayName("lo corregido vuelve a la Coordinación, no directo a la facultad: DEVUELTA → EN_FACULTAD es 409")
+    void correctedRequestReturnsToCoordinationAndNotStraightToFaculty() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Retorno Filtrado", "707");
+        mockMvc.perform(advanceRequest(id, "DEVUELTA", "Falta la hoja de vida académica")
+                        .session(session))
+                .andExpect(status().isOk());
+
+        // Saltarse la re-revisión es justamente el filtro que H1 vino a cerrar
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+
+        mockMvc.perform(advanceRequest(id, "EN_COORDINACION", null).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.code").value("EN_COORDINACION"));
     }
 
     // --- helpers -------------------------------------------------------------------------

@@ -307,7 +307,11 @@ docker exec -i tramita-postgres psql -U postgres -d tramita-db \
         AND from_state_id = (SELECT s.id FROM workflow_state s
                              JOIN workflow_definition d ON d.id = s.definition_id
                              WHERE d.code='ADICION_CREDITOS' AND d.version=1
-                               AND s.code='REGISTRADA');"
+                               AND s.code='EN_COORDINACION')
+        AND to_state_id   = (SELECT s.id FROM workflow_state s
+                             JOIN workflow_definition d ON d.id = s.definition_id
+                             WHERE d.code='ADICION_CREDITOS' AND d.version=1
+                               AND s.code='EN_FACULTAD');"
 ```
 
 > ⚠️ **No usar `WHERE id = (SELECT id FROM workflow_transition LIMIT 1)`.** Un `LIMIT` sin
@@ -317,7 +321,7 @@ docker exec -i tramita-postgres psql -U postgres -d tramita-db \
 Intentar avanzar por esa transición.
 
 **Esperado**: `500` de configuración inválida, **sin `detail` interno**, y la solicitud **sigue
-en `REGISTRADA`**. Nunca debe ejecutarse omitiendo la guarda que no supo evaluar. Confirmarlo:
+en `EN_COORDINACION`**. Nunca debe ejecutarse omitiendo la guarda que no supo evaluar. Confirmarlo:
 
 ```sh
 docker exec -i tramita-postgres psql -U postgres -d tramita-db \
