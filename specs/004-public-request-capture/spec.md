@@ -50,9 +50,11 @@ por la Coordinación con los medios que ya tiene.
 4. **Given** una solicitud recibida por este canal, **When** la Coordinación consulta su
    historial, **Then** el historial nombra que la solicitud se originó en el canal público,
    igual que nombra un responsable en cualquier otro tramo.
-5. **Given** un visitante sin sesión, **When** intenta que su envío corresponda a un
-   trámite distinto al de adición de créditos, **Then** el sistema lo registra como
-   adición de créditos de todos modos: el tipo de trámite no lo decide quien envía.
+5. **Given** un visitante sin sesión, **When** manipula el contenido de su envío para que
+   corresponda a otro trámite, **Then** el sistema registra la solicitud en el trámite que
+   determina el enlace por el que llegó: el contenido no decide el trámite.
+7. **Given** un trámite que no tiene habilitada la captura pública, **When** alguien
+   intenta enviar un formato para él, **Then** el sistema lo rechaza y no registra nada.
 6. **Given** una solicitud recibida por este canal, **When** el estudiante recibe la
    confirmación, **Then** la confirmación **no** contiene identificador de la solicitud,
    estado, ni enlace para consultarla después.
@@ -138,14 +140,22 @@ explicativo, sin afectar a los envíos legítimos de otros orígenes.
 
 - **FR-001**: El sistema MUST aceptar solicitudes de adición de créditos de visitantes sin
   sesión iniciada ni cuenta de usuario.
-- **FR-002**: El sistema MUST fijar por sí mismo el tipo de trámite de toda solicitud
-  recibida por este canal; quien envía NO puede elegirlo ni alterarlo.
+- **FR-002**: El sistema MUST aceptar captura pública **únicamente para los trámites que
+  la tengan habilitada en su configuración**. Un trámite sin esa habilitación rechaza el
+  envío, y habilitar uno nuevo NO DEBE requerir desplegar código (constitución §VI).
+- **FR-002a**: El contenido del envío MUST NOT poder alterar a qué trámite corresponde la
+  solicitud. Quien envía llega por un enlace que ya determina el trámite; manipular el
+  cuerpo no lo cambia.
 - **FR-003**: El sistema MUST rechazar, sin registrar nada, todo envío al que le falte
   alguno de los datos que el formato declara obligatorios, incluida la firma.
 - **FR-004**: El sistema MUST conservar la firma trazada por el estudiante junto con la
   solicitud.
-- **FR-005**: El sistema MUST conservar el correo electrónico y el número de contacto
-  declarados, porque son el canal por el que la Coordinación responde.
+- **FR-005**: El sistema MUST conservar el correo electrónico declarado, porque es el canal
+  por el que la Coordinación responde al estudiante.
+- **FR-005a**: El sistema MUST NOT persistir el número de contacto telefónico. El formato
+  lo pide y el formulario lo muestra, pero ninguna fuente documenta que la Coordinación lo
+  use: sin consumidor, un dato personal más no se almacena (constitución §III). Entra
+  cuando exista quien lo use, igual que ocurrió con el correo.
 - **FR-006**: El sistema MUST aplicar a las solicitudes recibidas por este canal las mismas
   reglas de negocio del trámite que aplica a las recibidas por cualquier otro.
 
