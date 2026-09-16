@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.uniremington.api.tramita.TestcontainersConfiguration;
+import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.repo.IRequestRepo;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -215,6 +216,43 @@ class PublicRequestControllerIT {
                 // fromState nulo: es un nacimiento, no una transición (§VII).
                 .andExpect(jsonPath("$[0].fromState").doesNotExist())
                 .andExpect(jsonPath("$[0].actorEmail").value(PORTAL_EMAIL));
+    }
+
+    @Test
+    @DisplayName("los seis campos del formato llegan a la fila, no solo al 201 (FR-004, FR-005, FR-005a)")
+    void publicSubmissionPersistsEveryFieldOfTheFormat() throws Exception {
+        String studentName = "Estudiante Con Formato Completo";
+        Map<String, Object> form = filledForm(studentName, "SIN-DATO-REAL-110");
+
+        mockMvc.perform(publicSubmission("203.0.113.50", PUBLIC_TRADE, form))
+                .andExpect(status().isCreated());
+
+        Request saved = requestRepo.findAll().stream()
+                .filter(r -> studentName.equals(r.getStudentName()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("la solicitud no llegó a la base"));
+
+        // Se leen los SEIS campos que agregó V3.3.0, uno por uno. Un 201 y un recibo
+        // correcto no prueban que el dato se haya guardado: el recibo es
+        // deliberadamente pobre y no refleja nada de lo enviado.
+        //
+        // Este test existe porque un review independiente encontró que borrar las seis
+        // líneas del builder dejaba la suite entera en verde (A-1, 2026-09-16). Las seis
+        // columnas son la razón de ser de la migración V3.3.0, y su consumidor declarado
+        // —el PDF formal del SP3— se habría encontrado un formato vacío.
+        assertThat(saved.getStudentEmail()).isEqualTo(form.get("studentEmail"));
+        assertThat(saved.getStudentPhone()).isEqualTo(form.get("studentPhone"));
+        assertThat(saved.getCampus()).isEqualTo(form.get("campus"));
+        assertThat(saved.getFaculty()).isEqualTo(form.get("faculty"));
+        assertThat(saved.getModality()).isEqualTo(form.get("modality"));
+        assertThat(saved.getStudentSignature()).isEqualTo(form.get("signature"));
+
+        // Y los que ya existían antes de esta feature, para que el mapeo completo quede cubierto
+        assertThat(saved.getStudentDocument()).isEqualTo(form.get("studentDocument"));
+        assertThat(saved.getProgram()).isEqualTo(form.get("program"));
+        assertThat(saved.getSemester()).isEqualTo(form.get("semester"));
+        assertThat(saved.getReason()).isEqualTo(form.get("reason"));
+        assertThat(saved.getStudentCode()).isEqualTo(form.get("studentCode"));
     }
 
     // --- US3: el canal abierto resiste el abuso (FR-016 a FR-019) -------------------------

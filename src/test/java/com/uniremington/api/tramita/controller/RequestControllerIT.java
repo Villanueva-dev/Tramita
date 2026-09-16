@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.uniremington.api.tramita.TestcontainersConfiguration;
+import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
 import java.util.List;
@@ -247,22 +248,47 @@ class RequestControllerIT {
     }
 
     @Test
-    @DisplayName("ningún dato de contacto del estudiante se almacena ni se devuelve (FR-020)")
-    void registerNeverPersistsNorReturnsStudentContactData() throws Exception {
-        // Aunque el cliente lo mande, el sistema no tiene dónde guardarlo: el campo
-        // se ignora y no aparece en la respuesta. Su consumidor era SP7, fuera de alcance.
+    @DisplayName("el correo del estudiante se conserva pero NUNCA sale en la respuesta (FR-005a)")
+    void registerPersistsStudentEmailButNeverReturnsIt() throws Exception {
+        // ⚠️ ESTE TEST AFIRMABA LO CONTRARIO HASTA EL 2026-09-16. Se llamaba
+        // «registerNeverPersistsNorReturnsStudentContactData» y su comentario decía que
+        // «el sistema no tiene dónde guardarlo: el campo se ignora». Dejó de ser cierto
+        // cuando la 004 agregó student_email a la tabla, y el test siguió en verde
+        // porque solo miraba la respuesta HTTP, nunca la fila. Lo encontró un review
+        // independiente (A-2).
+        //
+        // El FR-020 que citaba era el de la 003 —«MUST NOT almacenar el correo»— que el
+        // FR-005a de la 004 revoca explícitamente: el consumidor apareció (el PDF formal
+        // del SP3). En la 004, FR-020 significa otra cosa: no escribirlo en las bitácoras.
+        //
+        // Lo que sigue siendo cierto, y es lo que este test defiende: el dato se guarda,
+        // pero este endpoint NO lo devuelve. Son dos garantías distintas y ahora se
+        // asertan las dos.
+        String email = "contacto.de.prueba@ejemplo.test";
+        String studentName = "Estudiante Con Correo";
+
         mockMvc.perform(createRequestWithForm("""
                         {
                           "definitionCode": "ADICION_CREDITOS",
-                          "studentName": "Estudiante De Prueba",
+                          "studentName": "%s",
                           "studentDocument": "DOC-TEST-0004",
-                          "studentEmail": "no-deberia-persistirse@example.test"
-                        }""").session(login()))
+                          "studentEmail": "%s"
+                        }""".formatted(studentName, email)).session(login()))
                 .andExpect(status().isCreated())
+                // No sale: ni bajo su clave, ni bajo ninguna otra
                 .andExpect(jsonPath("$.studentEmail").doesNotExist())
                 .andExpect(content().string(
                         org.hamcrest.Matchers.not(
-                                org.hamcrest.Matchers.containsString("no-deberia-persistirse"))));
+                                org.hamcrest.Matchers.containsString(email))));
+
+        // Y sí se conserva: la aserción que faltaba y que dejaba pasar la contradicción
+        Request saved = requestRepo.findAll().stream()
+                .filter(r -> studentName.equals(r.getStudentName()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("la solicitud no llegó a la base"));
+        assertThat(saved.getStudentEmail())
+                .as("FR-005a: el correo se conserva porque el PDF formal del SP3 lo necesita")
+                .isEqualTo(email);
     }
 
     @Test
