@@ -3,6 +3,7 @@ package com.uniremington.api.tramita.service.impl;
 import com.uniremington.api.tramita.dto.AdvanceRequestBody;
 import com.uniremington.api.tramita.dto.AvailableTransitionResponse;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
+import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.PublicRequestBody;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
@@ -32,6 +33,7 @@ import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationExce
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
 import java.util.List;
+import org.springframework.data.domain.Limit;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -63,6 +65,16 @@ public class RequestServiceImpl implements IRequestService {
      * pública». La distinción no le sirve a quien envía legítimamente y sí a quien
      * sondea qué trámites existen (FR-002).
      */
+    /**
+     * Cuántas solicitudes trae la bandeja de recientes. Con las 30-40 solicitudes por
+     * semestre que reporta la Coordinación
+     * (material-coord/2026-06-04-entrevista3-sintesis-analitica.md:213), 50 cubre más de
+     * un semestre completo: en la práctica la Coordinación ve todo lo que llegó, sin
+     * paginar. El tope existe como cota de sanidad —para que la consulta no pueda
+     * volverse un volcado si el volumen cambia—, no como paginación.
+     */
+    private static final int INBOX_SIZE = 50;
+
     private static final String NO_PUBLIC_CHANNEL =
             "No hay captura pública disponible para ese trámite";
 
@@ -333,6 +345,13 @@ public class RequestServiceImpl implements IRequestService {
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<InboxEntryResponse> getInbox() {
+        return requestRepo.findAllByOrderByCreatedAtDesc(Limit.of(INBOX_SIZE)).stream()
+                .map(this::toInboxEntry)
+                .toList();
+    }
 
     /**
      * El timeline es un solo SELECT ordenado (research.md D7/D11). El "en nombre
@@ -374,6 +393,22 @@ public class RequestServiceImpl implements IRequestService {
                         definition.getCode(), definition.getName(), definition.getVersion()),
                 request.getStudentName(),
                 request.getStudentDocument(),
+                toStateResponse(request.getCurrentState()),
+                request.getCreatedAt());
+    }
+
+    /**
+     * Mapeo propio y no una variante de {@link #toSummary}: que este método NO tenga
+     * una línea para el documento de identidad es la garantía de FR-014, y conviene
+     * que se vea al leerlo.
+     */
+    private InboxEntryResponse toInboxEntry(Request request) {
+        WorkflowDefinition definition = request.getDefinition();
+        return new InboxEntryResponse(
+                request.getId(),
+                new WorkflowDefinitionResponse(
+                        definition.getCode(), definition.getName(), definition.getVersion()),
+                request.getStudentName(),
                 toStateResponse(request.getCurrentState()),
                 request.getCreatedAt());
     }

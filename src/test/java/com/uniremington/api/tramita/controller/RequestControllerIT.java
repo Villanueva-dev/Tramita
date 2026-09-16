@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.uniremington.api.tramita.TestcontainersConfiguration;
 import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -797,6 +798,69 @@ class RequestControllerIT {
         mockMvc.perform(advanceRequest(id, "EN_COORDINACION", null).session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentState.code").value("EN_COORDINACION"));
+    }
+
+    // --- US2 (004): la bandeja de recientes -----------------------------------------------
+
+    @Test
+    @DisplayName("la bandeja lista sin criterio y de la más nueva a la más vieja (FR-012, FR-013)")
+    void inboxListsRecentRequestsNewestFirst() throws Exception {
+        MockHttpSession session = login();
+
+        // Tres solicitudes en orden conocido. Nombres propios del escenario: el IT
+        // comparte base con los demás tests y una bandeja global trae también lo suyo.
+        String primera = "Bandeja Primera EnLlegar";
+        String segunda = "Bandeja Segunda EnLlegar";
+        String tercera = "Bandeja Tercera EnLlegar";
+        registerAndGetId(session, "ADICION_CREDITOS", primera, "SIN-DATO-REAL-201");
+        registerAndGetId(session, "ADICION_CREDITOS", segunda, "SIN-DATO-REAL-202");
+        registerAndGetId(session, "ADICION_CREDITOS", tercera, "SIN-DATO-REAL-203");
+
+        String body = mockMvc.perform(get("/api/requests/inbox").session(session))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andReturn().getResponse().getContentAsString();
+
+        List<String> names = com.jayway.jsonpath.JsonPath.read(body, "$[*].studentName");
+
+        // Se asertan las POSICIONES RELATIVAS y no los tres primeros puestos: lo que
+        // FR-013 promete es el orden, y exigir que encabecen la lista ataría el test a
+        // que ningún otro escenario registre algo después.
+        assertThat(names).contains(primera, segunda, tercera);
+        assertThat(names.indexOf(tercera))
+                .as("la última registrada debe aparecer antes que la segunda")
+                .isLessThan(names.indexOf(segunda));
+        assertThat(names.indexOf(segunda))
+                .as("la segunda registrada debe aparecer antes que la primera")
+                .isLessThan(names.indexOf(primera));
+    }
+
+    @Test
+    @DisplayName("la bandeja nunca expone el número de documento (FR-014)")
+    void inboxNeverExposesStudentDocument() throws Exception {
+        MockHttpSession session = login();
+        String document = "SIN-DATO-REAL-204";
+        registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Sin Cedula", document);
+
+        String body = mockMvc.perform(get("/api/requests/inbox").session(session))
+                .andExpect(status().isOk())
+                // Sobre el JSON servido, no sobre el DTO: lo que se promete es que el
+                // dato no SALE, y quien lo verifica del lado del DTO no vería un campo
+                // agregado por otra vía.
+                .andExpect(jsonPath("$[*].studentDocument").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+
+        // Y el valor concreto tampoco aparece bajo ninguna otra clave.
+        assertThat(body)
+                .as("ningún documento de identidad puede viajar en la respuesta de la bandeja")
+                .doesNotContain(document);
+    }
+
+    @Test
+    @DisplayName("la bandeja exige sesión: sin ella, 401 (FR-015)")
+    void inboxRequiresAnAuthenticatedSession() throws Exception {
+        mockMvc.perform(get("/api/requests/inbox"))
+                .andExpect(status().isUnauthorized());
     }
 
     // --- helpers -------------------------------------------------------------------------

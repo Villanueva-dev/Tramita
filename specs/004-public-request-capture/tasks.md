@@ -151,22 +151,36 @@ más nueva a la más vieja, y ningún objeto del arreglo tiene `studentDocument`
 
 ### RED
 
-- [ ] T021 [US2] En `src/test/java/com/uniremington/api/tramita/controller/RequestControllerIT.java`, agregar `inboxListsRecentRequestsNewestFirst`: con sesión, `GET /api/requests/inbox` **sin parámetros** devuelve `200` y las solicitudes ordenadas por fecha de creación descendente (FR-012, FR-013).
-- [ ] T022 [P] [US2] En el mismo IT, `inboxNeverExposesStudentDocument`: **aserción sobre el JSON de la respuesta**, no sobre el DTO — ningún elemento del arreglo tiene la clave `studentDocument` (FR-014, D8).
-- [ ] T023 [P] [US2] En el mismo IT, `inboxRequiresAnAuthenticatedSession`: sin sesión → `401` (FR-015).
-- [ ] T024 [US2] Ejecutar `./mvnw clean verify` y dejar constancia del RED.
+- [x] T021 [US2] En `src/test/java/com/uniremington/api/tramita/controller/RequestControllerIT.java`, agregar `inboxListsRecentRequestsNewestFirst`: con sesión, `GET /api/requests/inbox` **sin parámetros** devuelve `200` y las solicitudes ordenadas por fecha de creación descendente (FR-012, FR-013).
+- [x] T022 [P] [US2] En el mismo IT, `inboxNeverExposesStudentDocument`: **aserción sobre el JSON de la respuesta**, no sobre el DTO — ningún elemento del arreglo tiene la clave `studentDocument` (FR-014, D8).
+- [x] T023 [P] [US2] En el mismo IT, `inboxRequiresAnAuthenticatedSession`: sin sesión → `401` (FR-015).
+- [x] T024 [US2] Ejecutar `./mvnw clean verify` y dejar constancia del RED.
+
+  **RED el 2026-09-16** — `Tests run: 63, Failures: 2`. Caen `inboxListsRecentRequestsNewestFirst` e `inboxNeverExposesStudentDocument`, ambos con `Status expected:<200> but was:<400>`.
+
+  🔑 **La causa es exactamente la colisión que T028 anticipa**, y quedó medida antes de escribir el endpoint: `GET /api/requests/inbox` entraba por `@GetMapping("/{id}")`, Spring intentaba convertir `«inbox»` a `UUID` y fallaba con 400. No es un 404 de ruta inexistente.
+
+  `inboxRequiresAnAuthenticatedSession` (T023) **pasa en verde desde el RED**, y es correcto: el filter chain resuelve el 401 antes de llegar a cualquier controller, así que la garantía se cumple por ausencia. Su valor es de regresión — debe seguir verde después de T028, que es cuando la ruta empieza a existir. Mismo caso que `portalAccountCannotAuthenticate` en la US1.
 
 ### GREEN
 
-- [ ] T025 [P] [US2] Crear `src/main/java/com/uniremington/api/tramita/dto/InboxEntryResponse.java`: igual a `RequestSummaryResponse` **menos** `studentDocument`. Documentar en el javadoc por qué no es duplicación (dos contratos con reglas de exposición distintas) y citar la razón que ya está escrita en `IRequestRepo`.
-- [ ] T026 [US2] Agregar a `src/main/java/com/uniremington/api/tramita/repo/IRequestRepo.java` una consulta de recientes acotada por `Limit`, ordenada por fecha de creación descendente.
-- [ ] T027 [US2] Agregar la operación a `service/IRequestService.java` e implementarla en `service/impl/RequestServiceImpl.java`, mapeando a `InboxEntryResponse`.
-- [ ] T028 [US2] Agregar `GET /api/requests/inbox` a `src/main/java/com/uniremington/api/tramita/controller/RequestController.java`. **Declararlo antes de `@GetMapping("/{id}")`** o verificar que el patrón de ruta no colisione: `inbox` no debe resolverse como un identificador.
-- [ ] T029 [US2] Ejecutar `./mvnw clean verify` hasta que T021–T023 pasen.
+- [x] T025 [P] [US2] Crear `src/main/java/com/uniremington/api/tramita/dto/InboxEntryResponse.java`: igual a `RequestSummaryResponse` **menos** `studentDocument`. Documentar en el javadoc por qué no es duplicación (dos contratos con reglas de exposición distintas) y citar la razón que ya está escrita en `IRequestRepo`.
+- [x] T026 [US2] Agregar a `src/main/java/com/uniremington/api/tramita/repo/IRequestRepo.java` una consulta de recientes acotada por `Limit`, ordenada por fecha de creación descendente.
+- [x] T027 [US2] Agregar la operación a `service/IRequestService.java` e implementarla en `service/impl/RequestServiceImpl.java`, mapeando a `InboxEntryResponse`.
+- [x] T028 [US2] Agregar `GET /api/requests/inbox` a `src/main/java/com/uniremington/api/tramita/controller/RequestController.java`. **Declararlo antes de `@GetMapping("/{id}")`** o verificar que el patrón de ruta no colisione: `inbox` no debe resolverse como un identificador.
+- [x] T029 [US2] Ejecutar `./mvnw clean verify` hasta que T021–T023 pasen.
+
+  **GREEN el 2026-09-16** — `BUILD SUCCESS`: **57 unitarios + 63 IT**, 0 fallos. Ningún test preexistente quedó en rojo.
+
+  **Decisión tomada acá porque ni el spec ni D8 la fijaban**: la bandeja trae **50 solicitudes** (`INBOX_SIZE`). Con las 30-40 por semestre que reporta la Coordinación (`material-coord/2026-06-04-entrevista3-sintesis-analitica.md:213`), 50 cubre más de un semestre completo: en la práctica se ve todo lo que llegó, sin paginar. El tope es cota de sanidad contra un volcado futuro, no paginación — y el `Limit` va en la firma del repositorio, obligando a quien llame a decidir cuánto pide.
+
+  **Sobre el orden de declaración (T028)**: Spring resuelve por especificidad del patrón —un segmento literal gana sobre una variable—, así que el orden en el archivo no es lo que hace funcionar `/inbox`. Se declaró contiguo a `/{id}` igualmente, para que la competencia entre ambas rutas sea visible al leer.
 
 ### Verificación con mutantes
 
-- [ ] T030 [US2] Atacar T022 con un mutante: agregar `studentDocument` al DTO de la bandeja. Debe caer `inboxNeverExposesStudentDocument` y **ningún otro test**. Si sobrevive, la aserción está mirando el DTO y no el JSON.
+- [x] T030 [US2] Atacar T022 con un mutante: agregar `studentDocument` al DTO de la bandeja. Debe caer `inboxNeverExposesStudentDocument` y **ningún otro test**. Si sobrevive, la aserción está mirando el DTO y no el JSON.
+
+  **Resultado del mutante, medido el 2026-09-16**: se agregó `studentDocument` al record `InboxEntryResponse` y su línea correspondiente en `toInboxEntry`. Cayó **exactamente un test** —`inboxNeverExposesStudentDocument`— y **ningún otro** de los 36 de la clase. La aserción mira el JSON servido y el valor concreto del documento, no la forma del DTO. Mutante revertido; `./mvnw clean verify` → `BUILD SUCCESS` (57 + 63).
 
 ---
 

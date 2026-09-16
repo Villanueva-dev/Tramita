@@ -2,6 +2,7 @@ package com.uniremington.api.tramita.controller;
 
 import com.uniremington.api.tramita.dto.AdvanceRequestBody;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
+import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
 import com.uniremington.api.tramita.dto.TimelineEntryResponse;
@@ -63,6 +64,24 @@ public class RequestController {
     public List<RequestSummaryResponse> search(
             @RequestParam @NotBlank @Size(min = 2) String search) {
         return requestService.search(search);
+    }
+
+    /**
+     * US2 de la 004/FR-012: las solicitudes recientes, sin criterio de búsqueda.
+     *
+     * DECLARADO ANTES de {@code @GetMapping("/{id}")} a propósito. Spring resuelve
+     * por especificidad del patrón —un segmento literal gana sobre una variable—, de
+     * modo que el orden del archivo no es lo que lo hace funcionar; pero la colisión
+     * es real y ya se midió: antes de que este método existiera,
+     * {@code GET /api/requests/inbox} entraba por {@code /{id}}, fallaba al convertir
+     * «inbox» a UUID y devolvía 400. Dejarlo contiguo es lo que hace evidente al
+     * siguiente lector que estas dos rutas compiten.
+     *
+     * Devuelve InboxEntryResponse, SIN documento de identidad (FR-014).
+     */
+    @GetMapping("/inbox")
+    public List<InboxEntryResponse> getInbox() {
+        return requestService.getInbox();
     }
 
     /** US3: detalle con las transiciones disponibles desde el estado actual. */

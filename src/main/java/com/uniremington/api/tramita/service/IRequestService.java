@@ -2,6 +2,7 @@ package com.uniremington.api.tramita.service;
 
 import com.uniremington.api.tramita.dto.AdvanceRequestBody;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
+import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.PublicRequestBody;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
@@ -49,6 +50,17 @@ public interface IRequestService {
      * un trámite al recibir la consulta (US3, FR-011).
      */
     List<RequestSummaryResponse> search(String query);
+
+    /**
+     * Las solicitudes registradas más recientemente, sin criterio de búsqueda (004,
+     * US2, FR-012/FR-013). Existe porque no se puede buscar a alguien de cuya
+     * solicitud nadie se enteró: con la captura pública, una solicitud puede llegar
+     * sin que nadie de la Coordinación sepa que existe.
+     *
+     * Devuelve {@link InboxEntryResponse} y no el resumen de la 002 porque esta
+     * vista lista SIN filtro y no puede exponer documentos de identidad (FR-014).
+     */
+    List<InboxEntryResponse> getInbox();
 
     /**
      * Timeline completo en orden cronológico (US3, FR-008): cada entrada con su
