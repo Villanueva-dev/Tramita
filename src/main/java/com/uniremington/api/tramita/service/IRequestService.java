@@ -2,6 +2,7 @@ package com.uniremington.api.tramita.service;
 
 import com.uniremington.api.tramita.dto.AdvanceRequestBody;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
+import com.uniremington.api.tramita.dto.PublicRequestBody;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
 import com.uniremington.api.tramita.dto.TimelineEntryResponse;
@@ -16,6 +17,20 @@ public interface IRequestService {
      * (research.md D7). El actor es el usuario autenticado de la sesión (FR-012).
      */
     RequestResponse register(CreateRequestBody body, String actorEmail);
+
+    /**
+     * Registra una solicitud llegada por el canal público, sin sesión (004, US1).
+     *
+     * El trámite lo fija el código de la RUTA y nunca el cuerpo (FR-002a), y solo
+     * responde para trámites que declaran {@code PUBLIC_CAPTURE_ENABLED}: para
+     * cualquier otro es un recurso inexistente, sin distinguir «no existe» de «no
+     * admite captura pública» (FR-002, research.md D1).
+     *
+     * No devuelve nada. El recibo del canal público es deliberadamente pobre —sin
+     * identificador ni estado (FR-008, D5)—, de modo que no hay qué devolver desde
+     * el motor: lo que ve el estudiante es una confirmación, no un recurso.
+     */
+    void registerFromPublicChannel(String definitionCode, PublicRequestBody body);
 
     /**
      * Avanza (o devuelve) la solicitud por una transición de SU definición (US2,

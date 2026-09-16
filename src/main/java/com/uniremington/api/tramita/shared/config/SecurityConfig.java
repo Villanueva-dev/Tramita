@@ -48,6 +48,16 @@ import tools.jackson.databind.json.JsonMapper;
 public class SecurityConfig {
 
     /**
+     * La ruta de captura pública, declarada UNA vez: el permitAll y la exclusión de
+     * CSRF deben cubrir exactamente lo mismo. Dos literales separados podrían
+     * divergir, y la divergencia peligrosa —una exclusión de CSRF más ancha que el
+     * permitAll— no la detectaría ningún test de esta feature.
+     */
+    private static final PathPatternRequestMatcher PUBLIC_CAPTURE =
+            PathPatternRequestMatcher.withDefaults()
+                    .matcher(HttpMethod.POST, "/api/public/requests/*");
+
+    /**
      * DelegatingPasswordEncoder con BCrypt por defecto (research.md D6): el hash se
      * persiste con prefijo {bcrypt}, desacoplando los datos de un futuro cambio de
      * algoritmo (una migración a {argon2} no invalidaría los hashes existentes).
@@ -98,7 +108,24 @@ public class SecurityConfig {
 
         http
                 // CSRF para SPA: cookie XSRF-TOKEN legible por JS + deferred loading (D4)
-                .csrf(csrf -> csrf.spa())
+                //
+                // La captura pública queda FUERA de CSRF, y solo ella (004, research.md
+                // D2). CSRF protege contra que un sitio ajeno use la sesión del navegante
+                // a sus espaldas: sin sesión no hay identidad que suplantar, de modo que
+                // acá no protegería nada y solo agregaría un paso previo —pedir el
+                // token— que puede fallarle a un estudiante sin cuenta.
+                //
+                // La exclusión está acotada a esta ruta y NO es precedente para ninguna
+                // otra: en cuanto un endpoint dependa de una sesión, CSRF vuelve a ser
+                // la defensa que corresponde.
+                //
+                // ⚠️ LO QUE PROTEGE ESTE CANAL —tope de tamaño del cuerpo y límite de
+                // envíos por origen— TODAVÍA NO ESTÁ: llega en la US3 de esta misma
+                // feature (PublicSubmissionThrottlingFilter). Hasta entonces la ruta
+                // está abierta sin cota de tamaño ni de tasa, y eso es deuda conocida,
+                // no un descuido: no debe llegar a producción así.
+                .csrf(csrf -> csrf.spa()
+                        .ignoringRequestMatchers(PUBLIC_CAPTURE))
                 // materializa el token diferido → la cookie XSRF-TOKEN se emite en las
                 // respuestas del chain (la primera, en el GET inicial del SPA). El login
                 // NO rota el token — ver javadoc de CsrfCookieFilter (D4/JD3-004)
@@ -106,6 +133,8 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        // Segundo y último endpoint abierto del sistema (004, FR-001)
+                        .requestMatchers(PUBLIC_CAPTURE).permitAll()
                         .anyRequest().authenticated())
                 // sin sesión → 401 problem+json (RFC 9457, D10)
                 .exceptionHandling(ex -> ex

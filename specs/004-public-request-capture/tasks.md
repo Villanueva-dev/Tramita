@@ -44,7 +44,16 @@ separado.
 
 **Propósito**: partir de un baseline confiable.
 
-- [ ] T001 Confirmar baseline verde en la rama antes de tocar nada: `docker start tramita-postgres && ./mvnw clean verify`. Anotar el conteo de tests de partida (surefire y failsafe por separado, desde `target/surefire-reports/` y `target/failsafe-reports/`), para poder afirmar al cierre cuántos se agregaron sin citar un número de memoria.
+- [x] T001 Confirmar baseline verde en la rama antes de tocar nada: `docker start tramita-postgres && ./mvnw clean verify`. Anotar el conteo de tests de partida (surefire y failsafe por separado, desde `target/surefire-reports/` y `target/failsafe-reports/`), para poder afirmar al cierre cuántos se agregaron sin citar un número de memoria.
+
+  **Baseline medido el 2026-09-16 sobre `6e4ac1a`** — `docker start tramita-postgres && ./mvnw clean verify` → `BUILD SUCCESS` en 31,9 s:
+
+  | Suite | Clases | Tests | Fallos | Errores | Omitidos |
+  |---|---|---|---|---|---|
+  | `target/surefire-reports/` (unitarios) | 7 | **57** | 0 | 0 | 0 |
+  | `target/failsafe-reports/` (IT) | 5 | **50** | 0 | 0 | 0 |
+
+  Al cierre de la feature, la cantidad de tests agregados se afirma restando contra estos dos números, no contra un recuerdo.
 
 ---
 
@@ -70,32 +79,65 @@ Coordinación.
 
 ### RED — el canal no existe
 
-- [ ] T002 [US1] Crear `src/test/java/com/uniremington/api/tramita/controller/PublicRequestControllerIT.java` con el encabezado de `AuthControllerIT` (mismas properties literales, `@AutoConfigureMockMvc`, `@Import(TestcontainersConfiguration.class)`) y un test `publicSubmissionWithoutSessionOrCsrfIsAccepted` que hace `POST /api/public/requests/ADICION_CREDITOS` **sin `.session(...)` y sin `.with(csrf())`** y espera `201`. Debe fallar: la ruta no existe.
-- [ ] T003 [P] [US1] En el mismo IT, `publicReceiptCarriesNoIdentifierNorState`: el cuerpo del `201` no contiene `id`, `currentState` ni `definition`, y la respuesta **no trae cabecera `Location`** (FR-008, D5).
-- [ ] T004 [P] [US1] En el mismo IT, `submissionWithoutSignatureIsRejected`: envío sin `signature` → `422` en `application/problem+json`, y `requestRepo.count()` no cambia (FR-003).
-- [ ] T004a [P] [US1] En el mismo IT, `submissionWithAnyBlankMandatoryFieldIsRejected`: **un caso por cada uno de los once campos obligatorios**, cada uno enviado como cadena vacía y como cadena de solo espacios → `422`, y `requestRepo.count()` no cambia. Es la aserción que hace cumplir «ningún campo puede quedar vacío» (FR-003, D10); sin ella, `@NotNull` pasaría por buena una cadena vacía.
-- [ ] T005 [P] [US1] En el mismo IT, `submissionWithoutEmailIsRejected` y `submissionWithoutCommitmentsIsRejected` → `422` cada uno, sin registrar (FR-003, FR-005).
-- [ ] T006 [P] [US1] En el mismo IT, `tradeWithoutPublicCaptureReturnsNotFound`: `POST /api/public/requests/NOVEDAD_NOTAS` → `404` (FR-002, D1).
-- [ ] T007 [P] [US1] En el mismo IT, `bodyCannotOverrideTheTradeFromThePath`: un cuerpo que incluye `definitionCode` con otro trámite se registra igualmente bajo el de la ruta (FR-002a).
-- [ ] T008 [P] [US1] En el mismo IT, `publicSubmissionTimelineNamesThePortalActor`: el tramo inicial del histórico tiene `fromState` nulo y `actorEmail` igual a `portal-publico@tramita.local` (FR-009, FR-010, §VII).
-- [ ] T009 [P] [US1] En `src/test/java/com/uniremington/api/tramita/controller/AuthControllerIT.java`, agregar `portalAccountCannotAuthenticate`: intentar iniciar sesión con `portal-publico@tramita.local` devuelve `401` (FR-011, D4).
-- [ ] T010 [US1] Ejecutar `./mvnw clean verify` y **dejar constancia del RED**: qué tests fallan y con qué error. Cada fallo debe deberse a la causa esperada (ruta inexistente, columna inexistente), no a otra.
+- [x] T002 [US1] Crear `src/test/java/com/uniremington/api/tramita/controller/PublicRequestControllerIT.java` con el encabezado de `AuthControllerIT` (mismas properties literales, `@AutoConfigureMockMvc`, `@Import(TestcontainersConfiguration.class)`) y un test `publicSubmissionWithoutSessionOrCsrfIsAccepted` que hace `POST /api/public/requests/ADICION_CREDITOS` **sin `.session(...)` y sin `.with(csrf())`** y espera `201`. Debe fallar: la ruta no existe.
+- [x] T003 [P] [US1] En el mismo IT, `publicReceiptCarriesNoIdentifierNorState`: el cuerpo del `201` no contiene `id`, `currentState` ni `definition`, y la respuesta **no trae cabecera `Location`** (FR-008, D5).
+- [x] T004 [P] [US1] En el mismo IT, `submissionWithoutSignatureIsRejected`: envío sin `signature` → `422` en `application/problem+json`, y `requestRepo.count()` no cambia (FR-003).
+- [x] T004a [P] [US1] En el mismo IT, `submissionWithAnyBlankMandatoryFieldIsRejected`: **un caso por cada uno de los once campos obligatorios**, cada uno enviado como cadena vacía y como cadena de solo espacios → `422`, y `requestRepo.count()` no cambia. Es la aserción que hace cumplir «ningún campo puede quedar vacío» (FR-003, D10); sin ella, `@NotNull` pasaría por buena una cadena vacía.
+- [x] T005 [P] [US1] En el mismo IT, `submissionWithoutEmailIsRejected` y `submissionWithoutCommitmentsIsRejected` → `422` cada uno, sin registrar (FR-003, FR-005).
+- [x] T006 [P] [US1] En el mismo IT, `tradeWithoutPublicCaptureReturnsNotFound`: `POST /api/public/requests/NOVEDAD_NOTAS` → `404` (FR-002, D1).
+- [x] T007 [P] [US1] En el mismo IT, `bodyCannotOverrideTheTradeFromThePath`: un cuerpo que incluye `definitionCode` con otro trámite se registra igualmente bajo el de la ruta (FR-002a).
+- [x] T008 [P] [US1] En el mismo IT, `publicSubmissionTimelineNamesThePortalActor`: el tramo inicial del histórico tiene `fromState` nulo y `actorEmail` igual a `portal-publico@tramita.local` (FR-009, FR-010, §VII).
+- [x] T009 [P] [US1] En `src/test/java/com/uniremington/api/tramita/controller/AuthControllerIT.java`, agregar `portalAccountCannotAuthenticate`: intentar iniciar sesión con `portal-publico@tramita.local` devuelve `401` (FR-011, D4).
+- [x] T010 [US1] Ejecutar `./mvnw clean verify` y **dejar constancia del RED**: qué tests fallan y con qué error. Cada fallo debe deberse a la causa esperada (ruta inexistente, columna inexistente), no a otra.
+
+  **RED registrado el 2026-09-16** — `./mvnw clean verify` → `BUILD FAILURE`, `Tests run: 60, Failures: 9`.
+
+  Los **nueve** tests de `PublicRequestControllerIT` fallan, y los nueve con **el mismo error**:
+
+  ```
+  java.lang.AssertionError: Status expected:<201> but was:<403>   (T002, T003, T007, T008)
+  java.lang.AssertionError: Status expected:<422> but was:<403>   (T004, T004a, T005 ×2)
+  java.lang.AssertionError: Status expected:<404> but was:<403>   (T006)
+  ```
+
+  **La causa es la esperada**: el `403` lo produce el filtro CSRF rechazando un `POST` sin token, porque la ruta `/api/public/requests/**` todavía no está permitida ni exceptuada en `SecurityConfig`. Ninguno falla por una causa distinta —columna ausente, error de deserialización o `NullPointerException`—, que es lo que esta tarea existe para descartar.
+
+  **T009 (`portalAccountCannotAuthenticate`) pasa en VERDE desde ya**, y es correcto: hoy la garantía se cumple por ausencia —la fila del portal no existe, y un email desconocido ya da `401` genérico anti-enumeración—. Su valor es de regresión: **debe seguir en verde después de T011**, que es cuando la fila pasa a existir. Si se pusiera en rojo ahí, la fila sintética sería una cuenta usable.
+
+  Conteo de partida de la suite de IT: 50 → 60 (nueve del canal público más T009).
 
 ### GREEN — abrir el canal
 
-- [ ] T011 [US1] Crear `src/main/resources/db/migration/V3.3.0__Enable_public_capture.sql`: `ALTER TABLE request` con las **seis** columnas —`student_email VARCHAR(255)`, `student_signature TEXT`, `student_phone VARCHAR(30)`, `campus VARCHAR(120)`, `faculty VARCHAR(120)`, `modality VARCHAR(50)`—, todas opcionales como las de `V2.3.0`; `INSERT` de `PUBLIC_CAPTURE_ENABLED='true'` en `workflow_parameter` solo para `ADICION_CREDITOS` v1; `INSERT` de la fila de identidad en `users` con `active = FALSE` y un `password_hash` sin prefijo de algoritmo. Escribir en la migración **por qué entran ahora** los campos que `V2.3.0` dejó fuera: el consumidor es el PDF formal del SP3 (`Tramita#10`), ver D10. Y **por qué quedan nullable** pese a ser obligatorias en el canal público: la migración corre sobre filas existentes que no las tienen.
-- [ ] T012 [US1] Agregar a `src/main/java/com/uniremington/api/tramita/model/Request.java` los seis campos —`studentEmail`, `studentSignature`, `studentPhone`, `campus`, `faculty`, `modality`—, todos `updatable = false` como el resto de los datos de captura.
-- [ ] T013 [P] [US1] Ampliar `src/main/java/com/uniremington/api/tramita/dto/CreateRequestBody.java` con los seis campos **opcionales**. El constructor de compatibilidad existente no se toca (FR-006 de la 002): que sean opcionales acá y obligatorios en el canal público es deliberado.
-- [ ] T014 [P] [US1] Crear `src/main/java/com/uniremington/api/tramita/dto/PublicRequestBody.java` **sin `definitionCode`**, con las validaciones del contrato: **once campos obligatorios** —nombre, documento, correo (formato de email), contacto, programa, sede, facultad, modalidad, semestre, compromisos y firma—, todos con su longitud máxima. `studentCode` es el único opcional. Usar `@NotBlank` y no `@NotNull`: un valor de solo espacios no cuenta como diligenciado (FR-003).
-- [ ] T015 [P] [US1] Crear `src/main/java/com/uniremington/api/tramita/dto/PublicReceiptResponse.java` con un único campo de mensaje.
-- [ ] T016 [US1] Agregar a `src/main/java/com/uniremington/api/tramita/service/IRequestService.java` la operación de registro público, y su implementación en `service/impl/RequestServiceImpl.java`: resolver la definición por código, **verificar `PUBLIC_CAPTURE_ENABLED`** con la misma semántica que `capturesCredits` (ausente = no habilitado; valor no interpretable = configuración rota, 500), mapear a `CreateRequestBody` y **delegar en el `register()` existente** con el correo del portal como actor.
-- [ ] T017 [US1] Crear `src/main/java/com/uniremington/api/tramita/controller/PublicRequestController.java` con `POST /api/public/requests/{definitionCode}` devolviendo `201` **sin cabecera `Location`**.
-- [ ] T018 [US1] En `src/main/java/com/uniremington/api/tramita/shared/config/SecurityConfig.java`: `permitAll` para ese método y ruta, y excluirla de CSRF. Documentar en el propio código la justificación de D2 — sin sesión no hay identidad que suplantar — y que la exclusión está acotada a esa ruta y no es precedente para ninguna otra.
-- [ ] T019 [US1] Ejecutar `./mvnw clean verify` hasta que T002–T009 pasen. Ningún test preexistente puede quedar en rojo.
+- [x] T011 [US1] Crear `src/main/resources/db/migration/V3.3.0__Enable_public_capture.sql`: `ALTER TABLE request` con las **seis** columnas —`student_email VARCHAR(255)`, `student_signature TEXT`, `student_phone VARCHAR(30)`, `campus VARCHAR(120)`, `faculty VARCHAR(120)`, `modality VARCHAR(50)`—, todas opcionales como las de `V2.3.0`; `INSERT` de `PUBLIC_CAPTURE_ENABLED='true'` en `workflow_parameter` solo para `ADICION_CREDITOS` v1; `INSERT` de la fila de identidad en `users` con `active = FALSE` y un `password_hash` sin prefijo de algoritmo. Escribir en la migración **por qué entran ahora** los campos que `V2.3.0` dejó fuera: el consumidor es el PDF formal del SP3 (`Tramita#10`), ver D10. Y **por qué quedan nullable** pese a ser obligatorias en el canal público: la migración corre sobre filas existentes que no las tienen.
+- [x] T012 [US1] Agregar a `src/main/java/com/uniremington/api/tramita/model/Request.java` los seis campos —`studentEmail`, `studentSignature`, `studentPhone`, `campus`, `faculty`, `modality`—, todos `updatable = false` como el resto de los datos de captura.
+- [x] T013 [P] [US1] Ampliar `src/main/java/com/uniremington/api/tramita/dto/CreateRequestBody.java` con los seis campos **opcionales**. El constructor de compatibilidad existente no se toca (FR-006 de la 002): que sean opcionales acá y obligatorios en el canal público es deliberado.
+- [x] T014 [P] [US1] Crear `src/main/java/com/uniremington/api/tramita/dto/PublicRequestBody.java` **sin `definitionCode`**, con las validaciones del contrato: **once campos obligatorios** —nombre, documento, correo (formato de email), contacto, programa, sede, facultad, modalidad, semestre, compromisos y firma—, todos con su longitud máxima. `studentCode` es el único opcional. Usar `@NotBlank` y no `@NotNull`: un valor de solo espacios no cuenta como diligenciado (FR-003).
+- [x] T015 [P] [US1] Crear `src/main/java/com/uniremington/api/tramita/dto/PublicReceiptResponse.java` con un único campo de mensaje.
+- [x] T016 [US1] Agregar a `src/main/java/com/uniremington/api/tramita/service/IRequestService.java` la operación de registro público, y su implementación en `service/impl/RequestServiceImpl.java`: resolver la definición por código, **verificar `PUBLIC_CAPTURE_ENABLED`** con la misma semántica que `capturesCredits` (ausente = no habilitado; valor no interpretable = configuración rota, 500), mapear a `CreateRequestBody` y **delegar en el `register()` existente** con el correo del portal como actor.
+- [x] T017 [US1] Crear `src/main/java/com/uniremington/api/tramita/controller/PublicRequestController.java` con `POST /api/public/requests/{definitionCode}` devolviendo `201` **sin cabecera `Location`**.
+- [x] T018 [US1] En `src/main/java/com/uniremington/api/tramita/shared/config/SecurityConfig.java`: `permitAll` para ese método y ruta, y excluirla de CSRF. Documentar en el propio código la justificación de D2 — sin sesión no hay identidad que suplantar — y que la exclusión está acotada a esa ruta y no es precedente para ninguna otra.
+- [x] T019 [US1] Ejecutar `./mvnw clean verify` hasta que T002–T009 pasen. Ningún test preexistente puede quedar en rojo.
+
+  **GREEN el 2026-09-16** — `./mvnw clean verify` → `BUILD SUCCESS`: **57 unitarios + 60 IT, 0 fallos**. Los nueve del canal público pasan y ningún preexistente quedó en rojo (`RequestControllerIT` 33/33, `AuthControllerIT` 9/9).
+
+  **Tres cosas costaron un ciclo rojo cada una, y las tres están escritas donde se repetirían**:
+
+  1. **El hash sin prefijo de algoritmo NO devuelve 401: lanza `IllegalArgumentException` → 500.** `research.md` D4 lo describía como «defensa en profundidad» suponiendo que la cuenta inactiva cortaba antes; en Spring Security 7 el orden es `performPreCheck → additionalAuthenticationChecks`, o sea que **la contraseña se evalúa ANTES que el estado de la cuenta** (`AbstractUserDetailsAuthenticationProvider:159→191`). Corregido a `{bcrypt}` + contenido no-BCrypt, que sí devuelve `false` limpio. Queda documentado en la propia migración.
+  2. **Una constraint en el `@PathVariable` desviaba el 422 a un 400.** Basta una anotación de validación en cualquier parámetro para que Spring valide el handler por método: el fallo del cuerpo deja de ser `MethodArgumentNotValidException` y pasa a `HandlerMethodValidationException`, que el advice no atiende. Cuerpo observado: `{"detail":"Validation failure","status":400}`. Documentado en el propio controller.
+  3. **Agregar un campo a `RequestServiceImpl` cambió el orden del constructor de Lombok** y rompió la construcción manual de `RequestServiceImplTest`. Sin consecuencia de diseño, pero explica el commit del test.
 
 ### Verificación con mutantes
 
-- [ ] T020 [US1] Atacar T006 y T008 con un mutante cada uno y confirmar que cae el test cuyo nombre lo afirma, y **ningún otro**: (a) poner `PUBLIC_CAPTURE_ENABLED='false'` en adición de créditos debe romper el `201` y no el `404`; (b) usar la cuenta de la Coordinación como actor del tramo inicial debe romper solo `publicSubmissionTimelineNamesThePortalActor`. Registrar el resultado de cada mutante.
+- [x] T020 [US1] Atacar T006 y T008 con un mutante cada uno y confirmar que cae el test cuyo nombre lo afirma, y **ningún otro**: (a) poner `PUBLIC_CAPTURE_ENABLED='false'` en adición de créditos debe romper el `201` y no el `404`; (b) usar la cuenta de la Coordinación como actor del tramo inicial debe romper solo `publicSubmissionTimelineNamesThePortalActor`. Registrar el resultado de cada mutante.
+
+  **Resultado de los dos mutantes, medido el 2026-09-16.** Los dos matan lo que su test afirma y **nada más**, que es la condición para que estos tests valgan:
+
+  | Mutante | Qué cayó | Qué sobrevivió |
+  |---|---|---|
+  | (a) `PUBLIC_CAPTURE_ENABLED='false'` en adición de créditos | Los **cuatro** que esperan `201`, todos con `Status expected:<201> but was:<404>` | ✅ `tradeWithoutPublicCaptureReturnsNotFound` **siguió verde** — su `404` no depende de que el otro trámite esté habilitado, que es justo lo que este mutante venía a descartar |
+  | (b) La cuenta de la Coordinación como actor del tramo inicial | **Uno solo**: `publicSubmissionTimelineNamesThePortalActor`, con `JSON path "$[0].actorEmail" expected:<portal-publico@tramita.local> but was:<coordinacion.cali@uniremington.edu.co>` | Los otros ocho |
+
+  Ambos mutantes revertidos; `./mvnw clean verify` → `BUILD SUCCESS` (57 unitarios + 60 IT) con el código en su estado final.
 
 ---
 

@@ -192,6 +192,18 @@ class AuthControllerIT {
                 .andExpect(status().isUnauthorized());
     }
 
+    // --- (g) la cuenta del portal público no es una cuenta (T009, FR-011, D4) -----------
+
+    @Test
+    @DisplayName("la identidad del portal público no puede iniciar sesión: 401")
+    void portalAccountCannotAuthenticate() throws Exception {
+        // Existe como fila en users solo para firmar el tramo inicial del histórico sin
+        // aflojar el NOT NULL de actor_id (§VII). Que exista no puede volverla usable:
+        // nace inactiva y con un hash que ninguna clave produce.
+        mockMvc.perform(loginRequest("portal-publico@tramita.local", "cualquier clave imaginable"))
+                .andExpect(status().isUnauthorized());
+    }
+
     // --- helpers -----------------------------------------------------------------------
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder rawLoginRequest(

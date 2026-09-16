@@ -95,10 +95,43 @@ debe nombrar un responsable en todo tramo. La fila sintética preserva esa garan
 es **honesta**: el responsable del tramo inicial *es* el portal público. En el histórico se
 lee como tal, que es más informativo que un valor vacío.
 
-**Seguridad**: `AppUserDetailsService` marca como deshabilitado a todo usuario inactivo, de
-modo que esa cuenta no puede iniciar sesión. Se le asigna además un valor de contraseña sin
-prefijo de algoritmo reconocible, que ningún codificador puede verificar — defensa en
-profundidad, no la defensa principal.
+**Seguridad**: la cuenta no puede iniciar sesión por dos vías independientes. La que se
+ejecuta primero es el **hash**: `password_hash` declara el algoritmo con el prefijo
+`{bcrypt}` pero su contenido no es un hash BCrypt válido, de modo que
+`BCryptPasswordEncoder.matches()` no reconoce el patrón, registra una advertencia y devuelve
+`false` — el intento termina en el 401 genérico, indistinguible de cualquier otra credencial
+equivocada (FR-002). La segunda es **`active = FALSE`**: `AppUserDetailsService` mapea a
+deshabilitado todo usuario inactivo, así que aunque existiera una clave que abriera la fila,
+la cuenta seguiría rechazada.
+
+> ⚠️ **RECTIFICADO el 2026-09-16, al implementar la US1.** Hasta esa fecha este párrafo
+> decía: *«`AppUserDetailsService` marca como deshabilitado a todo usuario inactivo, de modo
+> que esa cuenta no puede iniciar sesión. Se le asigna además un valor de contraseña sin
+> prefijo de algoritmo reconocible, que ningún codificador puede verificar — defensa en
+> profundidad, no la defensa principal»*. **Las dos afirmaciones que contiene son falsas, y
+> juntas producían un 500.**
+>
+> **1. El orden de las defensas está invertido.** El texto suponía que la cuenta inactiva
+> cortaba antes de evaluar contraseña alguna. En Spring Security 7 el orden es
+> `performPreCheck → additionalAuthenticationChecks`, es decir que **la contraseña se evalúa
+> ANTES que el estado de la cuenta** (`AbstractUserDetailsAuthenticationProvider:159→191`).
+> Ese orden es deliberado: mitiga el ataque de tiempo que permitiría distinguir una cuenta
+> deshabilitada de una inexistente. La consecuencia acá es que el hash no es la defensa
+> secundaria sino la que de verdad se ejecuta primero.
+>
+> **2. Un hash sin prefijo de algoritmo no «no se puede verificar»: hace explotar el login.**
+> `SecurityConfig` usa `DelegatingPasswordEncoder`, que elige el codificador por ese prefijo;
+> sin él no tiene a quién delegar y lanza `IllegalArgumentException` en lugar de devolver
+> `false`. Medido: la primera versión de `V3.3.0` sembró la fila sin prefijo y
+> `portalAccountCannotAuthenticate` falló con *«Given that there is no default password
+> encoder configured, each password must have a password encoding prefix»* — un **500**, no
+> el 401 esperado. Además de ser un defecto en sí, ese 500 habría hecho **distinguible** esa
+> cuenta de cualquier otra, rompiendo el anti-enumeración que el FR-002 protege.
+>
+> **Cómo se detectó**: por el test `portalAccountCannotAuthenticate` (T009), que se escribió
+> en la fase RED precisamente para afirmar esta garantía. Es el caso de un test que pasa en
+> verde por ausencia —mientras la fila no existía, el email desconocido ya daba 401— y cuyo
+> valor real aparece cuando la fila empieza a existir.
 
 **Alternativas consideradas**:
 - *Permitir `actor_id` nulo*: rechazada. Aflojar una garantía estructural del §VII para
