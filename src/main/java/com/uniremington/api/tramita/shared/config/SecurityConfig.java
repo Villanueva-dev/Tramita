@@ -5,7 +5,9 @@ import com.uniremington.api.tramita.security.AuthFailureHandler;
 import com.uniremington.api.tramita.security.AuthSuccessHandler;
 import com.uniremington.api.tramita.security.JsonAuthenticationConverter;
 import com.uniremington.api.tramita.service.impl.LoginAttemptService;
+import com.uniremington.api.tramita.service.impl.SlidingWindowCounter;
 import com.uniremington.api.tramita.security.LoginThrottlingFilter;
+import com.uniremington.api.tramita.security.PublicSubmissionThrottlingFilter;
 import com.uniremington.api.tramita.shared.exception.ProblemJsonWriter;
 import java.time.Clock;
 import java.util.List;
@@ -44,7 +46,7 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties(CorsProperties.class)
+@EnableConfigurationProperties({CorsProperties.class, PublicCaptureProperties.class})
 public class SecurityConfig {
 
     /**
@@ -94,6 +96,8 @@ public class SecurityConfig {
             AuthSuccessHandler authSuccessHandler,
             AuthFailureHandler authFailureHandler,
             LoginAttemptService loginAttemptService,
+            PublicCaptureProperties publicCaptureProperties,
+            Clock clock,
             JsonMapper jsonMapper,
             ProblemJsonWriter problemJsonWriter) throws Exception {
 
@@ -119,11 +123,9 @@ public class SecurityConfig {
                 // otra: en cuanto un endpoint dependa de una sesión, CSRF vuelve a ser
                 // la defensa que corresponde.
                 //
-                // ⚠️ LO QUE PROTEGE ESTE CANAL —tope de tamaño del cuerpo y límite de
-                // envíos por origen— TODAVÍA NO ESTÁ: llega en la US3 de esta misma
-                // feature (PublicSubmissionThrottlingFilter). Hasta entonces la ruta
-                // está abierta sin cota de tamaño ni de tasa, y eso es deuda conocida,
-                // no un descuido: no debe llegar a producción así.
+                // Lo que sí protege este canal es otra cosa, y ya está puesta más abajo:
+                // PublicSubmissionThrottlingFilter, con el tope de tamaño del cuerpo y el
+                // límite de envíos por origen (US3, research.md D3-bis).
                 .csrf(csrf -> csrf.spa()
                         .ignoringRequestMatchers(PUBLIC_CAPTURE))
                 // materializa el token diferido → la cookie XSRF-TOKEN se emite en las
@@ -153,6 +155,17 @@ public class SecurityConfig {
                 // antes que ambos por orden estándar del chain, preservando el 403
                 .addFilterBefore(
                         new LoginThrottlingFilter(loginAttemptService, jsonMapper, problemJsonWriter),
+                        UsernamePasswordAuthenticationFilter.class)
+                // Protección del canal público (004, US3). Va ANTES de que la petición se
+                // resuelva: el 413 debe cortar sin materializar el envío en memoria, que es
+                // todo el punto del tope. Su contador es propio y no el del login — cuentan
+                // cosas distintas (envíos vs. fallos de autenticación) con umbrales
+                // distintos, y compartirlo mezclaría los dos presupuestos.
+                .addFilterBefore(
+                        new PublicSubmissionThrottlingFilter(
+                                new SlidingWindowCounter(clock, publicCaptureProperties.window(),
+                                        publicCaptureProperties.maxSubmissions()),
+                                publicCaptureProperties, problemJsonWriter),
                         UsernamePasswordAuthenticationFilter.class)
                 .addFilterAt(loginFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

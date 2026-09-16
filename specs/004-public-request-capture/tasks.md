@@ -203,24 +203,48 @@ un cuerpo desmesurado devuelve `413`; otros orígenes siguen funcionando.
 
 ### RED
 
-- [ ] T031 [US3] Crear `src/test/java/com/uniremington/api/tramita/security/PublicSubmissionThrottlingFilterTest.java` siguiendo el patrón de `LoginThrottlingFilterTest` (mocks de servlet de Spring Test, sin contexto de Spring): un cuerpo por encima del tope devuelve `413` y **no llega a la cadena**.
-- [ ] T032 [P] [US3] En `PublicRequestControllerIT`, `oversizedSubmissionIsRejected`: cuerpo mayor al tope → `413` (FR-017).
-- [ ] T033 [P] [US3] En `PublicRequestControllerIT`, `tooManySubmissionsFromSameOriginAreThrottled`: superar el umbral → `429`, con cabecera `Retry-After` y `application/problem+json` (FR-016, FR-018).
-- [ ] T034 [P] [US3] En `src/test/java/com/uniremington/api/tramita/service/impl/SlidingWindowCounterTest.java`, cubrir la expiración con un reloj mutable como el de `LoginAttemptServiceTest`: pasada la ventana, la clave deja de estar bloqueada sin intervención (FR-019).
-- [ ] T035 [US3] Ejecutar `./mvnw clean verify` y dejar constancia del RED.
+- [x] T031 [US3] Crear `src/test/java/com/uniremington/api/tramita/security/PublicSubmissionThrottlingFilterTest.java` siguiendo el patrón de `LoginThrottlingFilterTest` (mocks de servlet de Spring Test, sin contexto de Spring): un cuerpo por encima del tope devuelve `413` y **no llega a la cadena**.
+- [x] T032 [P] [US3] En `PublicRequestControllerIT`, `oversizedSubmissionIsRejected`: cuerpo mayor al tope → `413` (FR-017).
+- [x] T033 [P] [US3] En `PublicRequestControllerIT`, `tooManySubmissionsFromSameOriginAreThrottled`: superar el umbral → `429`, con cabecera `Retry-After` y `application/problem+json` (FR-016, FR-018).
+- [x] T034 [P] [US3] En `src/test/java/com/uniremington/api/tramita/service/impl/SlidingWindowCounterTest.java`, cubrir la expiración con un reloj mutable como el de `LoginAttemptServiceTest`: pasada la ventana, la clave deja de estar bloqueada sin intervención (FR-019).
+- [x] T035 [US3] Ejecutar `./mvnw clean verify` y dejar constancia del RED.
+
+  **RED el 2026-09-16** — falla la **compilación de los tests**: `cannot find symbol` para `SlidingWindowCounter`, `PublicCaptureProperties` y `PublicSubmissionThrottlingFilter`. Es el RED legítimo de una fase que estrena clases: los tests nombran lo que todavía no existe.
 
 ### GREEN
 
-- [ ] T036 [US3] Crear `src/main/java/com/uniremington/api/tramita/service/impl/SlidingWindowCounter.java` con la mecánica de ventana deslizante extraída de `LoginAttemptService` (registro, consulta de bloqueo, segundos restantes, purga), con nombres neutros.
-- [ ] T037 [US3] Hacer que `src/main/java/com/uniremington/api/tramita/service/impl/LoginAttemptService.java` delegue en el contador, **conservando su API pública intacta**. Los 14 puntos de uso en 5 archivos no se tocan; las 3 suites que lo cubren deben seguir verdes sin editarlas.
-- [ ] T037a [US3] Crear `src/main/java/com/uniremington/api/tramita/shared/config/PublicCaptureProperties.java`, record `@ConfigurationProperties(prefix = "app.public-capture")` con `maxSubmissions`, `window` y `maxBodySize`, validando en el constructor compacto como hace `CorsProperties` (fail-fast al arranque). Declarar los valores en `application.yml`: **20 envíos / 15m / 256KB**, con el porqué de que sean holgados (research.md **D3-bis**). Registrarlo en el `@EnableConfigurationProperties` de `SecurityConfig`.
-- [ ] T038 [US3] Crear `src/main/java/com/uniremington/api/tramita/security/PublicSubmissionThrottlingFilter.java` calcado de `LoginThrottlingFilter`: `OncePerRequestFilter`, matcher por método y ruta, tope leyendo un byte de más, `429` con `Retry-After` y `413` en `problem+json`. Los tres números salen de `PublicCaptureProperties`, **nunca de constantes** (D3-bis). **Sin estereotipo** (regla 6). Debe **registrar en WARN cada bloqueo con la IP que usó como clave**: es el único diagnóstico que delata en producción que falta `server.forward-headers-strategy` y que se está contando contra la IP del proxy (D3-bis, «Precondición de despliegue»).
-- [ ] T039 [US3] Registrarlo en `SecurityConfig` con `new` y `addFilterBefore`, antes del punto donde se resuelve la petición pública.
-- [ ] T040 [US3] Ejecutar `./mvnw clean verify` hasta que T031–T034 pasen, y confirmar que las suites de throttling del login siguen verdes **sin haberlas editado**.
+- [x] T036 [US3] Crear `src/main/java/com/uniremington/api/tramita/service/impl/SlidingWindowCounter.java` con la mecánica de ventana deslizante extraída de `LoginAttemptService` (registro, consulta de bloqueo, segundos restantes, purga), con nombres neutros.
+- [x] T037 [US3] Hacer que `src/main/java/com/uniremington/api/tramita/service/impl/LoginAttemptService.java` delegue en el contador, **conservando su API pública intacta**. Los 14 puntos de uso en 5 archivos no se tocan; las 3 suites que lo cubren deben seguir verdes sin editarlas.
+- [x] T037a [US3] Crear `src/main/java/com/uniremington/api/tramita/shared/config/PublicCaptureProperties.java`, record `@ConfigurationProperties(prefix = "app.public-capture")` con `maxSubmissions`, `window` y `maxBodySize`, validando en el constructor compacto como hace `CorsProperties` (fail-fast al arranque). Declarar los valores en `application.yml`: **20 envíos / 15m / 256KB**, con el porqué de que sean holgados (research.md **D3-bis**). Registrarlo en el `@EnableConfigurationProperties` de `SecurityConfig`.
+- [x] T038 [US3] Crear `src/main/java/com/uniremington/api/tramita/security/PublicSubmissionThrottlingFilter.java` calcado de `LoginThrottlingFilter`: `OncePerRequestFilter`, matcher por método y ruta, tope leyendo un byte de más, `429` con `Retry-After` y `413` en `problem+json`. Los tres números salen de `PublicCaptureProperties`, **nunca de constantes** (D3-bis). **Sin estereotipo** (regla 6). Debe **registrar en WARN cada bloqueo con la IP que usó como clave**: es el único diagnóstico que delata en producción que falta `server.forward-headers-strategy` y que se está contando contra la IP del proxy (D3-bis, «Precondición de despliegue»).
+- [x] T039 [US3] Registrarlo en `SecurityConfig` con `new` y `addFilterBefore`, antes del punto donde se resuelve la petición pública.
+- [x] T040 [US3] Ejecutar `./mvnw clean verify` hasta que T031–T034 pasen, y confirmar que las suites de throttling del login siguen verdes **sin haberlas editado**.
+
+  **GREEN el 2026-09-16** — `BUILD SUCCESS`: **73 unitarios + 66 IT**, 0 fallos. `LoginAttemptServiceTest` (10) y `LoginThrottlingFilterTest` (4) **siguen verdes sin una sola edición**, que es la prueba de que la extracción no cambió comportamiento.
+
+  🔑 **EL FILTRO NUEVO DESTAPÓ UN DEFECTO EN LOS TESTS DE LA US1.** Al conectarlo, tres tests del canal público empezaron a devolver `429`: todos usaban el `127.0.0.1` que MockMvc pone por omisión, o sea **compartían la clave del contador**, y `submissionWithAnyBlankMandatoryFieldIsRejected` —que hace 11 campos × 2 variantes = **22 envíos**, más que los 20 de la ventana— agotaba el cupo para los demás. Es exactamente la regla 4 de esta feature, que se había aplicado a los tests de la US3 pero no a los de la US1, escritos cuando el filtro no existía.
+
+  **Corrección**: el helper `publicSubmission` ahora **exige el origen en su firma**, sin valor por omisión, y cada escenario nombra el suyo dentro del rango `203.0.113.x` que la RFC 5737 reserva para documentación. El test de los once campos usa **un origen por caso**, porque un solo origen no alcanza para 22 envíos.
+
+  **Se descartó subir el umbral para que el test entrara**: el número está decidido y justificado en D3-bis, y adaptarlo a la comodidad de un test sería invertir la relación entre la prueba y lo probado.
 
 ### Verificación con mutantes
 
-- [ ] T041 [US3] Atacar con dos mutantes: (a) anotar el filtro nuevo con `@Component` — debe hacerse evidente el doble conteo (el `429` llega a la mitad de los envíos configurados); (b) subir el tope a un valor enorme debe romper solo el test del `413`. Registrar ambos resultados.
+- [x] T041 [US3] Atacar con dos mutantes: (a) anotar el filtro nuevo con `@Component` — debe hacerse evidente el doble conteo (el `429` llega a la mitad de los envíos configurados); (b) subir el tope a un valor enorme debe romper solo el test del `413`. Registrar ambos resultados.
+
+  **Resultado de los mutantes, medido el 2026-09-16. Uno de los dos contradijo la predicción de esta tarea.**
+
+  **(a) Doble conteo.** La tarea decía «anotar el filtro nuevo con `@Component`». Se hizo, y **NO produce doble conteo: el contexto de Spring no arranca**, con `NoSuchBeanDefinitionException` sobre `SlidingWindowCounter`, y los 12 tests de la clase mueren en error. Es un resultado **mejor** que el previsto: a diferencia de `LoginThrottlingFilter`, este filtro es inmune al descuido porque sus dependencias no son beans, así que el fallo es ruidoso e inmediato en vez de silencioso.
+
+  Para verificar igualmente la propiedad que la tarea perseguía, se construyó el mutante equivalente: **dos instancias con nombre de filtro propio que comparten el contador**. Resultado: cae **un solo test**, `tooManySubmissionsFromSameOriginAreThrottled`, y su mensaje nombra el número exacto — *«el envío 11 está dentro del límite»*, es decir **el 429 llegó a la mitad de los 20 configurados**, tal como la tarea anticipaba.
+
+  ⚠️ **Dos intentos previos de este mutante SOBREVIVIERON, y la razón importa**: (1) registrar dos veces la *misma instancia* no hace nada, porque `OncePerRequestFilter` deduplica por un atributo del request derivado del nombre del filtro; (2) dos instancias con nombres distintos pero **contador propio cada una** tampoco, porque ningún contador ve el envío dos veces. **Un mutante que no ataca lo que dice atacar no prueba nada** — la misma lección que un test con la aserción incompleta.
+
+  **(b) Tope de tamaño.** Subir `app.public-capture.max-body-size` de `256KB` a `500MB` hace caer **exactamente uno**, `oversizedSubmissionIsRejected`, con `Status expected:<413> but was:<201>`.
+
+  **(c) Mutante no planeado, y salió gratis.** Al restaurar mal `SecurityConfig` durante el trabajo, el filtro quedó sin registrar. Los tests lo detectaron de inmediato: `413 → 201` y `429 → 422`. Vale como evidencia de que **la suite nota la ausencia del filtro**, no solo su mala configuración.
+
+  Todos los mutantes revertidos; `./mvnw clean verify` → `BUILD SUCCESS` (73 + 66).
 
 ---
 
