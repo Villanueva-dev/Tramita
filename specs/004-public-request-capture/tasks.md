@@ -189,6 +189,13 @@ más nueva a la más vieja, y ningún objeto del arreglo tiene `studentDocument`
 **Objetivo**: limitar envíos por origen y tamaño del cuerpo, con error tipado y bloqueo que
 expira solo.
 
+⚠️ **Los números ya están decididos y NO se re-deliberan acá**: `20 envíos por IP cada 15
+minutos` y `256 KB`, en `application.yml` bajo `app.public-capture` — nunca en
+`workflow_parameter`, porque el rate limit es propiedad del canal HTTP y no del trámite. El
+razonamiento completo, la calibración contra las 30-40 solicitudes por semestre y la
+precondición de despliegue detrás de proxy están en **research.md D3-bis**. Leerlo antes de
+escribir la primera línea de esta fase.
+
 **Test independiente**: superar el umbral desde un origen devuelve `429` con `Retry-After`;
 un cuerpo desmesurado devuelve `413`; otros orígenes siguen funcionando.
 
@@ -206,7 +213,8 @@ un cuerpo desmesurado devuelve `413`; otros orígenes siguen funcionando.
 
 - [ ] T036 [US3] Crear `src/main/java/com/uniremington/api/tramita/service/impl/SlidingWindowCounter.java` con la mecánica de ventana deslizante extraída de `LoginAttemptService` (registro, consulta de bloqueo, segundos restantes, purga), con nombres neutros.
 - [ ] T037 [US3] Hacer que `src/main/java/com/uniremington/api/tramita/service/impl/LoginAttemptService.java` delegue en el contador, **conservando su API pública intacta**. Los 14 puntos de uso en 5 archivos no se tocan; las 3 suites que lo cubren deben seguir verdes sin editarlas.
-- [ ] T038 [US3] Crear `src/main/java/com/uniremington/api/tramita/security/PublicSubmissionThrottlingFilter.java` calcado de `LoginThrottlingFilter`: `OncePerRequestFilter`, matcher por método y ruta, tope de 256 KB leyendo un byte de más, `429` con `Retry-After` y `413` en `problem+json`. **Sin estereotipo** (regla 6).
+- [ ] T037a [US3] Crear `src/main/java/com/uniremington/api/tramita/shared/config/PublicCaptureProperties.java`, record `@ConfigurationProperties(prefix = "app.public-capture")` con `maxSubmissions`, `window` y `maxBodySize`, validando en el constructor compacto como hace `CorsProperties` (fail-fast al arranque). Declarar los valores en `application.yml`: **20 envíos / 15m / 256KB**, con el porqué de que sean holgados (research.md **D3-bis**). Registrarlo en el `@EnableConfigurationProperties` de `SecurityConfig`.
+- [ ] T038 [US3] Crear `src/main/java/com/uniremington/api/tramita/security/PublicSubmissionThrottlingFilter.java` calcado de `LoginThrottlingFilter`: `OncePerRequestFilter`, matcher por método y ruta, tope leyendo un byte de más, `429` con `Retry-After` y `413` en `problem+json`. Los tres números salen de `PublicCaptureProperties`, **nunca de constantes** (D3-bis). **Sin estereotipo** (regla 6). Debe **registrar en WARN cada bloqueo con la IP que usó como clave**: es el único diagnóstico que delata en producción que falta `server.forward-headers-strategy` y que se está contando contra la IP del proxy (D3-bis, «Precondición de despliegue»).
 - [ ] T039 [US3] Registrarlo en `SecurityConfig` con `new` y `addFilterBefore`, antes del punto donde se resuelve la petición pública.
 - [ ] T040 [US3] Ejecutar `./mvnw clean verify` hasta que T031–T034 pasen, y confirmar que las suites de throttling del login siguen verdes **sin haberlas editado**.
 

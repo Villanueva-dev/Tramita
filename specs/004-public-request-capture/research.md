@@ -67,6 +67,10 @@ la defensa que sí corresponde a esta amenaza.
 clase propia, y el filtro del canal público la usa con la dirección de origen como clave.
 `LoginAttemptService` conserva su API pública intacta y delega.
 
+> **El umbral, la ventana y dónde se configuran los fija D3-bis**, más abajo. Esta decisión
+> resolvió el mecanismo y la clave, pero dejó sin decidir los números — y con ellos, el modo
+> de fallo por IP compartida que D3-bis documenta.
+
 **Rationale**: la lógica ya existe, probada y con reloj inyectable para tests deterministas.
 Duplicarla sería violar DRY; reusarla tal cual obligaría a llamar `recordFailure` para
 contar envíos exitosos, y un método cuyo nombre miente es peor que el duplicado. Extraer la
@@ -82,6 +86,114 @@ por 3 suites de test. Ninguna se toca: solo cambia el interior de la clase.
   beneficio adicional sobre la extracción.
 - *Librería de rate limiting*: rechazada por el §I y por la restricción de no agregar
   dependencias para un problema que 40 líneas ya resuelven.
+
+---
+
+## D3-bis — El umbral vive en `application.yml`, y es holgado a propósito
+
+**Decidido el 2026-09-16**, al detectar que D3 fijaba la clave del contador («la dirección de
+origen») pero no el umbral, la ventana ni el lugar donde se configuran.
+
+**Decisión**: `20 envíos por IP cada 15 minutos`, declarados en `application.yml` bajo
+`app.public-capture`, leídos por un record `@ConfigurationProperties` con validación
+fail-fast, igual que `CorsProperties`.
+
+```yaml
+app:
+  public-capture:
+    max-submissions: 20
+    window: 15m
+    max-body-size: 256KB
+```
+
+### Por qué el umbral es alto y no bajo
+
+El objetivo declarado de este límite **no es la confidencialidad: es la disponibilidad**. El
+canal no guarda nada que valga la pena robar, y si el enlace deja de responder, el trámite no
+arranca y el resto del flujo no ocurre. Bajo ese objetivo, **el propio rate limit es la
+principal amenaza**: un falso positivo produce exactamente el fallo que se quiere evitar, y a
+diferencia de un ataque, es un fallo que sí va a ocurrir.
+
+El argumento que decide el número: **un script de abuso hace más de 100 peticiones por
+segundo, de modo que un límite de 5 y uno de 50 lo cortan igual, en el primer segundo**. Entre
+esos dos valores la protección es idéntica y lo único que cambia es la probabilidad de
+bloquear a un estudiante legítimo. Por eso no se optimiza hacia abajo.
+
+Calibración contra el volumen de la fuente —**30 a 40 solicitudes por semestre**, repartidas
+en los primeros meses (`material-coord/2026-06-04-entrevista3-sintesis-analitica.md:213`)—:
+
+| Medida | Valor |
+|---|---|
+| Solicitudes por día hábil, toda la sede | ≈ 0,6 |
+| Con reintentos (×5, pesimista) | ≈ 3 envíos/día |
+| Umbral fijado | 20 / 15 min = **80/hora** |
+
+**Por qué la ventana es de 15 minutos y no de una hora**: la ventana no gradúa cuán estricto
+es el límite, gradúa **cuánto dura el bloqueo cuando el límite se equivoca**. Con el objetivo
+puesto en la disponibilidad, conviene ventana corta con umbral alto: el peor falso positivo
+cuesta quince minutos, no sesenta. Además reusa la `WINDOW` que `LoginAttemptService` ya
+define, de modo que el sistema mantiene un concepto de ventana y no dos.
+
+### Por qué en `application.yml` y NO en `workflow_parameter`
+
+Se evaluó ponerlo en `workflow_parameter`, por coherencia con `MAX_CREDITS` y
+`PUBLIC_CAPTURE_ENABLED`. **Rechazado: mezcla capas.** El tope de créditos es regla de
+negocio —cambia por trámite y por facultad, y esa variabilidad es justamente la tesis del
+motor configurable (§VI)—. «Cuántas peticiones por hora tolera un endpoint» es una propiedad
+del **canal HTTP**, no del trámite: no cambia entre adición de créditos y novedad de notas, y
+declararla por trámite obligaría a replicarla en cada definición nueva sin que ninguna la
+necesite distinta. Contaminaría el vocabulario de negocio con una tuerca de infraestructura.
+
+**Costo aceptado**: recalibrar el umbral exige redesplegar, no un `UPDATE`. Es el precio de
+mantener la separación, y es bajo: es un valor que se toca una vez tras el piloto, no una
+regla que la Coordinación administre.
+
+### ⚠️ Precondición de despliegue — el modo de fallo que este diseño introduce
+
+`LoginThrottlingFilter` usa `request.getRemoteAddr()` directo, documentando que asume **sin
+proxy delante**. Al momento de escribir esto no hay proveedor de despliegue elegido, pero la
+intención es desplegar, y prácticamente cualquier despliegue real pone un proxy delante
+(Cloudflare, nginx, el del PaaS).
+
+**Cuando eso ocurra, `getRemoteAddr()` dejará de devolver la IP del estudiante y devolverá la
+del proxy.** Con la clave solo-IP de D3, eso significa **una única clave para todo el mundo**:
+el envío número 21 de cualquier persona bloquearía el canal para la sede entera. Es
+precisamente el fallo de disponibilidad que este límite existe para prevenir, causado por el
+límite mismo.
+
+La corrección es configuración, no código
+([Spring Boot — Running Behind a Front-end Proxy Server](https://docs.spring.io/spring-boot/how-to/webserver.html#howto.webserver.use-behind-a-proxy-server)):
+
+```yaml
+server:
+  forward-headers-strategy: NATIVE
+  tomcat:
+    remoteip:
+      internal-proxies: "<regex de la IP del proxy>"
+```
+
+⛔ **`internal-proxies` NUNCA vacío**: los propios docs advierten que dejarlo vacío confía en
+cualquier proxy, y entonces el cliente puede inventarse el `X-Forwarded-For` y evadir el
+límite a voluntad — *«Setting internal-proxies to empty trusts all proxies, but should not be
+done in production»*.
+
+**Diagnóstico exigido al filtro**: debe registrar en WARN cada bloqueo **con la IP que usó
+como clave**. Si en producción aparece siempre la misma IP, o una del rango privado
+(`10.x`, `172.16-31.x`, `192.168.x`), ese es el síntoma inequívoco de que falta la
+configuración de arriba. Sin ese log el defecto se manifiesta como «a los estudiantes les sale
+un error raro» y es muy caro de rastrear.
+
+### Qué se descartó
+
+- *Agregar el documento del estudiante a la clave* (análogo al `email + IP` del login):
+  protegería al compañero que comparte IP, pero con 80 envíos/hora ese caso es tan improbable
+  que no justifica leer y parsear el cuerpo antes de validarlo.
+- *CAPTCHA*: agrega fricción a un estudiante que ya está haciendo un trámite a contrarreloj y
+  mete una dependencia de un servicio externo. Contra bots de formulario, un honeypot y un
+  tiempo mínimo de diligenciado logran casi lo mismo sin ninguna de las dos desventajas.
+- *Confiar únicamente en el rate limit del proveedor*: es donde este control pertenece de
+  verdad, y conviene activarlo, pero no se puede depender de él mientras el proveedor no esté
+  elegido. El filtro es la red de seguridad, no la defensa principal.
 
 ---
 
