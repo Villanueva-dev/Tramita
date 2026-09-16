@@ -5,7 +5,7 @@ import com.uniremington.api.tramita.security.AuthFailureHandler;
 import com.uniremington.api.tramita.security.AuthSuccessHandler;
 import com.uniremington.api.tramita.security.JsonAuthenticationConverter;
 import com.uniremington.api.tramita.service.impl.LoginAttemptService;
-import com.uniremington.api.tramita.service.impl.SlidingWindowCounter;
+import com.uniremington.api.tramita.service.impl.PublicSubmissionCounter;
 import com.uniremington.api.tramita.security.LoginThrottlingFilter;
 import com.uniremington.api.tramita.security.PublicSubmissionThrottlingFilter;
 import com.uniremington.api.tramita.shared.exception.ProblemJsonWriter;
@@ -97,7 +97,7 @@ public class SecurityConfig {
             AuthFailureHandler authFailureHandler,
             LoginAttemptService loginAttemptService,
             PublicCaptureProperties publicCaptureProperties,
-            Clock clock,
+            PublicSubmissionCounter publicSubmissionCounter,
             JsonMapper jsonMapper,
             ProblemJsonWriter problemJsonWriter) throws Exception {
 
@@ -162,9 +162,7 @@ public class SecurityConfig {
                 // cosas distintas (envíos vs. fallos de autenticación) con umbrales
                 // distintos, y compartirlo mezclaría los dos presupuestos.
                 .addFilterBefore(
-                        new PublicSubmissionThrottlingFilter(
-                                new SlidingWindowCounter(clock, publicCaptureProperties.window(),
-                                        publicCaptureProperties.maxSubmissions()),
+                        new PublicSubmissionThrottlingFilter(publicSubmissionCounter,
                                 publicCaptureProperties, problemJsonWriter),
                         UsernamePasswordAuthenticationFilter.class)
                 .addFilterAt(loginFilter, UsernamePasswordAuthenticationFilter.class);

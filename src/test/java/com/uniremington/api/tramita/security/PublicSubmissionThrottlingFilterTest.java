@@ -2,7 +2,7 @@ package com.uniremington.api.tramita.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.uniremington.api.tramita.service.impl.SlidingWindowCounter;
+import com.uniremington.api.tramita.service.impl.PublicSubmissionCounter;
 import com.uniremington.api.tramita.shared.config.PublicCaptureProperties;
 import com.uniremington.api.tramita.shared.exception.ProblemJsonWriter;
 import java.nio.charset.StandardCharsets;
@@ -34,8 +34,8 @@ class PublicSubmissionThrottlingFilterTest {
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
     private final PublicCaptureProperties properties = new PublicCaptureProperties(
             MAX_SUBMISSIONS, Duration.ofMinutes(15), MAX_BODY);
-    private final SlidingWindowCounter counter = new SlidingWindowCounter(
-            Clock.systemUTC(), properties.window(), properties.maxSubmissions());
+    private final PublicSubmissionCounter counter =
+            new PublicSubmissionCounter(Clock.systemUTC(), properties);
     private final PublicSubmissionThrottlingFilter filter =
             new PublicSubmissionThrottlingFilter(counter, properties, new ProblemJsonWriter(jsonMapper));
 

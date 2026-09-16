@@ -1,6 +1,6 @@
 package com.uniremington.api.tramita.security;
 
-import com.uniremington.api.tramita.service.impl.SlidingWindowCounter;
+import com.uniremington.api.tramita.service.impl.PublicSubmissionCounter;
 import com.uniremington.api.tramita.shared.config.PublicCaptureProperties;
 import com.uniremington.api.tramita.shared.exception.ProblemJsonWriter;
 import jakarta.servlet.FilterChain;
@@ -49,11 +49,11 @@ public class PublicSubmissionThrottlingFilter extends OncePerRequestFilter {
     private static final RequestMatcher PUBLIC_CAPTURE_MATCHER = PathPatternRequestMatcher
             .withDefaults().matcher(HttpMethod.POST, "/api/public/requests/*");
 
-    private final SlidingWindowCounter counter;
+    private final PublicSubmissionCounter counter;
     private final PublicCaptureProperties properties;
     private final ProblemJsonWriter problemJsonWriter;
 
-    public PublicSubmissionThrottlingFilter(SlidingWindowCounter counter,
+    public PublicSubmissionThrottlingFilter(PublicSubmissionCounter counter,
             PublicCaptureProperties properties, ProblemJsonWriter problemJsonWriter) {
         this.counter = counter;
         this.properties = properties;
@@ -80,7 +80,7 @@ public class PublicSubmissionThrottlingFilter extends OncePerRequestFilter {
 
         String origin = request.getRemoteAddr();
         if (counter.isAtLimit(origin)) {
-            long retryAfter = counter.secondsUntilBelowLimit(origin);
+            long retryAfter = counter.retryAfterSeconds(origin);
             // ⚠️ ESTE LOG ES EL ÚNICO DIAGNÓSTICO del modo de fallo que D3-bis documenta:
             // si en producción aparece siempre el mismo origen, o uno del rango privado
             // (10.x, 172.16-31.x, 192.168.x), se está contando contra la IP del proxy y no
