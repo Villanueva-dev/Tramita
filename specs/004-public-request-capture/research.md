@@ -210,13 +210,57 @@ interfaz si el piloto muestra que molesta; no requiere cambiar el servidor.
 
 ---
 
+## D10 — Los once campos del formato se exigen y se conservan
+
+**Decisión** (2026-09-16): el canal público exige los once campos del formato —nombre,
+documento, correo, contacto, programa, sede, facultad, modalidad, semestre, compromisos y
+firma— y los persiste. **Ningún campo del formulario puede quedar vacío.**
+
+**Rationale**: la alternativa que se venía siguiendo era pedir algunos campos y descartarlos
+—el formulario los mostraba «por fidelidad al papel» y el backend los ignoraba—. Esa es la
+peor de las tres salidas posibles: le cuesta trabajo a quien diligencia, en un celular, y
+además **exige un dato personal sin conservarlo**, lo que contraviene §III con más fuerza
+que persistirlo, porque lo vuelve obligatorio sin finalidad.
+
+El consumidor que justifica conservarlos es **la generación del PDF formal del trámite**
+(SP3, `Villanueva-dev/Tramita#10`): un documento que no reproduce el formato oficial no
+sirve para lo que el trámite necesita, y el DO-FR-100 pide esos campos en su tabla de datos
+del solicitante. `faculty` tiene además un consumidor dentro del propio motor, cuyo flujo
+pasa por un estado `EN_FACULTAD`.
+
+**Consecuencia**: `V3.3.0` pasa de dos columnas a seis. Las seis quedan **nullable** — la
+obligatoriedad es del contrato de entrada, no del modelo, porque la migración corre sobre
+filas existentes que no tienen estos datos y el formulario interno sigue aceptando el cuerpo
+mínimo de la `002`.
+
+**Alternativas consideradas**:
+- *Exigirlos en pantalla y seguir descartándolos en el servidor*: rechazada por lo anterior.
+  Es la que menos código cuesta y la que peor se defiende.
+- *Quitarlos del formulario*: rechazada por el responsable del proyecto. Habría dejado el
+  PDF del SP3 sin datos para reproducir el formato.
+- *Dejar sede, ciudad y fecha como constantes del sistema*: **aceptada solo para ciudad y
+  fecha**, que el servidor conoce. La sede se conserva como dato declarado porque el alcance
+  del MVP —Sede Cali— es una restricción del proyecto, no del modelo.
+
+> ⚠️ **Provisional en un punto**: la frase citada de `Tramita#10` se escribió analizando el
+> formato de **novedad de notas**, no el DO-FR-100. El principio aplica a ambos, pero
+> conviene confirmarlo contra la plantilla v2024 antes de sostenerlo como argumento único
+> (§IV: la normativa institucional se verifica contra el documento obtenido de la fuente).
+
+---
+
 ## Preguntas abiertas que esta feature NO resuelve
 
-Ninguna bloquea la implementación; las tres se arrastran de fases anteriores y afectan lo
-que el sistema puede **afirmar**, no lo que hace.
+Ninguna bloquea la implementación; se arrastran de fases anteriores y afectan lo que el
+sistema puede **afirmar**, no lo que hace.
 
 | Pregunta | Estado | Efecto |
 |---|---|---|
 | Validez legal de la firma trazada | Nunca formulada a la Coordinación (P29 de la guía) | El sistema guarda el trazo y no afirma nada sobre su valor (FR-021) |
 | ¿Es dato biométrico una firma digitalizada bajo la Ley 1581? | Sin verificación documental | Cambiaría el régimen de tratamiento del dato, no su almacenamiento |
-| ¿Los 13 motivos del formato siguen vigentes? | Pendiente con la Coordinación | Afecta al formulario del frontend, no al backend |
+| ¿El DO-FR-100 exige los mismos campos que el formato de novedad de notas? | Sin verificar contra la plantilla v2024 | Sostiene el argumento de D10; si no los pidiera, habría que buscarle otro consumidor a esos cuatro campos |
+
+> **Resuelta el 2026-09-16 y retirada de esta tabla**: *«¿Los 13 motivos del formato siguen
+> vigentes?»*. La Coordinación confirmó que esas casillas pertenecen a **otros tipos de
+> solicitud** del formato, no a la adición de créditos, y que casi no se diligencian. El
+> motivo se captura como texto libre en `reason`; el formulario no las muestra.

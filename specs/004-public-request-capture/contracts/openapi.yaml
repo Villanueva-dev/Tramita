@@ -12,8 +12,10 @@ info:
         número de documento (FR-014).
 
     Ningún endpoint existente cambia. `POST /requests` conserva su contrato, ampliado por
-    la 003, y suma dos campos opcionales heredados del modelo (`studentEmail`,
-    `signature`) que esta feature agrega a la entidad.
+    la 003, y suma seis campos opcionales heredados del modelo (`studentEmail`,
+    `signature`, `studentPhone`, `campus`, `faculty`, `modality`) que esta feature agrega
+    a la entidad. Que sean opcionales ahí y obligatorios en el canal público es
+    deliberado: el formulario interno sigue aceptando el cuerpo mínimo de la 002.
 
     Lo no listado aquí se rige por `specs/003-request-form-rules/contracts/openapi.yaml` y,
     en lo que aquella no altera, por el de la 002.
@@ -84,8 +86,8 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
         '422':
           description: |
-            El envío es sintácticamente válido pero incumple el contrato de captura:
-            falta la firma, falta el correo, faltan los compromisos, o se incumple alguna
+            El envío es sintácticamente válido pero incumple el contrato de captura: falta
+            —o llega vacío— alguno de los once campos obligatorios, o se incumple alguna
             regla de negocio del trámite (las mismas que aplica el registro autenticado).
           content:
             application/problem+json:
@@ -157,10 +159,18 @@ components:
         Formato DO-FR-100 diligenciado por el estudiante. NO lleva `definitionCode`: el
         trámite lo determina la ruta (FR-002a).
 
-        Los campos del formato que el sistema no persiste —ciudad, fecha, sede, facultad,
-        modalidad, teléfono de contacto y los motivos— NO se declaran aquí. El formulario
-        los muestra por fidelidad al papel y no los envía; si llegaran, se ignoran.
-      required: [studentName, studentDocument, studentEmail, reason, signature]
+        **Los once campos declarados como `required` son obligatorios y ninguno admite
+        quedar vacío** (FR-003). Un valor compuesto solo por espacios no cuenta como
+        diligenciado.
+
+        Lo único del formato que NO se declara aquí es lo que el sistema ya conoce o no le
+        corresponde al estudiante: la ciudad y la fecha las pone el servidor, y los trece
+        motivos pertenecen a otros tipos de solicitud del formato —no a la adición de
+        créditos—, así que el motivo viaja como texto libre en `reason`. Si llegaran, se
+        ignoran.
+      required:
+        [studentName, studentDocument, studentEmail, studentPhone, program, campus,
+         faculty, modality, semester, reason, signature]
       properties:
         studentName:
           type: string
@@ -172,13 +182,34 @@ components:
           type: string
           format: email
           maxLength: 255
-          description: Canal por el que la Coordinación responde. Obligatorio en este canal.
+          description: Canal por el que la Coordinación responde.
+        studentPhone:
+          type: string
+          maxLength: 30
+          description: |
+            Número de contacto del formato. Se conserva porque el PDF formal del trámite
+            (SP3) debe reproducir el formato oficial; ver la rectificación de FR-005a.
         studentCode:
           type: string
           maxLength: 30
+          description: Único campo opcional del cuerpo — el formato no siempre lo exige.
         program:
           type: string
           maxLength: 120
+        campus:
+          type: string
+          maxLength: 120
+          description: Sede declarada en el formato.
+        faculty:
+          type: string
+          maxLength: 120
+          description: |
+            Facultad declarada en el formato. Tiene consumidor dentro del propio motor: el
+            flujo del trámite pasa por un estado `EN_FACULTAD`.
+        modality:
+          type: string
+          maxLength: 50
+          description: Modalidad declarada en el formato.
         semester:
           type: string
           maxLength: 50

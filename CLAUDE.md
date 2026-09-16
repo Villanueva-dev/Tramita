@@ -92,15 +92,21 @@ Al citar literatura o normativa institucional, **incluir la referencia exacta** 
 <!-- SPECKIT START -->
 Feature **activa**: `004-public-request-capture` — captura pública del formato DO-FR-100: el
 estudiante diligencia y firma desde un enlace sin sesión, y la Coordinación ve lo que llegó en una
-vista de recientes. Fase actual: **plan cerrado**, pendiente `/speckit-tasks`. Plan e insumos:
-`specs/004-public-request-capture/plan.md` (+ `research.md` con D1–D9, `data-model.md`,
-`contracts/openapi.yaml`, `quickstart.md`).
+vista de recientes. Fase actual: **tasks cerradas (46), pendiente `/speckit-implement`** — nada
+implementado todavía. Plan e insumos: `specs/004-public-request-capture/plan.md` (+ `research.md`
+con D1–D10, `data-model.md`, `contracts/openapi.yaml`, `tasks.md`, `quickstart.md`).
 Diseño: el trámite se habilita por configuración (`PUBLIC_CAPTURE_ENABLED` en `workflow_parameter`)
 y viaja en la RUTA, nunca en el cuerpo; CSRF **desactivado solo en esa ruta** (sin sesión no hay
 identidad que suplantar) y el canal se protege con límite de envíos por origen y tope de 256 KB;
 actor del tramo inicial = fila sintética `portal-publico@tramita.local` con `active = false`, para
 no aflojar el `NOT NULL` de `actor_id` (§VII); vista de recientes con DTO propio **sin cédula**.
-El recibo NO devuelve `id` ni estado. Migración `V3.3.0`. Sin dependencias nuevas.
+El recibo NO devuelve `id` ni estado. Sin dependencias nuevas.
+**Migración `V3.3.0`: SEIS columnas** (`student_email`, `student_signature`, `student_phone`,
+`campus`, `faculty`, `modality`), todas nullable. **Los once campos del formato son obligatorios
+en el canal público y ninguno admite quedar vacío** (FR-003, D10) — la obligatoriedad es del
+contrato de entrada, no del modelo: las filas existentes no tienen esos datos. 🔑 **D10 INVIRTIÓ a
+FR-005a**, que hasta el 2026-09-16 prohibía persistir el teléfono «por no tener consumidor»; el
+consumidor que aquel análisis no miró es el PDF formal del SP3 (`Tramita#10`).
 ⚠️ Dos riesgos **aceptados y declarados** en el spec: el canal anónimo admite suplantación (lo
 contiene la revisión de la Coordinación) y los envíos duplicados se registran por separado.
 Última feature entregada: `003-request-form-rules` (SP2 — formularios validados + reglas de negocio

@@ -43,7 +43,7 @@ habilitación por configuración de qué trámites admiten captura pública.
 
 | Principio | Estado | Evaluación |
 |---|---|---|
-| **§I** Simplicidad (KISS + YAGNI) | ✅ Pasa | Se eliminó la persistencia del teléfono por no tener consumidor documentado (FR-005a), aplicando el mismo criterio con que `V2.3.0` excluyó el correo. El throttling no inventa maquinaria: extrae la ventana deslizante que ya existe. Sin dependencias nuevas. |
+| **§I** Simplicidad (KISS + YAGNI) | ✅ Pasa | No se agregan tablas ni entidades: seis columnas, una fila de configuración y una de identidad. El throttling no inventa maquinaria: extrae la ventana deslizante que ya existe. Sin dependencias nuevas. **Revisado el 2026-09-16**: el gate original acreditaba aquí haber *eliminado* la persistencia del teléfono; ese punto se invirtió al aparecer su consumidor (D10) y ya no cuenta como simplificación — lo que cuenta es que el modelo no creció en entidades. |
 | **§II** Arquitectura por capas | ✅ Pasa | Todo lo nuevo cae en las capas existentes (`controller/`, `dto/`, `service/` + `service/impl/`, `security/`). El filtro nuevo se acoge a la **excepción documentada** del propio §II: no lleva estereotipo, lo construye `SecurityConfig` con `new`. |
 | **§III** Seguridad por defecto | ⚠️ Tensión justificada | Se abre el segundo endpoint sin autenticación del sistema. Ver Complexity Tracking. La minimización se refuerza (FR-005a, FR-014, FR-020) y **no se exponen entities**: la vista de recientes usa un DTO propio sin documento de identidad. |
 | **§IV** Decisiones trazables | ✅ Pasa | Cada decisión con su trade-off en `research.md` (D1–D9). Los dos riesgos aceptados quedaron en el spec con lo que se descartó y por qué. |
@@ -57,7 +57,7 @@ Con `research.md`, `data-model.md` y el contrato ya escritos, el gate se vuelve 
 resultado no cambia. Dos observaciones que el diseño confirmó:
 
 - **§I se reforzó, no se relajó**: el diseño no agregó ninguna tabla ni entidad. Todo lo
-  nuevo son dos columnas opcionales, una fila de configuración y una de identidad.
+  nuevo son seis columnas opcionales, una fila de configuración y una de identidad.
 - **§III sigue con su tensión abierta y acotada**: la apertura del canal está confinada a
   una ruta, con su propio filtro, y el contrato declara explícitamente los cuatro modos de
   rechazo (404, 413, 422, 429). El resto del sistema no cambia su postura de seguridad.
@@ -76,6 +76,13 @@ Dos cambios entraron al spec por haberlo evaluado contra la constitución, no an
    exactamente lo que la pregunta de investigación del proyecto dice evitar.
 2. **§I + §III** — el teléfono dejó de persistirse. Es un dato personal sin consumidor
    documentado, y el repo ya tenía el precedente de excluir el correo por esa misma razón.
+
+   > ⚠️ **Revertido el 2026-09-16 (D10).** El teléfono sí se persiste, junto con sede,
+   > facultad y modalidad. Este punto se conserva porque **el registro de un gate documenta
+   > lo que se evaluó entonces**, no lo que se sabe después; borrarlo escondería que el
+   > primer análisis buscó el consumidor solo en el flujo de captura y no en el PDF formal
+   > del SP3. La lección es sobre el método: «sin consumidor documentado» obliga a decir
+   > **dónde se buscó**.
 
 ## Complexity Tracking
 

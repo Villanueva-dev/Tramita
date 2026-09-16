@@ -147,15 +147,34 @@ explicativo, sin afectar a los envíos legítimos de otros orígenes.
   solicitud. Quien envía llega por un enlace que ya determina el trámite; manipular el
   cuerpo no lo cambia.
 - **FR-003**: El sistema MUST rechazar, sin registrar nada, todo envío al que le falte
-  alguno de los datos que el formato declara obligatorios, incluida la firma.
+  alguno de los datos que el formato declara obligatorios. **En este canal son once**:
+  nombre, documento, correo, número de contacto, programa, sede, facultad, modalidad,
+  semestre, compromisos adquiridos y firma. Ninguno admite quedar vacío.
 - **FR-004**: El sistema MUST conservar la firma trazada por el estudiante junto con la
   solicitud.
 - **FR-005**: El sistema MUST conservar el correo electrónico declarado, porque es el canal
   por el que la Coordinación responde al estudiante.
-- **FR-005a**: El sistema MUST NOT persistir el número de contacto telefónico. El formato
-  lo pide y el formulario lo muestra, pero ninguna fuente documenta que la Coordinación lo
-  use: sin consumidor, un dato personal más no se almacena (constitución §III). Entra
-  cuando exista quien lo use, igual que ocurrió con el correo.
+- **FR-005a**: El sistema MUST conservar el número de contacto telefónico, la sede, la
+  facultad y la modalidad declarados por el estudiante.
+
+  > ⚠️ **Este requisito invierte lo que decía hasta el 2026-09-16**, que era: *«El sistema
+  > MUST NOT persistir el número de contacto telefónico […] ninguna fuente documenta que la
+  > Coordinación lo use: sin consumidor, un dato personal más no se almacena»*.
+  >
+  > **Qué cambió**: no la norma, sino la búsqueda del consumidor. Aquella redacción miró
+  > únicamente el flujo de captura. El consumidor que no miró es **la generación del PDF
+  > formal del trámite** (SP3, `Villanueva-dev/Tramita#10`), que declara que *«un PDF que no
+  > reproduce el formato oficial no sirve para lo que el trámite necesita»*. El DO-FR-100
+  > pide esos cuatro campos en su tabla de datos del solicitante: sin ellos, el documento
+  > que el sistema genere no equivale al que hoy circula en papel.
+  >
+  > La constitución §III se cumple igual. Minimizar datos personales es **conservar los que
+  > tienen una finalidad declarada**, no conservar los menos posibles; y la finalidad está
+  > escrita en el árbol de problemas (`arbol-de-problemas.md:130`).
+  >
+  > **Pendiente de verificación**: la frase citada de `Tramita#10` se escribió analizando el
+  > formato de **novedad de notas**, no el DO-FR-100. El principio aplica a ambos, pero
+  > conviene confirmarlo contra la plantilla v2024 antes de sostenerlo como argumento único.
 - **FR-006**: El sistema MUST aplicar a las solicitudes recibidas por este canal las mismas
   reglas de negocio del trámite que aplica a las recibidas por cualquier otro.
 
@@ -202,8 +221,9 @@ explicativo, sin afectar a los envíos legítimos de otros orígenes.
 ### Key Entities
 
 - **Solicitud de origen público**: una solicitud del trámite de adición de créditos, con
-  los mismos datos que cualquier otra, más el correo y el contacto del estudiante y su
-  firma trazada. Nace en el mismo estado inicial y recorre el mismo flujo.
+  los mismos datos que cualquier otra, más los que este canal exige y conserva —correo,
+  número de contacto, sede, facultad, modalidad— y su firma trazada. Nace en el mismo
+  estado inicial y recorre el mismo flujo.
 - **Firma del estudiante**: el trazo que el estudiante dibuja al enviar. Es un dato de
   captura del formato, **no** una aprobación ni un sello verificable — esos pertenecen al
   circuito de firmas de los aprobadores, que es otro trabajo.

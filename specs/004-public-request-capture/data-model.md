@@ -2,7 +2,7 @@
 
 **Feature**: `004-public-request-capture` | **Fecha**: 2026-09-15
 
-Esta feature **no crea entidades nuevas**. Agrega dos columnas a la solicitud, un parámetro
+Esta feature **no crea entidades nuevas**. Agrega seis columnas a la solicitud, un parámetro
 de configuración y una fila de identidad. Todo lo demás lo aporta el motor existente.
 
 ---
@@ -13,19 +13,52 @@ de configuración y una fila de identidad. Todo lo demás lo aporta el motor exi
 |---|---|---|---|
 | `student_email` | `VARCHAR(255)` | sí | Canal por el que la Coordinación responde al estudiante. `V2.3.0` lo excluyó declarando *«el dato entra cuando exista quien lo use»*; el consumidor ya existe. |
 | `student_signature` | `TEXT` | sí | Trazo de la firma como URL de datos. Sin longitud declarada en la columna porque el tope real lo fija el filtro sobre el cuerpo entero (D7), no el campo. |
+| `student_phone` | `VARCHAR(30)` | sí | Número de contacto del formato. Ver la rectificación de abajo. |
+| `campus` | `VARCHAR(120)` | sí | Sede declarada en el formato. |
+| `faculty` | `VARCHAR(120)` | sí | Facultad declarada en el formato. Tiene además un consumidor dentro del propio motor: el flujo pasa por un estado `EN_FACULTAD`. |
+| `modality` | `VARCHAR(50)` | sí | Modalidad declarada en el formato. |
 
-Ambas **opcionales**, como todas las columnas que `V2.3.0` agregó: la migración corre sobre
-una tabla con filas existentes, y una solicitud registrada por el formulario interno sigue
-siendo válida sin ellas (FR-006 de la `002`).
+Las seis **opcionales**, como todas las columnas que `V2.3.0` agregó.
 
-Ambas `updatable = false` en la entidad, como el resto de los datos de captura: corregir un
-dato capturado es registrar una devolución, no editar el registro.
+🔑 **Que sean opcionales en la columna NO las hace opcionales en el canal público**, donde
+las once son obligatorias (FR-003). Es una diferencia entre el **contrato de entrada** y el
+**modelo**: la migración corre sobre una tabla con filas existentes que no tienen estos
+datos, y una solicitud registrada por el formulario interno sigue siendo válida sin ellos
+(FR-006 de la `002`). Declararlas `NOT NULL` rompería la migración sobre los datos que ya
+están.
 
-### Lo que deliberadamente NO se agrega
+Las seis `updatable = false` en la entidad, como el resto de los datos de captura: corregir
+un dato capturado es registrar una devolución, no editar el registro.
+
+### Rectificación — por qué `student_phone` sí entra (2026-09-16)
+
+Hasta esta fecha, esta sección listaba `student_phone` entre lo que deliberadamente **no**
+se agregaba, con este argumento:
+
+> *«El formato lo pide y el formulario lo muestra, pero ninguna fuente documenta que la
+> Coordinación lo use. Un dato personal sin consumidor no se almacena (§III, FR-005a).»*
+
+**La norma no cambió; la búsqueda del consumidor estaba incompleta.** Aquel análisis miró
+solo el flujo de captura. El consumidor que no miró es **la generación del PDF formal**
+(SP3, `Villanueva-dev/Tramita#10`), cuyo issue declara que *«un PDF que no reproduce el
+formato oficial no sirve para lo que el trámite necesita»*. El DO-FR-100 pide contacto,
+sede, facultad y modalidad en su tabla de datos del solicitante: sin ellos, el documento que
+el sistema genere no equivale al que hoy circula en papel, que es el artefacto canónico del
+trámite.
+
+§III se sigue cumpliendo: minimizar datos personales es **conservar los que tienen una
+finalidad declarada**, no conservar los menos posibles.
+
+> ⚠️ **Pendiente de verificación**: la frase citada de `Tramita#10` se escribió analizando el
+> formato de **novedad de notas**, no el DO-FR-100. El principio aplica a ambos, pero
+> conviene confirmarlo contra la plantilla v2024 antes de sostenerlo como argumento único.
+
+### Lo que sigue deliberadamente fuera
 
 | Campo | Por qué no |
 |---|---|
-| `student_phone` | El formato lo pide y el formulario lo muestra, pero **ninguna fuente documenta que la Coordinación lo use**. Un dato personal sin consumidor no se almacena (§III, FR-005a). Entra cuando aparezca quien lo use — el mismo criterio que retrasó al correo. |
+| Ciudad y fecha del formato | Los pone el sistema: la fecha es la de registro, y la ciudad es constante en el alcance del MVP. Un campo que el sistema ya conoce no se le pide a quien diligencia. |
+| Los trece motivos del formato | Pertenecen a **otros tipos de solicitud** del formato, no a la adición de créditos, y la Coordinación confirmó que casi no se diligencian (2026-09-16). El motivo viaja como texto libre en `reason`. |
 | Marca de origen público | El responsable del tramo inicial del histórico ya dice que la solicitud nació en el portal. Una columna adicional sería estado duplicado (§I). |
 | Marca de leído/no leído | El orden por fecha y el estado inicial ya distinguen lo nuevo. Fuera de alcance por el spec. |
 | Vínculo a un duplicado | Los duplicados se registran por separado y nadie los relaciona (D9). |
@@ -93,13 +126,15 @@ aceptado en el spec— existe desde la feature anterior y esta reusa tal cual.
 | Dato | Regla | Dónde vive |
 |---|---|---|
 | Nombre, documento | Obligatorios, con las longitudes ya declaradas en el contrato | Contrato de entrada, igual que hoy |
-| Correo | Obligatorio en el canal público; formato de dirección válida | Contrato de entrada |
-| Firma | Obligatoria en el canal público | Contrato de entrada |
-| Compromisos (`reason`) | Obligatorio en el canal público, ≤ 2000 | Contrato de entrada |
+| Correo | Obligatorio; formato de dirección válida | Contrato de entrada |
+| Contacto, sede, facultad, modalidad | Obligatorios, con las longitudes de la tabla de columnas | Contrato de entrada |
+| Programa, semestre | Obligatorios | Contrato de entrada |
+| Firma | Obligatoria | Contrato de entrada |
+| Compromisos (`reason`) | Obligatorio, ≤ 2000 | Contrato de entrada |
 | Trámite habilitado | `PUBLIC_CAPTURE_ENABLED = true` | Servicio, antes de persistir |
 | Reglas del trámite | Las mismas que aplica el registro autenticado | Reusadas sin cambios |
 
-La obligatoriedad del correo, la firma y los compromisos aplica **solo al canal público**: el
-formulario interno sigue aceptando el cuerpo mínimo de la `002`. Es una diferencia de
-contrato de entrada, no de modelo: la columna admite nulo porque las filas anteriores lo
-tienen.
+**Los once son obligatorios en el canal público y ninguno admite quedar vacío** (FR-003).
+Esa obligatoriedad aplica **solo a este canal**: el formulario interno sigue aceptando el
+cuerpo mínimo de la `002`. Es una diferencia de contrato de entrada, no de modelo — las
+columnas admiten nulo porque las filas anteriores lo tienen.
