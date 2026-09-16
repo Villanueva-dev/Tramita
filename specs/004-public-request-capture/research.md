@@ -275,10 +275,23 @@ mínimo de la `002`.
   fecha**, que el servidor conoce. La sede se conserva como dato declarado porque el alcance
   del MVP —Sede Cali— es una restricción del proyecto, no del modelo.
 
-> ⚠️ **Provisional en un punto**: la frase citada de `Tramita#10` se escribió analizando el
-> formato de **novedad de notas**, no el DO-FR-100. El principio aplica a ambos, pero
-> conviene confirmarlo contra la plantilla v2024 antes de sostenerlo como argumento único
-> (§IV: la normativa institucional se verifica contra el documento obtenido de la fuente).
+> ✅ **CONFIRMADO el 2026-09-16 — ya no es provisional.** Este bloque advertía que la frase
+> citada de `Tramita#10` se escribió analizando el formato de **novedad de notas** y no el
+> DO-FR-100, y que sostener D10 sobre ella exigía confirmarlo contra la plantilla v2024 (§IV:
+> la normativa institucional se verifica contra el documento obtenido de la fuente, no contra
+> una fuente técnica ni una inferencia).
+>
+> Se hizo. La plantilla oficial
+> (`material-coord/2026-06-03-coord-DO-FR-100-formato-solicitud-excepcion-de-matricula-v2024.docx`,
+> **DO-FR-100 · Versión. 01 · Fecha. 19/11/2024** según su encabezado) pide en su tabla del
+> solicitante, con estas palabras: «Correo electrónico», «Número de contacto», «Sede»,
+> «Facultad» y «Modalidad». **D10 ya no descansa en un principio trasladado desde otro
+> formato: descansa en el documento que el trámite usa.**
+>
+> Detalle de método, porque el primer intento dio el resultado contrario:
+> `libreoffice --headless --convert-to txt` **no sirve para este archivo** — descarta tablas
+> y encabezado, que es donde viven los once campos. Hay que leer `word/document.xml` y
+> `word/header1.xml` del `.docx` descomprimido.
 
 ---
 
@@ -291,7 +304,26 @@ sistema puede **afirmar**, no lo que hace.
 |---|---|---|
 | Validez legal de la firma trazada | Nunca formulada a la Coordinación (P29 de la guía) | El sistema guarda el trazo y no afirma nada sobre su valor (FR-021) |
 | ¿Es dato biométrico una firma digitalizada bajo la Ley 1581? | Sin verificación documental | Cambiaría el régimen de tratamiento del dato, no su almacenamiento |
-| ¿El DO-FR-100 exige los mismos campos que el formato de novedad de notas? | Sin verificar contra la plantilla v2024 | Sostiene el argumento de D10; si no los pidiera, habría que buscarle otro consumidor a esos cuatro campos |
+
+> **Resuelta el 2026-09-16 y retirada de esta tabla**: *«¿El DO-FR-100 exige los campos que
+> D10 asume?»*. Se verificó la plantilla oficial
+> (`material-coord/2026-06-03-coord-DO-FR-100-formato-solicitud-excepcion-de-matricula-v2024.docx`,
+> identificada en su encabezado como **DO-FR-100 · Versión. 01 · Fecha. 19/11/2024**) y **los
+> once campos del FR-003 están en ella, uno a uno**: «Nombres completos del solicitante»,
+> «Número de identificación», «Correo electrónico», «Número de contacto», «Programa académico
+> en el que se encuentra», «Sede», «Facultad», «Modalidad», «Semestre cursado y aprobado»,
+> «Compromisos adquiridos» y «Firma del estudiante». D10 y las seis columnas de `V3.3.0`
+> quedan sostenidas por la fuente, no por inferencia.
+>
+> Lo que la plantilla pide y no se captura tiene razón: «Ciudad» viene impresa con `Cali`,
+> «Tipo de solicitud» viene con `Matrícula créditos adicionales` marcada —y viaja en la ruta,
+> D2—, la fecha la pone el servidor, y la «Firma de la Facultad» pertenece al tramo posterior
+> del trámite.
+>
+> ⚠️ **Cómo leer ese `.docx`**: `libreoffice --headless --convert-to txt` **no sirve** —
+> descarta el contenido de las tablas y del encabezado, que es donde viven los once campos, y
+> devuelve un texto plausible al que le faltan justamente. Hay que extraer el texto de
+> `word/document.xml` y `word/header1.xml` del `.docx` descomprimido.
 
 > **Resuelta el 2026-09-16 y retirada de esta tabla**: *«¿Los 13 motivos del formato siguen
 > vigentes?»*. La Coordinación confirmó que esas casillas pertenecen a **otros tipos de
