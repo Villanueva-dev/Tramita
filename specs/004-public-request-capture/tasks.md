@@ -250,10 +250,36 @@ un cuerpo desmesurado devuelve `413`; otros orígenes siguen funcionando.
 
 ## Phase 6: Polish
 
-- [ ] T042 [P] Recorrer `specs/004-public-request-capture/quickstart.md` de punta a punta contra la instancia local y corregir cualquier comando que no devuelva lo que el documento afirma. Un comando citado como prueba debe poder re-ejecutarse y dar el mismo resultado.
-- [ ] T043 [P] Verificar que `contracts/openapi.yaml` describe lo que quedó implementado, en particular los códigos de error de cada endpoint. Si algo divergió, gana el código y se corrige el contrato.
-- [ ] T044 Verificar la ausencia de datos personales reales en todo lo agregado: `git diff main --stat` y revisión de los tests y del quickstart (§III).
-- [ ] T045 Medir el conteo final de tests desde `target/surefire-reports/` y `target/failsafe-reports/` y compararlo con el baseline de T001. Usar el número **medido**, no uno recordado, en el cuerpo del commit y en la PR.
+- [x] T042 [P] Recorrer `specs/004-public-request-capture/quickstart.md` de punta a punta contra la instancia local y corregir cualquier comando que no devuelva lo que el documento afirma. Un comando citado como prueba debe poder re-ejecutarse y dar el mismo resultado.
+- [x] T043 [P] Verificar que `contracts/openapi.yaml` describe lo que quedó implementado, en particular los códigos de error de cada endpoint. Si algo divergió, gana el código y se corrige el contrato.
+- [x] T044 Verificar la ausencia de datos personales reales en todo lo agregado: `git diff main --stat` y revisión de los tests y del quickstart (§III).
+- [x] T045 Medir el conteo final de tests desde `target/surefire-reports/` y `target/failsafe-reports/` y compararlo con el baseline de T001. Usar el número **medido**, no uno recordado, en el cuerpo del commit y en la PR.
+
+---
+
+**Resultado del polish, medido el 2026-09-16 contra la instancia local.**
+
+**T042 — el quickstart tenía tres afirmaciones falsas**, todas por haberse escrito antes de que D10 sumara cuatro campos obligatorios:
+1. El paso 1 afirmaba `201` y la instancia devolvía **`422`** (faltaban `campus`, `faculty`, `modality`, `studentPhone`).
+2. El paso 2 afirmaba `404` y devolvía **`422`**: la validación del cuerpo corre **antes** de que el servicio resuelva el trámite, así que el `404` solo aparece con el cuerpo completo. No es defecto — quien sondea manda un cuerpo válido, y ahí «no existe» y «no habilitado» responden idéntico, verificado con `TRAMITE_QUE_NO_EXISTE`.
+3. El `INSERT` de habilitación usaba la columna `value`, que **no existe**: es `parameter_value`.
+
+Además, su explicación del paso 8 decía que «ningún codificador reconoce su valor de contraseña», lo que esconde la trampa del prefijo `{bcrypt}` (sin él no hay `401` sino `500`). Corregido.
+
+Los ocho pasos quedaron recorridos y **todos los resultados del documento son ahora valores medidos**: `201` sin `Location`, `404` idéntico para inexistente y no habilitado, `413` con 294 KB, `429` al envío 21 con `Retry-After: 874`, `jq 'map(has("studentDocument")) | any'` → `false`, timeline con `fromState: null` y el portal como actor, y `401` genérico para la cuenta del portal.
+
+🔑 **Hallazgo no previsto**: el origen que el filtro contó fue **`0:0:0:0:0:0:0:1`** (loopback IPv6), no `127.0.0.1`. Un cliente con doble pila tiene dos claves y el doble de cupo. Se decidió **no normalizar** —va a favor del objetivo de disponibilidad y no debilita el corte contra un script— y queda documentado en D3-bis. Lo delató el WARN de diagnóstico, que así demostró su utilidad antes de llegar a producción.
+
+**T043** — el contrato declara 7 códigos para el canal y los 7 tienen origen en el código. Se corrigió la descripción del `400`, que seguía describiendo lo que ahora hace el `422`; queda explícita la asimetría con el resto del API y por qué se acepta.
+
+**T044** — cero datos personales reales en las 29 archivos del diff. Los únicos correos son la cuenta institucional que ya estaba en `main` y dos sintéticos (`@ejemplo.test`, `@tramita.local`); los documentos llevan todos el prefijo `SIN-DATO-REAL`, y las IP son del rango `203.0.113.x` que la RFC 5737 reserva para documentación.
+
+**T045 — conteo final medido**, no recordado:
+
+| Suite | Baseline T001 | Final | Agregados |
+|---|---|---|---|
+| surefire (unitarios) | 57 (7 clases) | **73 (9 clases)** | **+16** |
+| failsafe (IT) | 50 (5 clases) | **66 (6 clases)** | **+16** |
 
 ---
 

@@ -183,6 +183,21 @@ como clave**. Si en producción aparece siempre la misma IP, o una del rango pri
 configuración de arriba. Sin ese log el defecto se manifiesta como «a los estudiantes les sale
 un error raro» y es muy caro de rastrear.
 
+### Medido al recorrer el quickstart (2026-09-16)
+
+**El origen contado puede ser la forma IPv6.** En la corrida local, `curl` resolvió
+`localhost` por IPv6 y el filtro contó contra `0:0:0:0:0:0:0:1`, no contra `127.0.0.1`. Un
+cliente con doble pila tiene por tanto **dos claves distintas** y, alternando, el doble de
+cupo.
+
+**No se normaliza, y es deliberado**: el objetivo declarado del límite es la disponibilidad,
+así que duplicar el cupo de un cliente legítimo va a favor, y contra un script el corte ocurre
+igual en cualquiera de las dos claves. Normalizar IPv4/IPv6 agregaría código para empeorar
+levemente el objetivo real.
+
+Se supo por el WARN de diagnóstico que esta decisión exige, lo que de paso confirma que ese
+log cumple su función: sin él, el origen efectivo es invisible.
+
 ### Qué se descartó
 
 - *Agregar el documento del estudiante a la clave* (análogo al `email + IP` del login):
