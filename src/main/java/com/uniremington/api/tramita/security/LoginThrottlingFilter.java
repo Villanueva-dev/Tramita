@@ -5,17 +5,10 @@ import com.uniremington.api.tramita.service.impl.LoginAttemptService;
 import com.uniremington.api.tramita.shared.exception.ProblemJsonWriter;
 import com.uniremington.api.tramita.util.EmailNormalizer;
 import jakarta.servlet.FilterChain;
-import jakarta.servlet.ReadListener;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -134,51 +127,6 @@ public class LoginThrottlingFilter extends OncePerRequestFilter {
             return EmailNormalizer.normalize(login.email());
         } catch (Exception ex) {
             return null;
-        }
-    }
-
-    /**
-     * Re-sirve en cada getInputStream()/getReader() un body ya leído y acotado por el filtro.
-     * No lee del stream original a propósito: quien lee es quien aplica el tope.
-     */
-    static final class CachedBodyRequest extends HttpServletRequestWrapper {
-
-        private final byte[] body;
-
-        CachedBodyRequest(HttpServletRequest request, byte[] body) {
-            super(request);
-            this.body = body;
-        }
-
-        @Override
-        public ServletInputStream getInputStream() {
-            ByteArrayInputStream buffer = new ByteArrayInputStream(body);
-            return new ServletInputStream() {
-                @Override
-                public int read() {
-                    return buffer.read();
-                }
-
-                @Override
-                public boolean isFinished() {
-                    return buffer.available() == 0;
-                }
-
-                @Override
-                public boolean isReady() {
-                    return true;
-                }
-
-                @Override
-                public void setReadListener(ReadListener readListener) {
-                    throw new UnsupportedOperationException("Lectura asíncrona no soportada");
-                }
-            };
-        }
-
-        @Override
-        public BufferedReader getReader() {
-            return new BufferedReader(new InputStreamReader(getInputStream(), StandardCharsets.UTF_8));
         }
     }
 }
