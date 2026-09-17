@@ -53,6 +53,24 @@
 			<artifactId>flyway-database-postgresql</artifactId>
 		</dependency>
 
+		<!--
+			Generación del PDF formal del trámite (SP3, issue #10). LLEVA VERSIÓN EXPLÍCITA
+			porque el parent de Spring Boot no gestiona PDFBox: no es una dependencia del
+			ecosistema Spring y su versión no sale de ningún BOM.
+
+			3.0.8 y no la 3.0.3 que usaba el prototipo de router-ia: la 3.0.3 está afectada
+			por CVE-2026-23907 y CVE-2026-33929 (path traversal), corregidas en 3.0.7 y
+			3.0.8 respectivamente. Ambas viven en el módulo `examples`, que no se usa acá,
+			pero fijar una versión con vulnerabilidades conocidas en un proyecto que se
+			audita es un costo que no hay razón para pagar.
+			Fuente: https://pdfbox.apache.org/security.html
+		-->
+		<dependency>
+			<groupId>org.apache.pdfbox</groupId>
+			<artifactId>pdfbox</artifactId>
+			<version>3.0.8</version>
+		</dependency>
+
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
