@@ -82,7 +82,7 @@ salió `noTextFallsOffThePage`, que mide posiciones en vez de presencia.
 docker start tramita-postgres && ./mvnw clean verify
 ```
 
-Conteo al cerrar la feature: **104 unitarios + 72 IT** (desde 81 + 69 en `main`).
+Conteo al cerrar la feature: **107 unitarios + 72 IT** (desde 81 + 69 en `main`).
 
 Más: los mutantes de cada fase muertos, y la comparación visual contra la plantilla.
 

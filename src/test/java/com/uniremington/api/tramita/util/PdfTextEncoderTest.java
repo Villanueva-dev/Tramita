@@ -54,10 +54,12 @@ class PdfTextEncoderTest {
 
         String saneado = PdfTextEncoder.sanitize(original, HELVETICA);
 
+        // SE ASIERTA LA CADENA COMPLETA, no sus extremos. La versión anterior comprobaba
+        // doesNotContain + startsWith + endsWith, y BORRAR el carácter satisfacía las tres:
+        // la garantía que esta clase defiende en prosa —marcar la pérdida en vez de
+        // borrarla en silencio— no tenía respaldo ejecutable. Lo delató un mutante.
         assertThat(saneado)
-                .doesNotContain("🎓")
-                .startsWith("Necesito adicionar la asignatura ")
-                .endsWith(" para no atrasar el plan");
+                .isEqualTo("Necesito adicionar la asignatura ? para no atrasar el plan");
     }
 
     @Test

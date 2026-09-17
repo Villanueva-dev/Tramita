@@ -42,6 +42,25 @@ La plantilla tiene **6 tablas en Arial, sin imágenes en el cuerpo, y un salto d
 antes del campo de firmas (`<w:br w:type="page">` en `word/document.xml`): por eso el
 documento son **dos hojas**.
 
+## D2-bis — Tres desviaciones menores del papel, declaradas
+
+Un review independiente comparó el documento emitido contra `word/document.xml` y encontró
+tres diferencias que no estaban escritas en ningún lado. Ninguna es un defecto, pero **una
+desviación no declarada es indistinguible de un error de transcripción** para quien compare
+el PDF contra el formato:
+
+1. **El rótulo «Datos del solicitante» no existe en la plantilla.** En el papel los nueve
+   campos van directos tras la marca de tipo. Se agrega como encabezado de sección porque el
+   PDF generado no tiene las líneas de guía del formulario impreso y, sin él, la tabla queda
+   suelta.
+2. **El pie «Generado por Trámita — Coordinación Académica, Sede Cali» tampoco.** Es marca de
+   origen: quien reciba el documento tiene que poder saber que lo emitió el sistema y no que
+   alguien lo diligenció a mano.
+3. **La fecha bajo «Firma del estudiante» va prellenada**, donde el papel dice solo «Fecha:».
+   El sistema conoce la fecha de radicación y dejarla en blanco obligaría a escribirla a mano
+   sobre un dato que ya tiene. La de la Facultad **sí** queda en blanco, porque esa fecha la
+   pone quien firma.
+
 ## D3 — Se corrige la ortografía del original
 
 La plantilla escribe, las dos veces, **sin tilde**: `SOLICITUD DE EXCEPCIÓN DE MATRICULA` en

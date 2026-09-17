@@ -8,6 +8,9 @@ import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -56,6 +59,14 @@ import org.springframework.stereotype.Service;
 public class DoFr100Renderer implements IDocumentRenderer {
 
     private static final String LOGO = "/documents/logo-uniremington.png";
+
+    /**
+     * La zona de la sede. `createdAt` se persiste en UTC —convención del chasis— y este
+     * documento lleva la fecha EN LA CELDA DE UN PAPEL QUE SE FIRMA: imprimir el instante
+     * UTC sin convertir adelanta un día entre las 19:00 y las 23:59 de Cali, porque
+     * Colombia es UTC−5. No se cambia el almacenamiento, se convierte al formatear.
+     */
+    private static final ZoneId CAMPUS_ZONE = ZoneId.of("America/Bogota");
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd");
     private static final DateTimeFormatter MONTH = DateTimeFormatter.ofPattern("MM");
     private static final DateTimeFormatter YEAR = DateTimeFormatter.ofPattern("yyyy");
@@ -140,11 +151,12 @@ public class DoFr100Renderer implements IDocumentRenderer {
 
             float[] dateColumns = {LEFT, LEFT + 150, LEFT + 250, LEFT + 350, RIGHT};
             y = row(content, y, dateColumns, BOLD, "Ciudad", "Día", "Mes", "Año");
+            LocalDateTime filedAt = atCampus(request.getCreatedAt());
             y = row(content, y, dateColumns, REGULAR,
                     PRINTED_CITY,
-                    request.getCreatedAt().format(DAY),
-                    request.getCreatedAt().format(MONTH),
-                    request.getCreatedAt().format(YEAR));
+                    filedAt.format(DAY),
+                    filedAt.format(MONTH),
+                    filedAt.format(YEAR));
 
             y = sectionTitle(content, y, "Tipo de solicitud:");
             float[] typeColumns = {LEFT, RIGHT - 40, RIGHT};
@@ -240,7 +252,8 @@ public class DoFr100Renderer implements IDocumentRenderer {
 
             write(content, BOLD, BODY_SIZE, "Firma del estudiante", LEFT + 12, y - height + 28);
             write(content, REGULAR, BODY_SIZE,
-                    "Fecha: " + request.getCreatedAt().format(FULL_DATE), LEFT + 12, y - height + 14);
+                    "Fecha: " + atCampus(request.getCreatedAt()).format(FULL_DATE),
+                    LEFT + 12, y - height + 14);
             write(content, BOLD, BODY_SIZE, "Firma de la Facultad", middle + 12, y - height + 28);
             write(content, REGULAR, BODY_SIZE, "Fecha: ______________", middle + 12, y - height + 14);
 
@@ -291,7 +304,14 @@ public class DoFr100Renderer implements IDocumentRenderer {
             if (cells[i] == null || cells[i].isEmpty()) {
                 continue;
             }
-            write(content, font, BODY_SIZE, cells[i], columns[i] + 6, y - ROW_HEIGHT + 6);
+            // LA CELDA RECORTA LO QUE NO CABE, y lo marca. Sin esto, un valor más ancho que
+            // su columna se dibuja fuera de la hoja y desaparece del documento impreso: un
+            // studentName de 120 caracteres es entrada legal y llegaba a x=809 sobre una
+            // hoja de 612. Se marca con «…» en vez de cortar en seco, por la misma razón
+            // que PdfTextEncoder marca con «?»: una pérdida silenciosa es peor que una
+            // visible, sobre todo en un documento que alguien firma.
+            String fitted = fitInto(cells[i], columns[i + 1] - columns[i] - 12, font);
+            write(content, font, BODY_SIZE, fitted, columns[i] + 6, y - ROW_HEIGHT + 6);
         }
         return y - ROW_HEIGHT;
     }
@@ -344,6 +364,26 @@ public class DoFr100Renderer implements IDocumentRenderer {
             lines.add(current.toString());
         }
         return lines;
+    }
+
+    private static LocalDateTime atCampus(LocalDateTime utc) {
+        return utc.atOffset(ZoneOffset.UTC).atZoneSameInstant(CAMPUS_ZONE).toLocalDateTime();
+    }
+
+    /** Recorta un valor al ancho de su celda, marcando el recorte. */
+    private String fitInto(String text, float maxWidth, PDFont font) throws IOException {
+        if (font.getStringWidth(text) / 1000 * BODY_SIZE <= maxWidth) {
+            return text;
+        }
+        StringBuilder fitted = new StringBuilder();
+        for (char character : text.toCharArray()) {
+            String candidate = fitted.toString() + character + "…";
+            if (font.getStringWidth(candidate) / 1000 * BODY_SIZE > maxWidth) {
+                break;
+            }
+            fitted.append(character);
+        }
+        return fitted + "…";
     }
 
     private float widthOf(String text, float size) throws IOException {

@@ -900,9 +900,13 @@ class RequestControllerIT {
         byte[] pdf = mockMvc.perform(get("/api/requests/" + id + "/document").session(session))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PDF))
-                // Se descarga, no se abre en el navegador: es un formato para imprimir y firmar.
+                // SE ASIERTA EL NOMBRE COMPLETO, no que contenga «attachment». FR-034 dice
+                // que el archivo NO puede llevar datos personales, y esa garantía descansaba
+                // en una sola línea de código sin ninguna red: un mutante que cambiara el
+                // nombre entero sobrevivía. El archivo se descarga, se reenvía y queda en
+                // carpetas compartidas, y el nombre viaja con él.
                 .andExpect(header().string("Content-Disposition",
-                        org.hamcrest.Matchers.containsString("attachment")))
+                        "attachment; filename=\"DO-FR-100-" + id + ".pdf\""))
                 .andReturn().getResponse().getContentAsByteArray();
 
         // El CONTENIDO lo verifica DoFr100RendererTest extrayendo el texto. Acá se

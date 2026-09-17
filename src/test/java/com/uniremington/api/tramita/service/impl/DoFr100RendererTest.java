@@ -261,6 +261,50 @@ class DoFr100RendererTest {
     }
 
     @Test
+    @DisplayName("la fecha es la del día en Cali, no la del reloj UTC del servidor")
+    void theDateIsTheOneInCaliNotTheServerClock() throws Exception {
+        // `createdAt` se persiste en UTC (convención del chasis). Colombia es UTC−5, así que
+        // una solicitud enviada el 17 a las 20:00 de Cali se guarda como el 18 a la 01:00
+        // UTC. Formatear ese valor sin convertir imprime el día siguiente en la celda
+        // «Fecha» de un documento que se firma y se anexa.
+        Request lateInTheEvening = requestBuilder()
+                .createdAt(LocalDateTime.of(2026, 9, 18, 1, 0)).build();
+
+        String text = pageText(renderer.render(lateInTheEvening), 1);
+
+        assertThat(text)
+                .as("a la 01:00 UTC en Cali son las 20:00 del día anterior")
+                .containsPattern("Ciudad\\s+Día\\s+Mes\\s+Año\\s+Cali\\s+17\\s+09\\s+2026");
+    }
+
+    @Test
+    @DisplayName("un nombre en el límite del campo no se sale de la celda")
+    void aMaximumLengthNameStaysInsideTheCell() throws Exception {
+        // 120 caracteres es el máximo de studentName (@Size). La celda no los recorta ni
+        // los ajusta, así que el texto se dibujaba fuera de la hoja: mismo defecto que el
+        // motivo sin espacios, aplicado a la tabla.
+        byte[] pdf = renderer.render(requestBuilder().studentName("Ana ".repeat(30)).build());
+
+        assertThat(rightmostTextEdge(pdf))
+                .as("una celda que se desborda deja el dato fuera del documento impreso")
+                .isLessThanOrEqualTo(567f);
+    }
+
+    @Test
+    @DisplayName("la firma trazada se incrusta de verdad, y sin firma no hay imagen de más")
+    void theSignatureIsActuallyDrawn() throws Exception {
+        // NINGÚN TEST VEÍA LAS IMÁGENES. PDFTextStripper no las extrae, así que un renderer
+        // que dejara de dibujar la firma —o el logo— pasaba la clase entera. Se cuentan los
+        // XObject de la página de firmas: con firma van dos (logo + trazo), sin ella uno.
+        assertThat(imagesOnPage(renderer.render(request()), 2))
+                .as("la firma del estudiante tiene que estar en el documento")
+                .isEqualTo(2);
+        assertThat(imagesOnPage(renderer.render(requestBuilder().studentSignature(null).build()), 2))
+                .as("sin firma queda solo el logo del encabezado")
+                .isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("declara su clave de documento, que es como la definición lo elige")
     void declaresItsDocumentKey() {
         assertThat(renderer.documentKey()).isEqualTo("DO_FR_100");
@@ -306,6 +350,20 @@ class DoFr100RendererTest {
             stripper.getText(document);
         }
         return distances.stream().min(Float::compare).orElseThrow();
+    }
+
+    /** Cuántas imágenes lleva una página del documento. */
+    private static int imagesOnPage(byte[] pdf, int page) throws Exception {
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            var resources = document.getPage(page - 1).getResources();
+            int images = 0;
+            for (var name : resources.getXObjectNames()) {
+                if (resources.isImageXObject(name)) {
+                    images++;
+                }
+            }
+            return images;
+        }
     }
 
     /** El borde derecho del texto más lejano del documento, en puntos desde la izquierda. */

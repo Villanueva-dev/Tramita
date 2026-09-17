@@ -73,6 +73,18 @@ paths:
               schema:
                 type: string
                 format: binary
+        '400':
+          description: |
+            El `{id}` de la ruta no es un UUID. Lo resuelve el
+            `ResponseEntityExceptionHandler` del que hereda `GlobalExceptionHandler`, no un
+            mapeo propio de esta feature.
+
+            Se declara porque el contrato de la 004 declara su propio `400` y no hacerlo acá
+            dejaría al cliente sin saber que esta respuesta existe.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
         '401':
           description: Sin sesión válida.
           content:
