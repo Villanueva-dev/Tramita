@@ -305,6 +305,47 @@ class DoFr100RendererTest {
     }
 
     @Test
+    @DisplayName("los párrafos del motivo se conservan, y ningún salto de línea se imprime")
+    void theReasonKeepsItsParagraphsAndPrintsNoStrayMarks() throws Exception {
+        // APRETAR ENTER ES LO MÁS NATURAL EN UN TEXTAREA, y era lo que ensuciaba el
+        // documento: wrap() saneaba ANTES de partir por espacios, la fuente no puede
+        // escribir un salto de línea, y cada uno terminaba impreso como «?» en un papel
+        // que se firma y se anexa. Medido antes de corregirlo:
+        //   «Me comprometo a lo siguiente:??1. Sostener el promedio…»
+        String motivo = """
+                Me comprometo a lo siguiente:
+
+                1. Sostener el promedio acumulado exigido por el reglamento.
+                2. Cumplir con la asistencia del 80 % en la asignatura adicional.""";
+
+        String text = pageText(renderer.render(requestBuilder().reason(motivo).build()), 1);
+
+        assertThat(text)
+                .as("un salto de línea no es un carácter imprimible: no puede salir como «?»")
+                .doesNotContain("siguiente:?")
+                .doesNotContain("reglamento.?");
+        assertThat(text)
+                .as("el texto del estudiante tiene que llegar entero")
+                .contains("Me comprometo a lo siguiente:")
+                .contains("1. Sostener el promedio acumulado exigido por el reglamento.")
+                .contains("2. Cumplir con la asistencia del 80 % en la asignatura adicional.");
+
+        // Y LA ESTRUCTURA SE CONSERVA, no solo el contenido. Un salto simple empieza
+        // renglón y una línea en blanco separa párrafos: entre la entrada y el primer ítem
+        // hay más aire que entre los dos ítems, que el estudiante escribió seguidos.
+        // Se mide el espaciado real, porque la extracción de texto no distingue una línea
+        // en blanco de un renglón contiguo.
+        byte[] pdf = renderer.render(requestBuilder().reason(motivo).build());
+        float intro = baselineOf(pdf, "Me comprometo a lo siguiente:");
+        float primero = baselineOf(pdf, "1. Sostener");
+        float segundo = baselineOf(pdf, "2. Cumplir");
+
+        assertThat(intro - primero)
+                .as("una línea en blanco separa el párrafo de entrada de la lista")
+                .isGreaterThan(segundo == 0 ? 0 : (primero - segundo) * 1.5f);
+    }
+
+    @Test
     @DisplayName("declara su clave de documento, que es como la definición lo elige")
     void declaresItsDocumentKey() {
         assertThat(renderer.documentKey()).isEqualTo("DO_FR_100");
@@ -350,6 +391,24 @@ class DoFr100RendererTest {
             stripper.getText(document);
         }
         return distances.stream().min(Float::compare).orElseThrow();
+    }
+
+    /** La altura del renglón que empieza con el texto dado, en puntos desde abajo. */
+    private static float baselineOf(byte[] pdf, String startsWith) throws Exception {
+        List<Float> found = new ArrayList<>();
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            PDFTextStripper stripper = new PDFTextStripper() {
+                @Override
+                protected void writeString(String text, List<TextPosition> positions) {
+                    if (text.trim().startsWith(startsWith) && !positions.isEmpty()) {
+                        TextPosition first = positions.getFirst();
+                        found.add(first.getPageHeight() - first.getY());
+                    }
+                }
+            };
+            stripper.getText(document);
+        }
+        return found.isEmpty() ? 0f : found.getFirst();
     }
 
     /** Cuántas imágenes lleva una página del documento. */

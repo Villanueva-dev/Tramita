@@ -145,6 +145,34 @@ hoja de **612** puntos. Lo que se dibuja pasado el borde no existe para quien im
 2000 caracteres en una sola palabra son entrada legal: `@Size(max = 2000)` no exige espacios,
 y el canal es anónimo.
 
+## D5-ter — 🔑 Cada Enter del estudiante se imprimía como «?»
+
+`wrap()` saneaba el texto **antes** de partirlo por espacios. `PdfTextEncoder` le pregunta a
+la fuente si puede escribir cada carácter, Helvetica no puede escribir un salto de línea, y lo
+reemplazaba por «?». Para cuando llegaba el `split("\s+")`, los saltos ya no eran espacios en
+blanco: eran interrogantes.
+
+**Medido**, con lo que cualquiera escribe en un `textarea`:
+
+```
+Me comprometo a lo siguiente:??1. Sostener el promedio…?2. Cumplir con la asistencia…
+```
+
+Un review independiente lo reportó como «los saltos de línea se colapsan», que habría sido
+cosmético. La realidad era **basura visible en un documento que se firma y se anexa**, y el
+disparador es lo más natural que hace alguien llenando un formulario: apretar Enter.
+
+**Arreglo**: los saltos se tratan **antes** de sanear. Una línea en blanco separa párrafos y un
+salto suelto empieza renglón — se distinguen a propósito, porque tratarlos igual metía una
+línea vacía entre cada ítem de una lista y con diez ítems eso puede empujar el texto a una
+hoja de continuación sin necesidad.
+
+⚠️ **El primer mutante que probé sobrevivió, y tenía razón**: quitar la partición por párrafos
+deja intacta la partición por líneas, que es la que evita los «?». Hubo que atacar la línea
+correcta, y agregar una aserción de **espaciado** —medida con las posiciones reales del
+texto— para cubrir la separación de párrafos, que la extracción de texto no distingue de
+renglones contiguos.
+
 ## D6 — El formato se elige por dato, no por código
 
 Un `if (definitionCode.equals("ADICION_CREDITOS"))` mataría la tesis del proyecto. La

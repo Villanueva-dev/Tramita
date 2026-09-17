@@ -326,14 +326,48 @@ public class DoFr100Renderer implements IDocumentRenderer {
         }
     }
 
-    /** Parte el texto en líneas que quepan en el ancho dado. */
+    /**
+     * Parte el texto en líneas que quepan en el ancho dado, CONSERVANDO SUS PÁRRAFOS.
+     *
+     * LOS SALTOS DE LÍNEA SE TRATAN ANTES DE SANEAR, y ese orden es el arreglo. Al revés
+     * —sanear primero— la fuente se topaba con un `\n`, no podía escribirlo y lo reemplazaba
+     * por «?»: cada Enter que el estudiante apretaba en «Compromisos adquiridos» terminaba
+     * impreso como un interrogante en un documento que se firma y se anexa. Medido:
+     * «Me comprometo a lo siguiente:??1. Sostener el promedio…».
+     */
     private List<String> wrap(String text, float maxWidth, float size) throws IOException {
         List<String> lines = new ArrayList<>();
         if (text == null || text.isBlank()) {
             return lines;
         }
+        // UN SALTO SIMPLE NO ES UN PÁRRAFO NUEVO. Se distinguen: una línea en blanco separa
+        // párrafos, un salto suelto empieza renglón. Tratarlos igual metía una línea vacía
+        // entre cada ítem de una lista numerada, y con diez ítems eso gasta diez renglones
+        // y puede empujar el texto a una hoja de continuación sin necesidad.
+        boolean firstParagraph = true;
+        for (String paragraph : text.split("\\R\\s*\\R")) {
+            if (paragraph.isBlank()) {
+                continue;
+            }
+            if (!firstParagraph) {
+                lines.add("");   // la línea en blanco que separa un párrafo del siguiente
+            }
+            firstParagraph = false;
+            for (String line : paragraph.split("\\R")) {
+                if (line.isBlank()) {
+                    continue;
+                }
+                lines.addAll(wrapParagraph(line, maxWidth, size));
+            }
+        }
+        return lines;
+    }
+
+    private List<String> wrapParagraph(String paragraph, float maxWidth, float size)
+            throws IOException {
+        List<String> lines = new ArrayList<>();
         StringBuilder current = new StringBuilder();
-        for (String word : PdfTextEncoder.sanitize(text, REGULAR).split("\\s+")) {
+        for (String word : PdfTextEncoder.sanitize(paragraph, REGULAR).split("\\s+")) {
             // UNA PALABRA MÁS ANCHA QUE LA CAJA SE PARTE POR CARÁCTER. Sin esto, la guarda
             // de abajo no puede cortarla —`current` está vacío— y la línea entera se traza
             // fuera de la hoja: 2000 caracteres sin un solo espacio son entrada legal, y
