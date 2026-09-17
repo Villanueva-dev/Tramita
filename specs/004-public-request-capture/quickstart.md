@@ -56,11 +56,57 @@ HTTP/1.1 201
 Sin `id`, sin estado y **sin cabecera `Location`**. Si aparece cualquiera de los tres, se abrió
 la ventana de consulta que el diseño decidió no dar (FR-008).
 
-Si falta alguno de los once, la respuesta nombra cuáles:
+Si falta alguno de los once, la respuesta nombra cuáles — en prosa para quien diligencia y en
+un arreglo para el cliente que la consume:
 
 ```
 HTTP/1.1 422
-{"detail":"El formato está incompleto. Revise estos campos: campus, faculty, modality, studentPhone", ...}
+{
+  "status": 422,
+  "title": "Formato incompleto",
+  "detail": "El formato está incompleto. Revise estos campos: campus, faculty, modality, studentPhone",
+  "instance": "/api/public/requests/ADICION_CREDITOS",
+  "missingFields": ["campus", "faculty", "modality", "studentPhone"],
+  "invalidFields": []
+}
+```
+
+Y si el campo **llegó lleno** pero su valor no se puede procesar, la respuesta es distinta a
+propósito (issue #27): decirle «el formato está incompleto» a quien escribió el correo —solo que
+mal— le pide rellenar una casilla que ve llena.
+
+```bash
+# el mismo cuerpo del paso 1, cambiando solo el correo
+curl -s -X POST http://localhost:8080/api/public/requests/ADICION_CREDITOS \
+  -H 'Content-Type: application/json' \
+  -d '{ ..., "studentEmail": "ana.ejemplo-arroba-correo.test", ... }'
+```
+
+```
+HTTP/1.1 422
+{
+  "status": 422,
+  "title": "Formato inválido",
+  "detail": "El formato tiene campos con un valor que no se puede procesar. Revise estos campos: studentEmail",
+  "instance": "/api/public/requests/ADICION_CREDITOS",
+  "missingFields": [],
+  "invalidFields": ["studentEmail"]
+}
+```
+
+Los dos arreglos llegan **siempre**, aunque vengan vacíos. Un campo que incumple las dos cosas a
+la vez —`studentEmail` con solo espacios viola `@NotBlank` y `@Email`— aparece **solo** en
+`missingFields`: la ausencia domina, para no obligar al cliente a decidir cuál mostrar.
+
+Y un `Content-Type` que no sea JSON devuelve **415**, no 400:
+
+```bash
+curl -s -i -X POST http://localhost:8080/api/public/requests/ADICION_CREDITOS \
+  -H 'Content-Type: text/plain' -d 'no es un formato'
+```
+
+```
+HTTP/1.1 415
 ```
 
 > Los datos son sintéticos a propósito. **Nunca** usar una cédula real en un comando que
@@ -111,8 +157,9 @@ WHERE d.code = 'NOVEDAD_NOTAS' AND d.version = 1;
 
 Mismo cuerpo del paso 1, quitándole `signature`.
 
-**Medido**: `422` en `application/problem+json`, con `"Revise estos campos: signature"`, y
-**ninguna fila nueva** en `request`.
+**Medido**: `422` en `application/problem+json`, con `"title": "Formato incompleto"`,
+`"detail": "El formato está incompleto. Revise estos campos: signature"`,
+`"missingFields": ["signature"]`, `"invalidFields": []`, y **ninguna fila nueva** en `request`.
 
 ## 4. Tope de tamaño
 

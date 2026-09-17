@@ -116,7 +116,7 @@ class PublicRequestControllerIT {
     @Test
     @DisplayName("envío sin firma: 422 problem+json y nada se registra")
     void submissionWithoutSignatureIsRejected() throws Exception {
-        assertRejectedWithoutRegistering("203.0.113.3", withoutField("signature", "SIN-DATO-REAL-103"));
+        assertRejectedWithoutRegistering("203.0.113.3", "signature", "SIN-DATO-REAL-103");
     }
 
     @Test
@@ -158,13 +158,56 @@ class PublicRequestControllerIT {
     @Test
     @DisplayName("envío sin correo: 422 problem+json y nada se registra")
     void submissionWithoutEmailIsRejected() throws Exception {
-        assertRejectedWithoutRegistering("203.0.113.5", withoutField("studentEmail", "SIN-DATO-REAL-105"));
+        assertRejectedWithoutRegistering("203.0.113.5", "studentEmail", "SIN-DATO-REAL-105");
     }
 
     @Test
     @DisplayName("envío sin compromisos adquiridos: 422 problem+json y nada se registra")
     void submissionWithoutCommitmentsIsRejected() throws Exception {
-        assertRejectedWithoutRegistering("203.0.113.6", withoutField("reason", "SIN-DATO-REAL-106"));
+        assertRejectedWithoutRegistering("203.0.113.6", "reason", "SIN-DATO-REAL-106");
+    }
+
+    @Test
+    @DisplayName("campo lleno pero inválido: 422 que NO dice «incompleto» y lo nombra en invalidFields")
+    void filledButInvalidFieldIsNotReportedAsMissing() throws Exception {
+        // EL DEFECTO QUE ESTE TEST CIERRA (M-2 del review, issue #27). El correo llegó
+        // diligenciado; lo que falla es su formato. Responder «el formato está incompleto»
+        // le pedía al estudiante rellenar una casilla que ve llena, en el único canal
+        // donde no hay nadie de la Coordinación para explicarle la diferencia.
+        Map<String, Object> body = filledForm("Estudiante Con Correo Malo", "SIN-DATO-REAL-111");
+        body.put("studentEmail", "esto-no-es-un-correo");
+
+        String response = mockMvc.perform(publicSubmission("203.0.113.11", PUBLIC_TRADE, body))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title").value("Formato inválido"))
+                .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                .andExpect(jsonPath("$.invalidFields[0]").value("studentEmail"))
+                .andExpect(jsonPath("$.missingFields.length()").value(0))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(response)
+                .as("un campo lleno pero inválido no puede reportarse como formato incompleto")
+                .doesNotContain("incompleto");
+        // §III: se nombra el campo, nunca el valor que envió quien diligencia.
+        assertThat(response)
+                .as("el valor rechazado no puede reflejarse de vuelta al cliente")
+                .doesNotContain("esto-no-es-un-correo");
+    }
+
+    @Test
+    @DisplayName("media type no soportado: 415 problem+json, no 400")
+    void submissionWithUnsupportedMediaTypeIsRejected() throws Exception {
+        // El contrato declaraba que un media type no soportado caía en 400 (issue #27).
+        // Esta es la medición que nadie había hecho: quien resuelve el caso es el
+        // ResponseEntityExceptionHandler del que hereda GlobalExceptionHandler, y su
+        // respuesta para HttpMediaTypeNotSupportedException es 415.
+        mockMvc.perform(post("/api/public/requests/" + PUBLIC_TRADE)
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("esto no es un formato diligenciado")
+                        .with(from("203.0.113.10")))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
     }
 
     // --- T006: solo los trámites que lo declaran tienen canal público (FR-002, D1) -------
@@ -379,13 +422,26 @@ class PublicRequestControllerIT {
                 .with(from(origin));
     }
 
-    private void assertRejectedWithoutRegistering(String origin, Map<String, Object> body)
-            throws Exception {
+    /**
+     * Toma el NOMBRE del campo omitido, no el cuerpo ya armado, porque desde el issue #27
+     * la aserción necesita saber cuál campo esperaba encontrar en la respuesta.
+     */
+    private void assertRejectedWithoutRegistering(
+            String origin, String omittedField, String studentDocument) throws Exception {
         long registeredBefore = requestRepo.count();
 
-        mockMvc.perform(publicSubmission(origin, PUBLIC_TRADE, body))
+        mockMvc.perform(publicSubmission(origin, PUBLIC_TRADE,
+                        withoutField(omittedField, studentDocument)))
                 .andExpect(status().isUnprocessableContent())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                // B-5 del review independiente: el cuerpo del 422 no lo miraba NINGÚN test,
+                // y por eso M-2 —el mensaje que culpaba al estudiante de un campo que sí
+                // había llenado— pudo llegar a main. Se asierta el arreglo, que es lo que
+                // el cliente consume, y no el detail completo: cuatro tests comparten este
+                // helper y atarlos a la redacción los volvería frágiles ante un retoque.
+                .andExpect(jsonPath("$.missingFields.length()").value(1))
+                .andExpect(jsonPath("$.missingFields[0]").value(omittedField))
+                .andExpect(jsonPath("$.invalidFields.length()").value(0));
 
         assertThat(requestRepo.count())
                 .as("un envío rechazado no puede dejar rastro")
