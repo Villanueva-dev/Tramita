@@ -84,6 +84,19 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+        '415':
+          description: |
+            El `Content-Type` del envío no es `application/json`. Lo resuelve el
+            `ResponseEntityExceptionHandler` del que hereda `GlobalExceptionHandler`, no
+            un mapeo propio de esta feature.
+
+            Se declara desde el issue #27: este canal ya respondía 415 y el contrato no
+            lo decía, mientras el `400` afirmaba cubrirlo. Medido con
+            `submissionWithUnsupportedMediaTypeIsRejected` en `PublicRequestControllerIT`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
         '422':
           description: |
             El envío es sintácticamente válido pero incumple el contrato de captura: falta
@@ -147,8 +160,11 @@ components:
   responses:
     BadRequest:
       description: |
-        Cuerpo que el servidor no puede interpretar: JSON mal formado, tipo equivocado
-        en un campo, media type no soportado.
+        Cuerpo que el servidor no puede interpretar: JSON mal formado o tipo equivocado
+        en un campo.
+
+        NO cubre el media type no soportado: eso es **415**, y está declarado aparte. La
+        frase que lo ponía acá era falsa y la corrigió el issue #27.
 
         NO cubre el caso de un campo obligatorio ausente o vacío — eso es 422 en este
         canal. La distinción es deliberada y se decidió al implementar: el cliente de

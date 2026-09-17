@@ -167,6 +167,21 @@ class PublicRequestControllerIT {
         assertRejectedWithoutRegistering("203.0.113.6", withoutField("reason", "SIN-DATO-REAL-106"));
     }
 
+    @Test
+    @DisplayName("media type no soportado: 415 problem+json, no 400")
+    void submissionWithUnsupportedMediaTypeIsRejected() throws Exception {
+        // El contrato declaraba que un media type no soportado caía en 400 (issue #27).
+        // Esta es la medición que nadie había hecho: quien resuelve el caso es el
+        // ResponseEntityExceptionHandler del que hereda GlobalExceptionHandler, y su
+        // respuesta para HttpMediaTypeNotSupportedException es 415.
+        mockMvc.perform(post("/api/public/requests/" + PUBLIC_TRADE)
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("esto no es un formato diligenciado")
+                        .with(from("203.0.113.10")))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+    }
+
     // --- T006: solo los trámites que lo declaran tienen canal público (FR-002, D1) -------
 
     @Test
