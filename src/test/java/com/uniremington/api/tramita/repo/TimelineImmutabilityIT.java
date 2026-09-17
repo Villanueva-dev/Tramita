@@ -3,14 +3,12 @@ package com.uniremington.api.tramita.repo;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
-import com.uniremington.api.tramita.TestcontainersConfiguration;
+import com.uniremington.api.tramita.TramitaIntegrationTest;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
 import com.uniremington.api.tramita.service.IRequestService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -22,21 +20,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * esquema (T002, fase fundacional); el test lo fija como contrato y verifica
  * que discrimina por el mensaje exacto del RAISE EXCEPTION.
  */
-@SpringBootTest(properties = {
-        "DB_URL=jdbc:postgresql://placeholder:5432/placeholder",
-        "DB_USER=placeholder",
-        "DB_PASSWORD=placeholder",
-        "APP_CORS_ALLOWED_ORIGINS=http://localhost:5173",
-        // Mismos literales que AuthControllerIT (package-private, inaccesible
-        // desde repo/): el caché de contexto compara properties por valor
-        "SEED_COORD_EMAIL=" + TimelineImmutabilityIT.SEED_EMAIL,
-        "SEED_COORD_PASSWORD=" + TimelineImmutabilityIT.SEED_PASSWORD
-})
-@Import(TestcontainersConfiguration.class)
+@TramitaIntegrationTest
 class TimelineImmutabilityIT {
 
-    static final String SEED_EMAIL = "coordinacion.cali@uniremington.edu.co";
-    static final String SEED_PASSWORD = "frase de paso de integracion";
+    static final String SEED_EMAIL = TramitaIntegrationTest.SEED_EMAIL;
+    static final String SEED_PASSWORD = TramitaIntegrationTest.SEED_PASSWORD;
 
     @Autowired
     private IRequestService requestService;

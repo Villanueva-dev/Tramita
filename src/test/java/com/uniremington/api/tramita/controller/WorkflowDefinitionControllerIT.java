@@ -7,14 +7,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.uniremington.api.tramita.TestcontainersConfiguration;
+import com.uniremington.api.tramita.TramitaIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 // Paquete de Boot 4 (modularizado): antes org.springframework.boot.test.autoconfigure.web.servlet
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
@@ -24,16 +22,8 @@ import org.springframework.test.web.servlet.MockMvc;
  * el formulario de registro se alimenta de aquí — el frontend no hardcodea
  * trámites. Mismas properties que AuthControllerIT para compartir contexto.
  */
-@SpringBootTest(properties = {
-        "DB_URL=jdbc:postgresql://placeholder:5432/placeholder",
-        "DB_USER=placeholder",
-        "DB_PASSWORD=placeholder",
-        "APP_CORS_ALLOWED_ORIGINS=http://localhost:5173",
-        "SEED_COORD_EMAIL=" + AuthControllerIT.SEED_EMAIL,
-        "SEED_COORD_PASSWORD=" + AuthControllerIT.SEED_PASSWORD
-})
+@TramitaIntegrationTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
 class WorkflowDefinitionControllerIT {
 
     @Autowired
