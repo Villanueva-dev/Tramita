@@ -10,11 +10,13 @@ import static org.mockito.Mockito.when;
 
 import com.uniremington.api.tramita.dto.AdvanceRequestBody;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
+import com.uniremington.api.tramita.dto.PublicRequestBody;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.model.RequestTransitionLog;
 import com.uniremington.api.tramita.model.User;
 import com.uniremington.api.tramita.model.WorkflowDefinition;
+import com.uniremington.api.tramita.model.WorkflowParameter;
 import com.uniremington.api.tramita.model.WorkflowState;
 import com.uniremington.api.tramita.model.WorkflowTransition;
 import com.uniremington.api.tramita.repo.IRequestRepo;
@@ -273,6 +275,63 @@ class RequestServiceImplTest {
     }
 
     /** Definición mínima INICIAL → SIGUIENTE condicionada por la clave dada. */
+    // --- Canal público: la compuerta que decide qué trámites se diligencian sin sesión ---
+
+    private static final java.util.UUID PUBLIC_DEFINITION_ID =
+            java.util.UUID.fromString("00000000-0000-0000-0000-0000000000ff");
+
+    @Test
+    @DisplayName("PUBLIC_CAPTURE_ENABLED no interpretable: es configuración rota, nunca un canal cerrado en silencio")
+    void nonBooleanPublicCaptureFlagIsInvalidConfiguration() {
+        stubPublicDefinition("sí");
+
+        // Leerlo como false dejaría un trámite declarado como público rechazando todo
+        // con un 404 y culpando de la configuración rota a quien diligencia el formato.
+        // Leerlo como true es peor: abriría a envíos anónimos un trámite que nadie habilitó.
+        assertThatExceptionOfType(IncompleteConfigurationException.class)
+                .isThrownBy(() -> service.registerFromPublicChannel("ADICION_CREDITOS", publicBody()));
+
+        verify(requestRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("PUBLIC_CAPTURE_ENABLED en false explícito: el canal queda cerrado, no abierto")
+    void explicitFalsePublicCaptureFlagKeepsTheChannelClosed() {
+        stubPublicDefinition("false");
+
+        // El trámite declara que NO tiene canal público. Abrirlo sería aceptar envíos
+        // anónimos en un trámite que nadie habilitó: el mismo fail-open que vigila el
+        // caso no interpretable, por la otra puerta de la misma compuerta.
+        assertThatExceptionOfType(ResourceNotFoundException.class)
+                .isThrownBy(() -> service.registerFromPublicChannel("ADICION_CREDITOS", publicBody()));
+
+        verify(requestRepo, never()).save(any());
+    }
+
+    private void stubPublicDefinition(String flagValue) {
+        WorkflowDefinition definition = WorkflowDefinition.builder()
+                .id(PUBLIC_DEFINITION_ID)
+                .code("ADICION_CREDITOS")
+                .version(1)
+                .name("Adición de créditos")
+                .states(List.of(initial, next))
+                .build();
+        when(definitionRepo.findTopByCodeOrderByVersionDesc("ADICION_CREDITOS"))
+                .thenReturn(Optional.of(definition));
+        when(parameterRepo.findByDefinitionIdAndKey(PUBLIC_DEFINITION_ID, "PUBLIC_CAPTURE_ENABLED"))
+                .thenReturn(Optional.of(WorkflowParameter.builder()
+                        .key("PUBLIC_CAPTURE_ENABLED")
+                        .value(flagValue)
+                        .build()));
+    }
+
+    /** Cuerpo válido: la compuerta se evalúa antes de mirarlo, así que su contenido no influye. */
+    private PublicRequestBody publicBody() {
+        return new PublicRequestBody("Ana Pérez", "1234567890", "ana@uniremington.edu.co",
+                "3001234567", null, "Ingeniería de Sistemas", "Cali", "Ingeniería",
+                "Distancia", "8", "Necesito la asignatura para graduarme", "data:image/png;base64,AAAA");
+    }
+
     private WorkflowDefinition definitionGuardedBy(String code, String guardKey) {
         return WorkflowDefinition.builder()
                 .code(code)
