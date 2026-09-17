@@ -1,0 +1,25 @@
+-- SP3 (issue #10): qué formato oficial emite cada trámite.
+--
+-- EL FORMATO SE ELIGE POR DATO, NO POR CÓDIGO (§VI de la constitución). El servicio
+-- resuelve la implementación por el valor de este parámetro.
+--
+-- ⚠️ Un INSERT alcanza para un trámite cuyo caso el formato YA contempla. El DO-FR-100
+-- tiene que marcar una de sus cuatro casillas de tipo, y esas cuatro son parte del papel
+-- impreso: un trámite que no corresponda a ninguna necesita además que el renderer lo
+-- aprenda. Declarar el parámetro sin eso produce un 500, no un PDF.
+--
+-- La AUSENCIA del parámetro es el caso por defecto —este trámite no emite documento
+-- formal— y NO es configuración incompleta, igual que PUBLIC_CAPTURE_ENABLED en el canal
+-- público. Obligar a declararlo en cada definición encarecería crear un trámite nuevo,
+-- que es justo lo que el motor configurable abarata.
+INSERT INTO workflow_parameter (id, definition_id, parameter_key, parameter_value)
+SELECT gen_random_uuid(), d.id, 'DOCUMENT_TEMPLATE', 'DO_FR_100'
+FROM workflow_definition d
+WHERE d.code = 'ADICION_CREDITOS' AND d.version = 1;
+
+-- NOVEDAD_NOTAS NO se declara, y es deliberado. Su formato oficial todavía no se puede
+-- modelar: el papel que la Coordinación diligencia es POR ASIGNATURA con varios
+-- estudiantes, mientras el modelo es un estudiante con N asignaturas, y lleva cuatro notas
+-- parciales del 25 % más la definitiva contra las dos columnas que hoy existen. Está
+-- registrado en el issue #10 como pendiente de confirmar con la Coordinación antes de
+-- modelar nada. Declararlo acá haría que ese trámite emitiera el formato equivocado.
