@@ -62,9 +62,10 @@ public class Request {
      * Datos académicos del formulario (FR-001). Opcionales: una solicitud creada
      * con el cuerpo mínimo de la 002 sigue siendo válida (FR-006).
      *
-     * NO existe un campo de correo del estudiante: su único consumidor previsto
-     * era la notificación (SP7), fuera del alcance de este sprint. El dato entra
-     * cuando exista quien lo use (FR-020, constitución §III).
+     * Hasta la 004, acá decía que NO existía campo de correo del estudiante «hasta
+     * que exista quien lo use». El consumidor apareció: el PDF formal del trámite
+     * (SP3) debe reproducir el formato oficial, que pide correo, teléfono, sede,
+     * facultad y modalidad. Ver los campos de captura pública más abajo.
      */
     @Column(name = "student_code", updatable = false, length = 30)
     private String studentCode;
@@ -77,6 +78,39 @@ public class Request {
 
     @Column(updatable = false, length = 2000)
     private String reason;
+
+    /**
+     * Los campos del DO-FR-100 que llegan por el canal público (004, FR-005/FR-005a).
+     *
+     * Opcionales en el modelo y OBLIGATORIOS en el canal público: la diferencia es
+     * deliberada. La obligatoriedad vive en el contrato de entrada
+     * ({@code PublicRequestBody}), no acá, porque las solicitudes que ya existían y
+     * las que entran por el formulario interno no tienen estos datos.
+     */
+    @Column(name = "student_email", updatable = false, length = 255)
+    private String studentEmail;
+
+    @Column(name = "student_phone", updatable = false, length = 30)
+    private String studentPhone;
+
+    @Column(updatable = false, length = 120)
+    private String campus;
+
+    @Column(updatable = false, length = 120)
+    private String faculty;
+
+    @Column(updatable = false, length = 50)
+    private String modality;
+
+    /**
+     * Trazo de la firma como URL de datos. Sin {@code length}: su cota real la fija
+     * el tope del cuerpo entero del envío (research.md D7), no este campo.
+     *
+     * El sistema lo conserva y NO afirma que tenga valor probatorio (FR-021): su
+     * validez legal no ha sido confirmada por la institución.
+     */
+    @Column(name = "student_signature", updatable = false, columnDefinition = "TEXT")
+    private String studentSignature;
 
     /**
      * Asignaturas del trámite (FR-002). Se separan en su propia tabla para

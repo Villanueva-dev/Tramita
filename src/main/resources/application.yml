@@ -22,7 +22,38 @@ app:
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS}
 
+  # Protección del canal público de captura del DO-FR-100 (004, FR-016 a FR-019).
+  #
+  # Estos números protegen la DISPONIBILIDAD del enlace, no un secreto: el canal no
+  # guarda nada que valga la pena robar, pero si deja de responder el trámite no
+  # arranca. Por eso son holgados a propósito — un script de abuso hace más de 100
+  # peticiones por segundo y se corta igual con 20 que con 5, de modo que bajar el
+  # umbral no agrega protección y sí agrega probabilidad de bloquear a un estudiante
+  # legítimo, que es el único fallo que este canal no puede permitirse.
+  #
+  # Calibrados contra el volumen real: 30-40 solicitudes por semestre repartidas en
+  # los primeros meses (entrevista a la Coordinación), o sea menos de una por día
+  # hábil en toda la sede. La ventana es corta porque no gradúa la severidad del
+  # límite sino cuánto dura el bloqueo cuando se equivoca. Ver research.md D3-bis.
+  public-capture:
+    max-submissions: 20
+    window: 15m
+    max-body-size: 256KB
+
 server:
+  # Sin proxy delante, NONE es lo correcto: getRemoteAddr() ya trae la IP del cliente.
+  #
+  # ⚠️ AL DESPLEGAR detrás de un proxy (Cloudflare, nginx, el del proveedor) hay que
+  # cambiarlo a NATIVE y declarar el proxy en server.tomcat.remoteip.internal-proxies.
+  # Si no se hace, getRemoteAddr() devuelve la IP DEL PROXY y los envíos de todo el
+  # mundo se cuentan contra una única clave: el canal se bloquea para toda la sede,
+  # que es exactamente el fallo que el límite existe para prevenir (research.md D3-bis).
+  #
+  # ⛔ internal-proxies NUNCA vacío: eso confía en cualquier proxy y permite que el
+  # cliente se invente el X-Forwarded-For y evada el límite a voluntad.
+  # https://docs.spring.io/spring-boot/how-to/webserver.html#howto.webserver.use-behind-a-proxy-server
+  forward-headers-strategy: NONE
+
   servlet:
     session:
       # Expiración por inactividad (FR-009)

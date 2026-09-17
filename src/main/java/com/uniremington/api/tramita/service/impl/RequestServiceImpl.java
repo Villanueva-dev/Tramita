@@ -3,6 +3,8 @@ package com.uniremington.api.tramita.service.impl;
 import com.uniremington.api.tramita.dto.AdvanceRequestBody;
 import com.uniremington.api.tramita.dto.AvailableTransitionResponse;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
+import com.uniremington.api.tramita.dto.InboxEntryResponse;
+import com.uniremington.api.tramita.dto.PublicRequestBody;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
 import com.uniremington.api.tramita.dto.StateResponse;
@@ -15,10 +17,12 @@ import com.uniremington.api.tramita.model.RequestTransitionLog;
 import com.uniremington.api.tramita.model.User;
 import com.uniremington.api.tramita.model.WorkflowDefinition;
 import com.uniremington.api.tramita.model.WorkflowState;
+import com.uniremington.api.tramita.model.WorkflowParameter;
 import com.uniremington.api.tramita.model.WorkflowTransition;
 import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
 import com.uniremington.api.tramita.repo.IUserRepo;
+import com.uniremington.api.tramita.repo.IWorkflowParameterRepo;
 import com.uniremington.api.tramita.repo.IWorkflowDefinitionRepo;
 import com.uniremington.api.tramita.service.IRequestBusinessRules;
 import com.uniremington.api.tramita.service.IRequestService;
@@ -29,6 +33,8 @@ import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationExce
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
 import java.util.List;
+import org.springframework.data.domain.Limit;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -44,11 +50,40 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class RequestServiceImpl implements IRequestService {
 
+    /** Habilita el canal público de un trámite (research.md D1). */
+    private static final String PUBLIC_CAPTURE_ENABLED = "PUBLIC_CAPTURE_ENABLED";
+
+    /**
+     * Responsable del tramo inicial de una solicitud pública (research.md D4). La
+     * fila la siembra V3.3.0 y está inactiva: nombra al portal en el histórico sin
+     * ser una cuenta.
+     */
+    private static final String PORTAL_ACTOR_EMAIL = "portal-publico@tramita.local";
+
+    /**
+     * Un único mensaje para «el trámite no existe» y «el trámite no admite captura
+     * pública». La distinción no le sirve a quien envía legítimamente y sí a quien
+     * sondea qué trámites existen (FR-002).
+     */
+    /**
+     * Cuántas solicitudes trae la bandeja de recientes. Con las 30-40 solicitudes por
+     * semestre que reporta la Coordinación
+     * (material-coord/2026-06-04-entrevista3-sintesis-analitica.md:213), 50 cubre más de
+     * un semestre completo: en la práctica la Coordinación ve todo lo que llegó, sin
+     * paginar. El tope existe como cota de sanidad —para que la consulta no pueda
+     * volverse un volcado si el volumen cambia—, no como paginación.
+     */
+    private static final int INBOX_SIZE = 50;
+
+    private static final String NO_PUBLIC_CHANNEL =
+            "No hay captura pública disponible para ese trámite";
+
     private final IWorkflowDefinitionRepo definitionRepo;
     private final IRequestRepo requestRepo;
     private final IRequestTransitionLogRepo logRepo;
     private final IUserRepo userRepo;
     private final IRequestBusinessRules businessRules;
+    private final IWorkflowParameterRepo parameterRepo;
 
     /**
      * Todas las guardas registradas como bean (research.md D5). Se recorre por
@@ -98,6 +133,12 @@ public class RequestServiceImpl implements IRequestService {
                 .program(body.program())
                 .semester(body.semester())
                 .reason(body.reason())
+                .studentEmail(body.studentEmail())
+                .studentPhone(body.studentPhone())
+                .campus(body.campus())
+                .faculty(body.faculty())
+                .modality(body.modality())
+                .studentSignature(body.signature())
                 .build());
 
         // Las asignaturas se persisten por cascada desde la solicitud. El lado
@@ -124,6 +165,81 @@ public class RequestServiceImpl implements IRequestService {
                 .build());
 
         return toResponse(request);
+    }
+
+    @Override
+    @Transactional
+    public void registerFromPublicChannel(String definitionCode, PublicRequestBody body) {
+        // Se resuelve y se comprueba ANTES de mapear nada: un trámite sin canal
+        // público no debe llegar siquiera a construir una solicitud.
+        WorkflowDefinition definition = definitionRepo
+                .findTopByCodeOrderByVersionDesc(definitionCode)
+                .orElseThrow(() -> new ResourceNotFoundException(NO_PUBLIC_CHANNEL));
+
+        if (!allowsPublicCapture(definition)) {
+            throw new ResourceNotFoundException(NO_PUBLIC_CHANNEL);
+        }
+
+        // El código de la RUTA es el que viaja al motor: el cuerpo público no tiene
+        // definitionCode, así que no hay nada que un envío manipulado pueda pisar
+        // (FR-002a). Se delega en register() para no tener dos caminos de alta: las
+        // reglas de negocio, el estado inicial y la entrada de nacimiento del
+        // histórico son exactamente los mismos que por el canal autenticado.
+        //
+        // La llamada es interna, así que no pasa por el proxy de @Transactional; es
+        // lo correcto acá: ambos métodos deben compartir UNA transacción, no abrir dos.
+        register(toCreateBody(definitionCode, body), PORTAL_ACTOR_EMAIL);
+    }
+
+    /**
+     * Misma semántica que {@code capturesCredits} de RequestBusinessRulesImpl, y por
+     * la misma razón (research.md D1): el parámetro ausente significa «este trámite
+     * no tiene canal público» —el caso por defecto, no una configuración incompleta—,
+     * y un valor que no es true ni false es configuración ROTA, nunca un false
+     * silencioso. Leerlo como negativo dejaría un canal declarado como público
+     * rechazando todo y culpando de ello a quien envía.
+     */
+    private boolean allowsPublicCapture(WorkflowDefinition definition) {
+        Optional<String> configured = parameterRepo
+                .findByDefinitionIdAndKey(definition.getId(), PUBLIC_CAPTURE_ENABLED)
+                .map(WorkflowParameter::getValue);
+        if (configured.isEmpty()) {
+            return false;
+        }
+        String value = configured.get().trim();
+        if ("true".equalsIgnoreCase(value)) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(value)) {
+            return false;
+        }
+        throw new IncompleteConfigurationException(
+                "El parámetro %s de la definición %s tiene un valor no interpretable"
+                        .formatted(PUBLIC_CAPTURE_ENABLED, definition.getId()));
+    }
+
+    /**
+     * El formato público como cuerpo del motor. Sin asignaturas: el DO-FR-100 no
+     * tiene tabla de materias —la que el estudiante necesita viaja en prosa dentro
+     * de los compromisos adquiridos—, de modo que las reglas de créditos no tienen
+     * qué validar y no rechazan el envío.
+     */
+    private CreateRequestBody toCreateBody(String definitionCode, PublicRequestBody body) {
+        return new CreateRequestBody(
+                definitionCode,
+                body.studentName(),
+                body.studentDocument(),
+                body.studentCode(),
+                body.program(),
+                body.semester(),
+                body.reason(),
+                List.of(),
+                body.studentEmail(),
+                body.studentPhone(),
+                body.campus(),
+                body.faculty(),
+                body.modality(),
+                body.signature());
     }
 
     /**
@@ -229,6 +345,14 @@ public class RequestServiceImpl implements IRequestService {
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<InboxEntryResponse> getInbox() {
+        return requestRepo.findAllByOrderByCreatedAtDesc(Limit.of(INBOX_SIZE)).stream()
+                .map(this::toInboxEntry)
+                .toList();
+    }
+
     /**
      * El timeline es un solo SELECT ordenado (research.md D7/D11). El "en nombre
      * de" (FR-006) se deriva por join contra la definición de nacimiento — es
@@ -269,6 +393,22 @@ public class RequestServiceImpl implements IRequestService {
                         definition.getCode(), definition.getName(), definition.getVersion()),
                 request.getStudentName(),
                 request.getStudentDocument(),
+                toStateResponse(request.getCurrentState()),
+                request.getCreatedAt());
+    }
+
+    /**
+     * Mapeo propio y no una variante de {@link #toSummary}: que este método NO tenga
+     * una línea para el documento de identidad es la garantía de FR-014, y conviene
+     * que se vea al leerlo.
+     */
+    private InboxEntryResponse toInboxEntry(Request request) {
+        WorkflowDefinition definition = request.getDefinition();
+        return new InboxEntryResponse(
+                request.getId(),
+                new WorkflowDefinitionResponse(
+                        definition.getCode(), definition.getName(), definition.getVersion()),
+                request.getStudentName(),
                 toStateResponse(request.getCurrentState()),
                 request.getCreatedAt());
     }

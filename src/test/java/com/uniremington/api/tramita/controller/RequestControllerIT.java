@@ -10,8 +10,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.uniremington.api.tramita.TestcontainersConfiguration;
+import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -246,22 +248,47 @@ class RequestControllerIT {
     }
 
     @Test
-    @DisplayName("ningún dato de contacto del estudiante se almacena ni se devuelve (FR-020)")
-    void registerNeverPersistsNorReturnsStudentContactData() throws Exception {
-        // Aunque el cliente lo mande, el sistema no tiene dónde guardarlo: el campo
-        // se ignora y no aparece en la respuesta. Su consumidor era SP7, fuera de alcance.
+    @DisplayName("el correo del estudiante se conserva pero NUNCA sale en la respuesta (FR-005a)")
+    void registerPersistsStudentEmailButNeverReturnsIt() throws Exception {
+        // ⚠️ ESTE TEST AFIRMABA LO CONTRARIO HASTA EL 2026-09-16. Se llamaba
+        // «registerNeverPersistsNorReturnsStudentContactData» y su comentario decía que
+        // «el sistema no tiene dónde guardarlo: el campo se ignora». Dejó de ser cierto
+        // cuando la 004 agregó student_email a la tabla, y el test siguió en verde
+        // porque solo miraba la respuesta HTTP, nunca la fila. Lo encontró un review
+        // independiente (A-2).
+        //
+        // El FR-020 que citaba era el de la 003 —«MUST NOT almacenar el correo»— que el
+        // FR-005a de la 004 revoca explícitamente: el consumidor apareció (el PDF formal
+        // del SP3). En la 004, FR-020 significa otra cosa: no escribirlo en las bitácoras.
+        //
+        // Lo que sigue siendo cierto, y es lo que este test defiende: el dato se guarda,
+        // pero este endpoint NO lo devuelve. Son dos garantías distintas y ahora se
+        // asertan las dos.
+        String email = "contacto.de.prueba@ejemplo.test";
+        String studentName = "Estudiante Con Correo";
+
         mockMvc.perform(createRequestWithForm("""
                         {
                           "definitionCode": "ADICION_CREDITOS",
-                          "studentName": "Estudiante De Prueba",
+                          "studentName": "%s",
                           "studentDocument": "DOC-TEST-0004",
-                          "studentEmail": "no-deberia-persistirse@example.test"
-                        }""").session(login()))
+                          "studentEmail": "%s"
+                        }""".formatted(studentName, email)).session(login()))
                 .andExpect(status().isCreated())
+                // No sale: ni bajo su clave, ni bajo ninguna otra
                 .andExpect(jsonPath("$.studentEmail").doesNotExist())
                 .andExpect(content().string(
                         org.hamcrest.Matchers.not(
-                                org.hamcrest.Matchers.containsString("no-deberia-persistirse"))));
+                                org.hamcrest.Matchers.containsString(email))));
+
+        // Y sí se conserva: la aserción que faltaba y que dejaba pasar la contradicción
+        Request saved = requestRepo.findAll().stream()
+                .filter(r -> studentName.equals(r.getStudentName()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("la solicitud no llegó a la base"));
+        assertThat(saved.getStudentEmail())
+                .as("FR-005a: el correo se conserva porque el PDF formal del SP3 lo necesita")
+                .isEqualTo(email);
     }
 
     @Test
@@ -797,6 +824,69 @@ class RequestControllerIT {
         mockMvc.perform(advanceRequest(id, "EN_COORDINACION", null).session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentState.code").value("EN_COORDINACION"));
+    }
+
+    // --- US2 (004): la bandeja de recientes -----------------------------------------------
+
+    @Test
+    @DisplayName("la bandeja lista sin criterio y de la más nueva a la más vieja (FR-012, FR-013)")
+    void inboxListsRecentRequestsNewestFirst() throws Exception {
+        MockHttpSession session = login();
+
+        // Tres solicitudes en orden conocido. Nombres propios del escenario: el IT
+        // comparte base con los demás tests y una bandeja global trae también lo suyo.
+        String primera = "Bandeja Primera EnLlegar";
+        String segunda = "Bandeja Segunda EnLlegar";
+        String tercera = "Bandeja Tercera EnLlegar";
+        registerAndGetId(session, "ADICION_CREDITOS", primera, "SIN-DATO-REAL-201");
+        registerAndGetId(session, "ADICION_CREDITOS", segunda, "SIN-DATO-REAL-202");
+        registerAndGetId(session, "ADICION_CREDITOS", tercera, "SIN-DATO-REAL-203");
+
+        String body = mockMvc.perform(get("/api/requests/inbox").session(session))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andReturn().getResponse().getContentAsString();
+
+        List<String> names = com.jayway.jsonpath.JsonPath.read(body, "$[*].studentName");
+
+        // Se asertan las POSICIONES RELATIVAS y no los tres primeros puestos: lo que
+        // FR-013 promete es el orden, y exigir que encabecen la lista ataría el test a
+        // que ningún otro escenario registre algo después.
+        assertThat(names).contains(primera, segunda, tercera);
+        assertThat(names.indexOf(tercera))
+                .as("la última registrada debe aparecer antes que la segunda")
+                .isLessThan(names.indexOf(segunda));
+        assertThat(names.indexOf(segunda))
+                .as("la segunda registrada debe aparecer antes que la primera")
+                .isLessThan(names.indexOf(primera));
+    }
+
+    @Test
+    @DisplayName("la bandeja nunca expone el número de documento (FR-014)")
+    void inboxNeverExposesStudentDocument() throws Exception {
+        MockHttpSession session = login();
+        String document = "SIN-DATO-REAL-204";
+        registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Sin Cedula", document);
+
+        String body = mockMvc.perform(get("/api/requests/inbox").session(session))
+                .andExpect(status().isOk())
+                // Sobre el JSON servido, no sobre el DTO: lo que se promete es que el
+                // dato no SALE, y quien lo verifica del lado del DTO no vería un campo
+                // agregado por otra vía.
+                .andExpect(jsonPath("$[*].studentDocument").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+
+        // Y el valor concreto tampoco aparece bajo ninguna otra clave.
+        assertThat(body)
+                .as("ningún documento de identidad puede viajar en la respuesta de la bandeja")
+                .doesNotContain(document);
+    }
+
+    @Test
+    @DisplayName("la bandeja exige sesión: sin ella, 401 (FR-015)")
+    void inboxRequiresAnAuthenticatedSession() throws Exception {
+        mockMvc.perform(get("/api/requests/inbox"))
+                .andExpect(status().isUnauthorized());
     }
 
     // --- helpers -------------------------------------------------------------------------

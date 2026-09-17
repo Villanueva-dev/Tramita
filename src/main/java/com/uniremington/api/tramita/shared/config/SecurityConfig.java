@@ -5,7 +5,9 @@ import com.uniremington.api.tramita.security.AuthFailureHandler;
 import com.uniremington.api.tramita.security.AuthSuccessHandler;
 import com.uniremington.api.tramita.security.JsonAuthenticationConverter;
 import com.uniremington.api.tramita.service.impl.LoginAttemptService;
+import com.uniremington.api.tramita.service.impl.PublicSubmissionCounter;
 import com.uniremington.api.tramita.security.LoginThrottlingFilter;
+import com.uniremington.api.tramita.security.PublicSubmissionThrottlingFilter;
 import com.uniremington.api.tramita.shared.exception.ProblemJsonWriter;
 import java.time.Clock;
 import java.util.List;
@@ -44,8 +46,18 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties(CorsProperties.class)
+@EnableConfigurationProperties({CorsProperties.class, PublicCaptureProperties.class})
 public class SecurityConfig {
+
+    /**
+     * La ruta de captura pública, declarada UNA vez: el permitAll y la exclusión de
+     * CSRF deben cubrir exactamente lo mismo. Dos literales separados podrían
+     * divergir, y la divergencia peligrosa —una exclusión de CSRF más ancha que el
+     * permitAll— no la detectaría ningún test de esta feature.
+     */
+    private static final PathPatternRequestMatcher PUBLIC_CAPTURE =
+            PathPatternRequestMatcher.withDefaults()
+                    .matcher(HttpMethod.POST, "/api/public/requests/*");
 
     /**
      * DelegatingPasswordEncoder con BCrypt por defecto (research.md D6): el hash se
@@ -84,6 +96,8 @@ public class SecurityConfig {
             AuthSuccessHandler authSuccessHandler,
             AuthFailureHandler authFailureHandler,
             LoginAttemptService loginAttemptService,
+            PublicCaptureProperties publicCaptureProperties,
+            PublicSubmissionCounter publicSubmissionCounter,
             JsonMapper jsonMapper,
             ProblemJsonWriter problemJsonWriter) throws Exception {
 
@@ -98,7 +112,22 @@ public class SecurityConfig {
 
         http
                 // CSRF para SPA: cookie XSRF-TOKEN legible por JS + deferred loading (D4)
-                .csrf(csrf -> csrf.spa())
+                //
+                // La captura pública queda FUERA de CSRF, y solo ella (004, research.md
+                // D2). CSRF protege contra que un sitio ajeno use la sesión del navegante
+                // a sus espaldas: sin sesión no hay identidad que suplantar, de modo que
+                // acá no protegería nada y solo agregaría un paso previo —pedir el
+                // token— que puede fallarle a un estudiante sin cuenta.
+                //
+                // La exclusión está acotada a esta ruta y NO es precedente para ninguna
+                // otra: en cuanto un endpoint dependa de una sesión, CSRF vuelve a ser
+                // la defensa que corresponde.
+                //
+                // Lo que sí protege este canal es otra cosa, y ya está puesta más abajo:
+                // PublicSubmissionThrottlingFilter, con el tope de tamaño del cuerpo y el
+                // límite de envíos por origen (US3, research.md D3-bis).
+                .csrf(csrf -> csrf.spa()
+                        .ignoringRequestMatchers(PUBLIC_CAPTURE))
                 // materializa el token diferido → la cookie XSRF-TOKEN se emite en las
                 // respuestas del chain (la primera, en el GET inicial del SPA). El login
                 // NO rota el token — ver javadoc de CsrfCookieFilter (D4/JD3-004)
@@ -106,6 +135,8 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        // Segundo y último endpoint abierto del sistema (004, FR-001)
+                        .requestMatchers(PUBLIC_CAPTURE).permitAll()
                         .anyRequest().authenticated())
                 // sin sesión → 401 problem+json (RFC 9457, D10)
                 .exceptionHandling(ex -> ex
@@ -124,6 +155,15 @@ public class SecurityConfig {
                 // antes que ambos por orden estándar del chain, preservando el 403
                 .addFilterBefore(
                         new LoginThrottlingFilter(loginAttemptService, jsonMapper, problemJsonWriter),
+                        UsernamePasswordAuthenticationFilter.class)
+                // Protección del canal público (004, US3). Va ANTES de que la petición se
+                // resuelva: el 413 debe cortar sin materializar el envío en memoria, que es
+                // todo el punto del tope. Su contador es propio y no el del login — cuentan
+                // cosas distintas (envíos vs. fallos de autenticación) con umbrales
+                // distintos, y compartirlo mezclaría los dos presupuestos.
+                .addFilterBefore(
+                        new PublicSubmissionThrottlingFilter(publicSubmissionCounter,
+                                publicCaptureProperties, problemJsonWriter),
                         UsernamePasswordAuthenticationFilter.class)
                 .addFilterAt(loginFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

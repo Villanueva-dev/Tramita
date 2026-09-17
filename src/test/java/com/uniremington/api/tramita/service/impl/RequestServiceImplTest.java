@@ -20,6 +20,7 @@ import com.uniremington.api.tramita.model.WorkflowTransition;
 import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
 import com.uniremington.api.tramita.repo.IUserRepo;
+import com.uniremington.api.tramita.repo.IWorkflowParameterRepo;
 import com.uniremington.api.tramita.repo.IWorkflowDefinitionRepo;
 import com.uniremington.api.tramita.service.IRequestBusinessRules;
 import com.uniremington.api.tramita.service.IWorkflowGuard;
@@ -57,6 +58,12 @@ class RequestServiceImplTest {
      * que el motor no debe conocer.
      */
     private final IRequestBusinessRules businessRules = mock(IRequestBusinessRules.class);
+
+    /**
+     * Lo usa el canal público de la 004 para leer PUBLIC_CAPTURE_ENABLED. Los casos
+     * de este test no lo ejercitan; está para satisfacer al constructor.
+     */
+    private final IWorkflowParameterRepo parameterRepo = mock(IWorkflowParameterRepo.class);
     /** Sin guardas registradas: los casos de US1–US3 no las ejercitan (FR-017). */
     private final RequestServiceImpl service = serviceWith();
 
@@ -370,7 +377,8 @@ class RequestServiceImplTest {
     /** Motor con las guardas dadas registradas; sin argumentos, ninguna. */
     private RequestServiceImpl serviceWith(IWorkflowGuard... guards) {
         return new RequestServiceImpl(
-                definitionRepo, requestRepo, logRepo, userRepo, businessRules, List.of(guards));
+                definitionRepo, requestRepo, logRepo, userRepo, businessRules, parameterRepo,
+                List.of(guards));
     }
 
     /** Solicitud del trámite de prueba parada en el estado dado, con stubs de I/O listos. */

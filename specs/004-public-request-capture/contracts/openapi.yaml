@@ -146,7 +146,22 @@ paths:
 components:
   responses:
     BadRequest:
-      description: Cuerpo mal formado o campos que incumplen el contrato de entrada.
+      description: |
+        Cuerpo que el servidor no puede interpretar: JSON mal formado, tipo equivocado
+        en un campo, media type no soportado.
+
+        NO cubre el caso de un campo obligatorio ausente o vacío — eso es 422 en este
+        canal. La distinción es deliberada y se decidió al implementar: el cliente de
+        este endpoint es un estudiante diligenciando un formato oficial, y un formato
+        al que le falta una casilla llegó perfectamente bien formado. El 422 dice
+        exactamente eso, «entendí el cuerpo y no puedo procesarlo», y deja el 400 para
+        lo que sí es un defecto de formato.
+
+        ⚠️ Difiere del resto del API, donde una violación de Bean Validation devuelve
+        400 (ver `anOversizedReasonIsRejectedInsteadOfTruncated` en RequestControllerIT).
+        La asimetría es conocida y aceptada, no un descuido: el otro cliente es el
+        formulario interno de la Coordinación, donde un campo vacío sí es un defecto
+        del contrato de entrada.
       content:
         application/problem+json:
           schema:
