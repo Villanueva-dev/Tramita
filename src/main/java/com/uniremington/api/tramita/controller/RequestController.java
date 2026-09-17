@@ -6,6 +6,7 @@ import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
 import com.uniremington.api.tramita.dto.TimelineEntryResponse;
+import com.uniremington.api.tramita.service.IDocumentService;
 import com.uniremington.api.tramita.service.IRequestService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -14,6 +15,8 @@ import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,6 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class RequestController {
 
     private final IRequestService requestService;
+    private final IDocumentService documentService;
 
     /** US1: 201 + Location del recurso creado (semántica REST de creación). */
     @PostMapping
@@ -94,5 +98,34 @@ public class RequestController {
     @GetMapping("/{id}/timeline")
     public List<TimelineEntryResponse> getTimeline(@PathVariable UUID id) {
         return requestService.getTimeline(id);
+    }
+
+    /**
+     * SP3: el formato oficial del trámite, diligenciado con los datos de la solicitud.
+     *
+     * SE GENERA BAJO DEMANDA Y NO SE GUARDA. El DO-FR-100 es el documento que circula PARA
+     * ser firmado, así que se emite en cualquier momento de la vida de la solicitud: si
+     * solo saliera al cerrar el trámite, no serviría para aquello por lo que existe. Que
+     * una solicitud en revisión pueda imprimir su formato no la vuelve aprobada, y el
+     * propio documento lo muestra: el bloque «Firma de la Facultad» va vacío.
+     *
+     * Congelar el documento y sellarlo es SP4 (issue #11), no esto.
+     *
+     * NO LO PUEDE PEDIR EL ESTUDIANTE, por dos vías independientes: la ruta exige sesión
+     * —`anyRequest().authenticated()` en SecurityConfig— y además el recibo del canal
+     * público no devuelve identificador (FR-008), así que quien envía el formato no tiene
+     * con qué construir esta URL.
+     */
+    @GetMapping("/{id}/document")
+    public ResponseEntity<byte[]> getDocument(@PathVariable UUID id) {
+        byte[] document = documentService.generateFor(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                // El nombre lleva el id de la solicitud y NUNCA la cédula ni el nombre del
+                // estudiante: el archivo se descarga, se reenvía y queda en carpetas
+                // compartidas, y el nombre viaja con él (§III, minimización).
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"DO-FR-100-%s.pdf\"".formatted(id))
+                .body(document);
     }
 }

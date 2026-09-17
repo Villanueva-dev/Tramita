@@ -889,6 +889,55 @@ class RequestControllerIT {
                 .andExpect(status().isUnauthorized());
     }
 
+    // --- 010 / SP3: el documento formal del trámite ---------------------------------------
+
+    @Test
+    @DisplayName("documento de un trámite que declara formato: 200 application/pdf descargable")
+    void documentOfADeclaredTradeIsServedAsPdf() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Ana Con Documento", "DOC-PDF-001");
+
+        byte[] pdf = mockMvc.perform(get("/api/requests/" + id + "/document").session(session))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PDF))
+                // Se descarga, no se abre en el navegador: es un formato para imprimir y firmar.
+                .andExpect(header().string("Content-Disposition",
+                        org.hamcrest.Matchers.containsString("attachment")))
+                .andReturn().getResponse().getContentAsByteArray();
+
+        // El CONTENIDO lo verifica DoFr100RendererTest extrayendo el texto. Acá se
+        // comprueba el cableado: que la ruta resuelve, que atraviesa el filter chain con
+        // sesión, y que el trámite eligió su formato por configuración y no por código.
+        assertThat(pdf).startsWith(new byte[] {'%', 'P', 'D', 'F'});
+    }
+
+    @Test
+    @DisplayName("el documento exige sesión: es de la Coordinación, no del estudiante")
+    void documentRequiresSession() throws Exception {
+        String id = registerAndGetId(login(), "ADICION_CREDITOS", "Ana Sin Sesión", "DOC-PDF-002");
+
+        // El recibo del canal público no devuelve id a propósito (FR-008), así que quien
+        // envía por el formulario no tiene con qué pedir esto. Que además exija sesión lo
+        // cierra por el otro lado.
+        mockMvc.perform(get("/api/requests/" + id + "/document"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("un trámite que no declara formato no tiene documento: 404 problem+json")
+    void tradeWithoutDeclaredTemplateHasNoDocument() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "NOVEDAD_NOTAS", "Sin Formato", "DOC-PDF-003");
+
+        // NOVEDAD_NOTAS no declara DOCUMENT_TEMPLATE: su formato oficial todavía no se
+        // modela —el papel es por asignatura con varios estudiantes, y eso está bloqueado
+        // por la Coordinación en el issue #10—. La ausencia significa «este trámite no
+        // emite documento», no configuración rota, y por eso es 404 y no 500.
+        mockMvc.perform(get("/api/requests/" + id + "/document").session(session))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+    }
+
     // --- helpers -------------------------------------------------------------------------
 
     private String registerAndGetId(MockHttpSession session, String definitionCode,
