@@ -1,0 +1,116 @@
+openapi: 3.1.0
+info:
+  title: Trámita — delta de contrato de la feature 005
+  version: 0.5.0
+  description: |
+    Delta sobre los contratos de las features 002, 003 y 004, cuyas estructuras NO se
+    alteran. Aquí se declara únicamente lo que esta feature agrega:
+
+      * `GET /requests/{id}/document` — el formato oficial del trámite, diligenciado con
+        los datos de la solicitud, como PDF descargable.
+
+    Ningún endpoint existente cambia y no hay entidades nuevas: el documento se arma con lo
+    que `Request` ya persiste desde la 004, incluida la firma del estudiante.
+
+    Lo no listado aquí se rige por `specs/004-public-request-capture/contracts/openapi.yaml`
+    y, en lo que aquélla no altera, por los de la 003 y la 002.
+
+servers:
+  - url: /api
+
+paths:
+  /requests/{id}/document:
+    get:
+      summary: El formato oficial del trámite, diligenciado
+      description: |
+        Emite el documento formal de la solicitud como PDF descargable. Para
+        `ADICION_CREDITOS` es el **DO-FR-100 v2024**, de dos páginas: los datos en la
+        primera y el campo de firmas en la segunda, como en el papel.
+
+        QUÉ FORMATO SE EMITE LO DICE LA CONFIGURACIÓN, no el código: la definición del
+        trámite declara `DOCUMENT_TEMPLATE` en `workflow_parameter` y ese valor selecciona
+        la implementación (FR-029, research.md D6). Habilitar este formato para un trámite
+        nuevo es un INSERT, no un despliegue.
+
+        SE GENERA BAJO DEMANDA Y NO SE ARCHIVA (research.md D7). El formato es el papel que
+        circula PARA ser firmado, así que se emite en cualquier estado de la solicitud; si
+        solo saliera al cerrar el trámite no serviría para aquello por lo que existe. Que
+        una solicitud en revisión pueda emitirlo no la vuelve aprobada, y el propio
+        documento lo muestra: el bloque «Firma de la Facultad» va vacío hasta que SP4
+        (issue #11) lo llene.
+
+        NO ES UN RECURSO DEL ESTUDIANTE, por dos vías independientes: exige sesión, y el
+        recibo del canal público no devuelve identificador (FR-008 de la 004), de modo que
+        quien envía el formato no tiene con qué construir esta URL.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identificador de la solicitud.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: |
+            El formato diligenciado. Se sirve con `Content-Disposition: attachment` porque
+            es un documento para imprimir y firmar, no para leer en el navegador.
+
+            El nombre del archivo lleva el identificador de la solicitud y NUNCA el nombre
+            ni la cédula del estudiante: el archivo se descarga, se reenvía y queda en
+            carpetas compartidas, y el nombre viaja con él (§III, minimización).
+          headers:
+            Content-Disposition:
+              description: '`attachment; filename="DO-FR-100-{id}.pdf"`'
+              schema:
+                type: string
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Sin sesión válida.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '404':
+          description: |
+            La solicitud no existe, **o** su trámite no emite documento formal.
+
+            Las dos causas se responden igual a propósito: un trámite sin
+            `DOCUMENT_TEMPLATE` declarado no tiene documento, y eso es el caso POR DEFECTO
+            —no toda definición emite un formato oficial—, no una configuración a medio
+            cargar. Es la misma lectura que `PUBLIC_CAPTURE_ENABLED` hace de su propia
+            ausencia en la 004 (FR-030).
+
+            Hoy lo devuelve `NOVEDAD_NOTAS`, cuyo formato oficial todavía no se puede
+            modelar: el papel es por asignatura con varios estudiantes y lleva cuatro notas
+            parciales, contra un modelo de un estudiante con N asignaturas y dos columnas de
+            nota.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          description: |
+            El trámite declara un formato que ninguna implementación dibuja: configuración
+            rota (FR-031).
+
+            ⚠️ Es DISTINTO del 404 y por eso no se colapsan. Responder «no tiene documento»
+            ante un formato declarado pero inexistente escondería un error de configuración
+            detrás de un estado normal, y nadie lo vería hasta que alguien preguntara por
+            qué un trámite no emite su papel.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+components:
+  schemas:
+    ProblemDetail:
+      type: object
+      description: |
+        RFC 9457 (`application/problem+json`), que obsoleta a la RFC 7807.
+        Ver `specs/002-workflow-engine/contracts/openapi.yaml`.
