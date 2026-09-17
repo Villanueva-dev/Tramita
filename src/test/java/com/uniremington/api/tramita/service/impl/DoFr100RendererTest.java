@@ -126,6 +126,24 @@ class DoFr100RendererTest {
     }
 
     @Test
+    @DisplayName("la ciudad va preimpresa: aparece aunque la solicitud no traiga sede")
+    void printsTheCityThatIsPreprintedOnTheForm() throws Exception {
+        // Las solicitudes del formulario interno NO traen campus: ese campo lo agregó el
+        // canal público en la 004. Se descubrió mirando un documento generado desde la
+        // base, con la celda «Ciudad» vacía donde el papel dice «Cali». Son dos campos
+        // distintos: «Ciudad» pertenece al formulario, «Sede» al solicitante.
+        Request internalForm = requestBuilder().campus(null).build();
+
+        // SE ASIERTA LA CELDA, NO LA PÁGINA. La primera versión de este test comprobaba
+        // que «Cali» apareciera en algún lugar de la hoja, y pasaba aunque la celda
+        // estuviera vacía: el pie dice «Sede Cali». Un mutante lo delató. Ahora se ata la
+        // ciudad a su fila —Ciudad | Día | Mes | Año— que es donde el formato la pone.
+        assertThat(pageText(renderer.render(internalForm), 1))
+                .as("la ciudad es parte del formato, no un dato que pueda faltar")
+                .containsPattern("Ciudad\\s+Día\\s+Mes\\s+Año\\s+Cali");
+    }
+
+    @Test
     @DisplayName("nunca imprime las trece casillas de motivos: son de otros trámites")
     void neverPrintsTheThirteenReasonCheckboxes() throws Exception {
         String text = textOf(renderer.render(request()));

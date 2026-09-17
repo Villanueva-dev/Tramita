@@ -65,6 +65,17 @@ public class DoFr100Renderer implements IDocumentRenderer {
     private static final float LEFT = 45, RIGHT = 567, TOP = 750, BOTTOM = 70;
     private static final float ROW_HEIGHT = 18, LINE_HEIGHT = 13, BODY_SIZE = 9;
 
+    /**
+     * La ciudad va PREIMPRESA en el papel, no es un dato del solicitante. Se descubrió
+     * mirando un documento generado desde la base: una solicitud del formulario interno no
+     * trae `campus` —ese campo lo agregó el canal público— y la celda «Ciudad» salía vacía
+     * donde el formato oficial dice «Cali».
+     *
+     * Son dos campos distintos que se habían confundido: «Ciudad» pertenece al formulario
+     * y «Sede» al solicitante, aunque en el alcance del MVP ambos digan Cali.
+     */
+    private static final String PRINTED_CITY = "Cali";
+
     /** Los cuatro tipos del formato, en el orden del papel. */
     private static final List<String> REQUEST_TYPES = List.of(
             "Excepción por asignatura reprobada por segunda vez",
@@ -126,7 +137,7 @@ public class DoFr100Renderer implements IDocumentRenderer {
             float[] dateColumns = {LEFT, LEFT + 150, LEFT + 250, LEFT + 350, RIGHT};
             y = row(content, y, dateColumns, BOLD, "Ciudad", "Día", "Mes", "Año");
             y = row(content, y, dateColumns, REGULAR,
-                    request.getCampus(),
+                    PRINTED_CITY,
                     request.getCreatedAt().format(DAY),
                     request.getCreatedAt().format(MONTH),
                     request.getCreatedAt().format(YEAR));
