@@ -26,8 +26,8 @@ DB_PASSWORD=postgres
 SEED_COORD_EMAIL=coordinacion.cali@uniremington.edu.co
 SEED_COORD_PASSWORD=<una-frase-de-paso-de-al-menos-15-chars>
 
-# Allowlist CORS del SPA (cuando exista); coma-separada, sin comodín
-APP_CORS_ALLOWED_ORIGINS=http://localhost:5173
+# Allowlist CORS del SPA; coma-separada, sin comodín. El SPA es Next.js y corre en 3000
+APP_CORS_ALLOWED_ORIGINS=http://localhost:3000
 ```
 
 ## Levantar
@@ -110,5 +110,6 @@ El framework lo elegirá el equipo. Contrato que el SPA debe respetar:
 - **US3**: espejar en tiempo real la longitud (mínimo 15 caracteres, máximo 72 bytes UTF-8
   medibles con `TextEncoder`) y coincidencia con la confirmación; el servidor re-valida siempre
   (FR-003).
-- En desarrollo, usar dev-proxy (p. ej. Vite) para llamar same-origin y que `SameSite=Strict`
-  funcione (research.md D3).
+- En desarrollo, usar el dev-proxy de Next (`proxy.ts` reescribe `/api/*` hacia este backend)
+  para llamar same-origin y que `SameSite=Strict` funcione (research.md D3). El proxy conserva
+  el header `Origin`, así que el backend igual valida la allowlist de CORS.
