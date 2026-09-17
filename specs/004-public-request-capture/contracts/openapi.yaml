@@ -100,12 +100,18 @@ paths:
         '422':
           description: |
             El envío es sintácticamente válido pero incumple el contrato de captura: falta
-            —o llega vacío— alguno de los once campos obligatorios, o se incumple alguna
-            regla de negocio del trámite (las mismas que aplica el registro autenticado).
+            —o llega vacío— alguno de los once campos obligatorios, alguno llegó lleno con
+            un valor que no se puede procesar, o se incumple alguna regla de negocio del
+            trámite (las mismas que aplica el registro autenticado).
+
+            LAS DOS PRIMERAS CAUSAS SE DISTINGUEN EN LA RESPUESTA (issue #27). Un campo
+            ausente y un campo con valor inválido no son el mismo problema para quien
+            diligencia: decirle «el formato está incompleto» cuando el correo está escrito
+            —solo que mal— le pide rellenar una casilla que ve llena.
           content:
             application/problem+json:
               schema:
-                $ref: '#/components/schemas/ProblemDetail'
+                $ref: '#/components/schemas/PublicCaptureProblemDetail'
         '429':
           description: |
             Se superó el límite de envíos desde este origen dentro de la ventana. El
@@ -300,6 +306,47 @@ components:
     State:
       type: object
       description: Ver `specs/002-workflow-engine/contracts/openapi.yaml`.
+    PublicCaptureProblemDetail:
+      type: object
+      description: |
+        El `ProblemDetail` del 422 de este canal, con los dos miembros de extensión que
+        la RFC 9457 §3.2 admite (issue #27).
+
+        POR QUÉ EXISTEN. El cliente necesita atar el error a SU campo. Sin estos arreglos
+        esa información solo viaja dentro del `detail`, una frase en español, y extraerla
+        obliga a parsear texto: cualquier retoque de redacción rompería al cliente.
+
+        Los dos llegan SIEMPRE, aunque vengan vacíos: una forma estable es más barata de
+        consumir que una que aparece y desaparece.
+
+        Se nombran campos, NUNCA valores. Nada de lo que envió quien diligencia se refleja
+        de vuelta (§III de la constitución, minimización de datos personales).
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetail'
+        - type: object
+          required: [missingFields, invalidFields]
+          properties:
+            missingFields:
+              type: array
+              description: |
+                Campos que no llegaron diligenciados: ausentes, vacíos o de solo espacios.
+                Si hay al menos uno, el `title` es «Formato incompleto».
+              items:
+                type: string
+              example: [campus, faculty]
+            invalidFields:
+              type: array
+              description: |
+                Campos que SÍ llegaron diligenciados pero cuyo valor no se puede procesar
+                (formato de correo, longitud sobre el tope).
+
+                Un campo que incumple las dos cosas a la vez —`studentEmail` con solo
+                espacios viola `@NotBlank` y `@Email`— aparece SOLO en `missingFields`:
+                la ausencia domina, para no obligar al cliente a decidir cuál mostrar.
+              items:
+                type: string
+              example: [studentEmail]
+
     ProblemDetail:
       type: object
       description: |
