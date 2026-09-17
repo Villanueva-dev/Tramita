@@ -59,8 +59,12 @@ tener formato.
 - **Solicitud sin firma**: las que entran por el formulario interno de la Coordinación no
   capturan firma. El documento se emite igual, con el recuadro vacío — como un papel que
   todavía no se firmó.
-- **Motivo en el límite del campo**: 2000 caracteres es el máximo que admite `reason`. Se
-  midió que ese máximo cabe en la página; el documento sigue siendo de dos hojas.
+- **Motivo en el límite del campo**: 2000 caracteres es el máximo que admite `reason`. Si no
+  cabe en la primera hoja, continúa en una hoja intermedia y el campo de firmas sigue
+  cerrando el documento. **Nada se recorta**: es un documento oficial.
+- **Motivo sin espacios**: 2000 caracteres en una sola palabra son entrada legal. Se parten
+  por carácter, porque una línea más ancha que la hoja se dibuja fuera y deja de existir para
+  quien imprime.
 - **Texto que la fuente no puede escribir**: un emoji pegado desde un teléfono en los
   compromisos. Se reemplaza solo ese carácter; el español no se toca.
 - **Solicitud inexistente**: 404.
@@ -107,7 +111,9 @@ incluida `student_signature`. La única fila nueva es un `workflow_parameter`.
   verificable extrayendo el texto del PDF.
 - **SC-003**: El documento emitido, puesto **al lado de la plantilla oficial**, se reconoce
   como el mismo formato. Esta verificación es a ojo y no se puede automatizar.
-- **SC-004**: Un trámite nuevo que use este formato se habilita **sin desplegar código**.
+- **SC-004**: Un trámite cuyo caso el formato **ya contempla** se habilita declarando el
+  parámetro, **sin desplegar código**. Uno que no —porque el formato tendría que marcar una
+  casilla de tipo que no le corresponde— necesita además que el renderer lo aprenda.
 
 ## Riesgos aceptados
 
@@ -140,8 +146,10 @@ formato: lo copia.
 
 ## Assumptions
 
-- **La Sede es Cali.** La ciudad del formato se toma del campo `campus` de la solicitud, que
-  en el alcance del MVP es siempre Cali. El papel la trae preimpresa.
+- **La Sede es Cali.** La ciudad va **preimpresa** en el documento, porque así viene en el
+  papel: pertenece al formulario, no al solicitante. El campo `campus` llena la celda «Sede»,
+  que es otra. Ambas dicen Cali en el alcance del MVP, y esa coincidencia fue lo que hizo
+  pasar inadvertida la confusión hasta que se miró un documento generado desde la base.
 - **El logo institucional puede distribuirse con el sistema.** Se incluye como recurso para
   reproducir el encabezado del formato.
 - **El formato vigente es la plantilla v2024** obtenida de la Coordinación

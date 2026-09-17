@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -51,6 +52,7 @@ import org.springframework.stereotype.Service;
  * fuente haría lanzar a PDFBox en pleno trazado y convertiría la generación en un 500.
  */
 @Service
+@Slf4j
 public class DoFr100Renderer implements IDocumentRenderer {
 
     private static final String LOGO = "/documents/logo-uniremington.png";
@@ -113,7 +115,8 @@ public class DoFr100Renderer implements IDocumentRenderer {
             PDImageXObject logo = loadLogo(document);
             PDImageXObject signature = loadSignature(document, request.getStudentSignature());
 
-            drawFirstPage(document, logo, request, markedType);
+            List<String> pending = drawFirstPage(document, logo, request, markedType);
+            drawOverflowPages(document, logo, pending);
             drawSignaturePage(document, logo, request, signature);
 
             document.save(output);
@@ -125,7 +128,8 @@ public class DoFr100Renderer implements IDocumentRenderer {
 
     // --- páginas ---------------------------------------------------------------------------
 
-    private void drawFirstPage(
+    /** Dibuja la primera página y devuelve las líneas del motivo que no cupieron. */
+    private List<String> drawFirstPage(
             PDDocument document, PDImageXObject logo, Request request, String markedType)
             throws IOException {
 
@@ -162,19 +166,45 @@ public class DoFr100Renderer implements IDocumentRenderer {
 
             y = sectionTitle(content, y, "Compromisos adquiridos:");
 
-            // LA CAJA CRECE CON EL TEXTO, y no al revés. El prototipo del que se cosecha
-            // esta feature fijaba el alto en un número de líneas, así que un motivo largo
-            // se salía de la caja y pisaba lo que viniera debajo.
+            // LA CAJA CRECE CON EL TEXTO, y lo que no cabe pasa a una hoja de continuación.
             //
-            // No hay página de continuación, y NO es un olvido: `reason` está acotado a
-            // 2000 caracteres (@Size en el DTO y VARCHAR(2000) en la migración), y se midió
-            // que ese máximo ocupa ~18 líneas contra las ~19 que caben hasta el margen.
-            // El máximo del campo entra en la página. Construir el flujo a otra hoja sería
-            // maquinaria para un caso que el contrato de entrada no permite (§I).
-            // Lo que vigila que siga siendo cierto es noTextFallsOffThePage().
-            textBox(content, y, wrap(request.getReason(), RIGHT - LEFT - 16, BODY_SIZE));
+            // Hubo una versión sin continuación, apoyada en una medición que decía que el
+            // máximo del campo —2000 caracteres— cabía siempre. Esa medición se hizo con UNA
+            // cadena de prosa española y se generalizó. Es falsa: con palabras anchas entran
+            // muchas más por línea, y 2000 caracteres de «MM » terminaban en el baseline 30,
+            // por debajo del propio pie de página. Una medición de peor caso no se hace con
+            // una muestra típica.
+            //
+            // Perder texto tampoco es opción: es un documento oficial, y recortar en
+            // silencio lo que el estudiante escribió es peor que gastar una hoja.
+            List<String> lines = wrap(request.getReason(), RIGHT - LEFT - 16, BODY_SIZE);
+            int fit = Math.max(0, (int) ((y - BOTTOM - 10) / LINE_HEIGHT));
+            List<String> here = lines.subList(0, Math.min(fit, lines.size()));
+            textBox(content, y, here);
 
             footer(content);
+            return new ArrayList<>(lines.subList(here.size(), lines.size()));
+        }
+    }
+
+    /**
+     * Las hojas que hagan falta para el resto del motivo. Van ANTES del campo de firmas,
+     * para que la firma siga cerrando el documento como en el papel.
+     */
+    private void drawOverflowPages(PDDocument document, PDImageXObject logo, List<String> pending)
+            throws IOException {
+        while (!pending.isEmpty()) {
+            PDPage page = new PDPage(PDRectangle.LETTER);
+            document.addPage(page);
+            try (PDPageContentStream content = new PDPageContentStream(document, page)) {
+                float y = header(content, logo) - 18;
+                y = sectionTitle(content, y, "Compromisos adquiridos (continuación):");
+                int fit = Math.max(1, (int) ((y - BOTTOM - 10) / LINE_HEIGHT));
+                List<String> here = pending.subList(0, Math.min(fit, pending.size()));
+                textBox(content, y, here);
+                footer(content);
+                pending = new ArrayList<>(pending.subList(here.size(), pending.size()));
+            }
         }
     }
 
@@ -284,8 +314,26 @@ public class DoFr100Renderer implements IDocumentRenderer {
         }
         StringBuilder current = new StringBuilder();
         for (String word : PdfTextEncoder.sanitize(text, REGULAR).split("\\s+")) {
+            // UNA PALABRA MÁS ANCHA QUE LA CAJA SE PARTE POR CARÁCTER. Sin esto, la guarda
+            // de abajo no puede cortarla —`current` está vacío— y la línea entera se traza
+            // fuera de la hoja: 2000 caracteres sin un solo espacio son entrada legal, y
+            // medido llegaban a x=12059 sobre una hoja de 612 puntos. Lo que se dibuja
+            // pasado el borde no existe para quien imprime el formato.
+            if (widthOf(word, size) > maxWidth) {
+                for (String piece : splitToFit(word, maxWidth, size)) {
+                    if (!current.isEmpty()) {
+                        lines.add(current.toString());
+                        current = new StringBuilder();
+                    }
+                    lines.add(piece);
+                }
+                if (!lines.isEmpty()) {
+                    current = new StringBuilder(lines.removeLast());
+                }
+                continue;
+            }
             String candidate = current.isEmpty() ? word : current + " " + word;
-            if (REGULAR.getStringWidth(candidate) / 1000 * size > maxWidth && !current.isEmpty()) {
+            if (widthOf(candidate, size) > maxWidth && !current.isEmpty()) {
                 lines.add(current.toString());
                 current = new StringBuilder(word);
             } else {
@@ -296,6 +344,27 @@ public class DoFr100Renderer implements IDocumentRenderer {
             lines.add(current.toString());
         }
         return lines;
+    }
+
+    private float widthOf(String text, float size) throws IOException {
+        return REGULAR.getStringWidth(text) / 1000 * size;
+    }
+
+    /** Parte una palabra que no cabe en trozos del ancho máximo. */
+    private List<String> splitToFit(String word, float maxWidth, float size) throws IOException {
+        List<String> pieces = new ArrayList<>();
+        StringBuilder piece = new StringBuilder();
+        for (char character : word.toCharArray()) {
+            if (!piece.isEmpty() && widthOf(piece.toString() + character, size) > maxWidth) {
+                pieces.add(piece.toString());
+                piece = new StringBuilder();
+            }
+            piece.append(character);
+        }
+        if (!piece.isEmpty()) {
+            pieces.add(piece.toString());
+        }
+        return pieces;
     }
 
     private void write(PDPageContentStream content, PDFont font, float size, String text, float x, float y)
@@ -353,7 +422,25 @@ public class DoFr100Renderer implements IDocumentRenderer {
         if (comma < 0) {
             return null;
         }
-        byte[] png = Base64.getDecoder().decode(dataUrl.substring(comma + 1));
-        return PDImageXObject.createFromByteArray(document, png, "firma");
+        try {
+            byte[] png = Base64.getDecoder().decode(dataUrl.substring(comma + 1));
+            return PDImageXObject.createFromByteArray(document, png, "firma");
+        } catch (IllegalArgumentException unreadable) {
+            // UN TRAZO ILEGIBLE NO PUEDE IMPEDIR EMITIR EL FORMATO. El canal es anónimo y
+            // `signature` solo exige @NotBlank, así que cualquiera puede persistir una
+            // cadena que no sea una imagen; y como la columna es updatable=false, ese dato
+            // queda para siempre. Sin este catch, esa solicitud respondía 500 en cada
+            // intento de emitir su documento: un actor sin sesión inutilizaba el
+            // entregable central de la feature, sin forma de recuperarse salvo editando
+            // la base.
+            //
+            // Se atrapa IllegalArgumentException y no IOException a propósito: es lo que
+            // lanzan tanto Base64.decode ante una carga corrupta como createFromByteArray
+            // ante bytes que no son una imagen, y NINGUNA de las dos es IOException, de
+            // modo que el catch de render() no las veía.
+            log.warn("Firma ilegible en una solicitud; el documento se emite sin ella: {}",
+                    unreadable.getMessage());
+            return null;
+        }
     }
 }

@@ -29,8 +29,12 @@ paths:
 
         QUÉ FORMATO SE EMITE LO DICE LA CONFIGURACIÓN, no el código: la definición del
         trámite declara `DOCUMENT_TEMPLATE` en `workflow_parameter` y ese valor selecciona
-        la implementación (FR-029, research.md D6). Habilitar este formato para un trámite
-        nuevo es un INSERT, no un despliegue.
+        la implementación (FR-029, research.md D6).
+
+        ⚠️ Un INSERT alcanza para un trámite cuyo caso el formato YA contempla. El DO-FR-100
+        marca una de sus cuatro casillas de tipo, que son parte del papel impreso: un trámite
+        que no corresponda a ninguna necesita además que el renderer lo aprenda, y declarar
+        el parámetro sin eso devuelve 500.
 
         SE GENERA BAJO DEMANDA Y NO SE ARCHIVA (research.md D7). El formato es el papel que
         circula PARA ser firmado, así que se emite en cualquier estado de la solicitud; si

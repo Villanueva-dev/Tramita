@@ -83,23 +83,48 @@ generación en un 500. El saneador **le pregunta a la fuente** si puede codifica
 carácter, en vez de llevar lista blanca —que sería una suposición y vencería al cambiar de
 fuente— y recorre por **code points** para no partir un emoji en dos mitades inválidas.
 
-## D5 — 🔑 No hay flujo del motivo a otra página, y es una corrección
+## D5 — 🔑 El motivo fluye a otra hoja, y esta decisión se equivocó una vez
 
-La primera implementación traía maquinaria para partir el motivo y continuarlo en una hoja
-nueva. **Un mutante la delató como inalcanzable**: fijar el alto de la caja en cuatro líneas
-sobrevivía a toda la clase de tests.
+**Historia completa, porque la lección vale más que la conclusión.**
 
-Al medir por qué, apareció el motivo: `reason` está acotado a **2000 caracteres** (`@Size` en
-el DTO y `VARCHAR(2000)` en la migración), y ese máximo ocupa **~18 líneas** contra las **~19
-que caben** desde el inicio de la caja hasta el margen. **El máximo del campo cabe en la
-página.** La hoja de continuación nunca se creaba.
+La primera implementación traía maquinaria para continuar el motivo en una hoja nueva. Un
+mutante —fijar el alto de la caja en cuatro líneas— sobrevivía a toda la clase de tests, y al
+investigar por qué se midió que 2000 caracteres ocupaban ~18 líneas contra las ~19 que caben.
+Se concluyó que **el máximo del campo siempre cabía**, se eliminó la maquinaria por el §I
+—defender un caso imposible— y esa conclusión se escribió acá, en el javadoc del renderer y
+en un cuerpo de commit.
 
-Era defender un caso que el contrato de entrada no permite — lo que el **§I** prohíbe. Se
-eliminó, y la suite siguió verde: la prueba de que era código muerto.
+⛔ **Era falsa.** La medición se hizo con **UNA cadena de prosa española** y se generalizó. Un
+review independiente la desmintió, y al re-medir excluyendo el pie de página:
 
-Lo que vigila que siga siendo cierto es `noTextFallsOffThePage`, que mide la posición del
-texto más bajo contra el margen. Si alguien sube el límite del campo o angosta la caja, ese
-test cae.
+| Motivo de 2000 caracteres | Texto más bajo | Margen: 70 |
+|---|---|---|
+| prosa española | **121 pt** | holgado |
+| `W ` repetido | **56 pt** | ❌ invade el margen |
+| `MM ` repetido | **30 pt** | ❌ por debajo del propio pie |
+
+Con palabras anchas entran muchas más por línea y el texto baja mucho más. **Una medición de
+peor caso no se hace con una muestra típica** — es el mismo error de método que produjo la
+errata v2.2.1 de la constitución.
+
+Y `noTextFallsOffThePage`, nombrado entonces como custodio de la premisa, **no podía
+detectarlo**: usaba esa misma frase benigna y medía **solo el eje vertical**.
+
+**Decisión vigente**: la maquinaria de continuación se restauró. Perder texto no es opción en
+un documento oficial, y recortar en silencio lo que el estudiante escribió es peor que gastar
+una hoja. La custodia ahora son dos tests con el **peor caso**:
+`theWidestAllowedReasonStaysAboveTheMargin` (vertical, con palabras anchas) y
+`aReasonWithoutSpacesStaysInsideTheSheet` (horizontal, con un token de 2000 caracteres).
+
+## D5-bis — Una palabra más ancha que la caja se parte por carácter
+
+El mismo review encontró que `wrap()` nunca partía una palabra: la guarda
+`&& !current.isEmpty()` impide cortar la primera, así que un token que ya excede el ancho se
+emitía entero. Medido: 2000 caracteres sin un solo espacio llegaban a **x = 12 059** sobre una
+hoja de **612** puntos. Lo que se dibuja pasado el borde no existe para quien imprime.
+
+2000 caracteres en una sola palabra son entrada legal: `@Size(max = 2000)` no exige espacios,
+y el canal es anónimo.
 
 ## D6 — El formato se elige por dato, no por código
 
@@ -151,6 +176,28 @@ corregirlo.
 El encabezado del formato lleva el logo. Se extrae de la plantilla (`word/media/image1.jpg`,
 2036×470, 190 KB) y se incluye reescalado a **600×139, 48 KB**: se dibuja a 120 puntos de
 ancho, y cargar 190 KB en el repositorio por eso no tiene sentido.
+
+## D10 — 🔑 Una firma ilegible no puede impedir emitir el formato
+
+`signature` llega del canal **anónimo** y solo exige `@NotBlank`: nadie comprueba que sea una
+imagen. `loadSignature` decodificaba el base64 y construía la imagen sin protección, y ambas
+operaciones lanzan **`IllegalArgumentException`** —que NO es `IOException`, de modo que el
+`catch` de `render()` no la veía—.
+
+**Camino al fallo, medido**: cualquiera envía `data:image/png;base64,esto-no-es-base64!!`; la
+solicitud se registra con 201; y como `student_signature` es `updatable = false`, esa
+solicitud responde **500 en cada intento de emitir su documento, para siempre**. Un actor sin
+sesión inutilizaba el entregable central de la feature, sin forma de recuperarse salvo
+editando la base.
+
+**Decisión**: el renderer **degrada a documento sin firma** y lo registra en el log, igual que
+ya hacía el camino de la firma ausente. Un trazo ilegible es un dato malo, no una razón para
+no emitir el formato.
+
+⚠️ **Por qué la corrección va en el renderer y no solo en el DTO.** Validar la forma de la
+data URL en `PublicRequestBody` es defensa útil, pero no alcanza: las filas que ya están en la
+base no la atravesarían, y el renderer también sirve solicitudes creadas por otros caminos. La
+regla que vale es que **emitir el documento no dependa de que un dato de entrada sea bueno**.
 
 ## Lo que esta feature NO resuelve
 

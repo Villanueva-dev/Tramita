@@ -118,8 +118,14 @@ class DoFr100RendererTest {
                 "Excepción de Matrícula por bajo rendimiento académico",
                 "Matrícula créditos adicionales");
 
-        // Ninguno de los datos de este test contiene una X suelta, a propósito: así la
-        // única que puede aparecer es la marca del tipo de solicitud.
+        // SE ATA LA MARCA A SU FILA, no se cuenta. La versión anterior asertaba que
+        // hubiera exactamente una X en la página, que es cardinalidad, no identidad:
+        // marcar la casilla EQUIVOCADA dejaba la clase entera en verde. Lo delató un
+        // mutante del review independiente. Un formato con el tipo equivocado marcado
+        // circula con sello institucional diciendo otra cosa que la que se pidió.
+        assertThat(text)
+                .as("la marca tiene que estar en la fila del trámite, no en cualquiera")
+                .containsPattern("Matrícula créditos adicionales\\s+X");
         assertThat(standaloneMarks(text))
                 .as("marcar más de un tipo convierte el formato en una solicitud ambigua")
                 .isEqualTo(1);
@@ -163,26 +169,28 @@ class DoFr100RendererTest {
     }
 
     @Test
-    @DisplayName("el motivo más largo que el contrato permite cabe en la página, sin cortarse")
-    void theLongestAllowedReasonFitsInOnePage() throws Exception {
-        // 2000 caracteres es el máximo del campo: @Size en el DTO y VARCHAR(2000) en la
-        // migración. Este test fija que ese máximo CABE, que es lo que permite no tener
-        // maquinaria de continuación a otra página. Si alguien sube el límite o angosta la
-        // caja, cae este test o cae noTextFallsOffThePage().
+    @DisplayName("un motivo largo se conserva entero, aunque haya que pasar de hoja")
+    void aLongReasonIsNeverTruncated() throws Exception {
+        // EL NOMBRE ANTERIOR DE ESTE TEST ERA UNA AFIRMACIÓN FALSA: decía que el motivo más
+        // largo que el contrato permite «cabe en la página». Cabe el de prosa española con
+        // el que se midió, no el de palabras anchas. Y su aserción de páginas era
+        // infalsificable: render() siempre agrega la hoja de datos y la de firmas, así que
+        // getNumberOfPages()==2 no podía fallar hiciera lo que hiciera el contenido.
+        //
+        // Lo que sí vale fijar es que NADA SE PIERDE: es un documento oficial y recortar en
+        // silencio lo que el estudiante escribió es peor que gastar una hoja.
         String longReason = ("Necesito adicionar la asignatura para no atrasar el plan de estudios. ")
                 .repeat(29);
-        Request verbose = requestBuilder().reason(longReason.substring(0, 2000)).build();
 
-        byte[] pdf = renderer.render(verbose);
+        byte[] pdf = renderer.render(
+                requestBuilder().reason(longReason.substring(0, 2000)).build());
 
-        try (PDDocument document = Loader.loadPDF(pdf)) {
-            assertThat(document.getNumberOfPages())
-                    .as("el formato son dos hojas; el motivo más largo no puede agregar una tercera")
-                    .isEqualTo(2);
-        }
         assertThat(textOf(pdf))
                 .as("el final del motivo tiene que estar en el documento, no cortado")
                 .contains("no atrasar el plan de estudios.");
+        assertThat(pageText(pdf, Loader.loadPDF(pdf).getNumberOfPages()))
+                .as("la firma sigue cerrando el documento, aunque el motivo haya crecido")
+                .contains("Firma del estudiante");
     }
 
     @Test
@@ -201,6 +209,54 @@ class DoFr100RendererTest {
         // correcta: nada del cuerpo baja de 80, y lo único por debajo es el pie, en 40.
         assertThat(lowestTextBaseline(pdf))
                 .as("un texto que invade el margen inferior se sale de la caja y pisa el pie")
+                .isGreaterThanOrEqualTo(70f);
+    }
+
+    @Test
+    @DisplayName("una firma ilegible no impide emitir el formato")
+    void anUnreadableSignatureDoesNotBlockTheDocument() throws Exception {
+        // EL CANAL ES ANÓNIMO. `signature` solo exige @NotBlank, así que cualquiera puede
+        // enviar una cadena que no sea una imagen, y queda persistida con updatable=false.
+        // Si eso hace lanzar al renderer, esa solicitud no vuelve a emitir su formato
+        // NUNCA: un actor sin sesión inutiliza el entregable central de la feature.
+        Request withGarbage = requestBuilder()
+                .studentSignature("data:image/png;base64,esto-no-es-base64!!").build();
+        Request withNonImage = requestBuilder()
+                .studentSignature("data:image/png;base64,aGVsbG8gbXVuZG8=").build();
+
+        for (Request request : List.of(withGarbage, withNonImage)) {
+            assertThatCode(() -> renderer.render(request)).doesNotThrowAnyException();
+            assertThat(pageText(renderer.render(request), 2))
+                    .as("el formato sale sin firma, como un papel todavía sin firmar")
+                    .contains("Firma del estudiante");
+        }
+    }
+
+    @Test
+    @DisplayName("un motivo sin espacios no se sale por el borde derecho de la hoja")
+    void aReasonWithoutSpacesStaysInsideTheSheet() throws Exception {
+        // 2000 caracteres sin un solo espacio es entrada legal: @Size(max=2000) no exige
+        // palabras. Sin corte por carácter, la línea entera se traza fuera de la hoja y
+        // el texto desaparece del documento impreso.
+        byte[] pdf = renderer.render(requestBuilder().reason("A".repeat(2000)).build());
+
+        assertThat(rightmostTextEdge(pdf))
+                .as("lo que se dibuja pasado el margen derecho no existe para quien imprime")
+                .isLessThanOrEqualTo(567f);
+    }
+
+    @Test
+    @DisplayName("el motivo más ANCHO que el contrato permite tampoco invade el margen")
+    void theWidestAllowedReasonStaysAboveTheMargin() throws Exception {
+        // ESTE CASO ES EL QUE FALTABA. La medición que decidió no tener flujo a otra
+        // página se hizo con UNA cadena de prosa española, y se generalizó. Con palabras
+        // anchas entran muchas más por línea y el texto baja mucho más: medido, 2000
+        // caracteres de «MM » terminaban en el baseline 30, por debajo del pie.
+        byte[] pdf = renderer.render(
+                requestBuilder().reason("MM ".repeat(700).substring(0, 2000)).build());
+
+        assertThat(lowestTextBaseline(pdf))
+                .as("el peor caso de ancho también tiene que respetar el margen")
                 .isGreaterThanOrEqualTo(70f);
     }
 
@@ -250,6 +306,22 @@ class DoFr100RendererTest {
             stripper.getText(document);
         }
         return distances.stream().min(Float::compare).orElseThrow();
+    }
+
+    /** El borde derecho del texto más lejano del documento, en puntos desde la izquierda. */
+    private static float rightmostTextEdge(byte[] pdf) throws Exception {
+        List<Float> edges = new ArrayList<>();
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            PDFTextStripper stripper = new PDFTextStripper() {
+                @Override
+                protected void writeString(String text, List<TextPosition> positions) {
+                    positions.forEach(position ->
+                            edges.add(position.getX() + position.getWidth()));
+                }
+            };
+            stripper.getText(document);
+        }
+        return edges.stream().max(Float::compare).orElseThrow();
     }
 
     /** Cuenta las X sueltas: la «x» minúscula de «Excepción» no cuenta. */

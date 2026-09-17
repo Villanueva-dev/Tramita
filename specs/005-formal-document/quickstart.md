@@ -145,7 +145,7 @@ Es la segunda barrera, no la única: el recibo del canal público **no devuelve 
 
 ## 5. Habilitar el formato para otro trámite, sin desplegar
 
-Es el punto del §VI. Basta declarar el parámetro:
+Es el punto del §VI — con un límite que conviene conocer antes de usarlo:
 
 ```sql
 INSERT INTO workflow_parameter (id, definition_id, parameter_key, parameter_value)
@@ -154,8 +154,12 @@ FROM workflow_definition d
 WHERE d.code = 'NOVEDAD_NOTAS' AND d.version = 1;
 ```
 
-> ⚠️ **No hacerlo de verdad hoy**: `NOVEDAD_NOTAS` emitiría el formato equivocado, porque su
-> papel oficial es otro. El ejemplo muestra el mecanismo, no una acción recomendada.
+> ⚠️ **Hoy este INSERT devuelve `500`, no un PDF.** El DO-FR-100 tiene que marcar una de sus
+> cuatro casillas de tipo, y `NOVEDAD_NOTAS` no corresponde a ninguna: el renderer no sabe
+> cuál marcar y falla ruidosamente, en vez de emitir un formato sin marcar.
+>
+> El parámetro alcanza para un trámite cuyo caso el formato **ya contempla**; para uno nuevo
+> hace falta además que el renderer lo aprenda. El ejemplo muestra el mecanismo y su límite.
 
 Y si se declara un formato que ningún renderer implementa, la respuesta es **500**, no 404:
 es configuración rota, y devolver «no tiene documento» la escondería.
