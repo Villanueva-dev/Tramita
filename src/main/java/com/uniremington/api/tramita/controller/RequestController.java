@@ -117,8 +117,9 @@ public class RequestController {
      * con qué construir esta URL.
      */
     @GetMapping("/{id}/document")
-    public ResponseEntity<byte[]> getDocument(@PathVariable UUID id) {
-        byte[] document = documentService.generateFor(id);
+    public ResponseEntity<byte[]> getDocument(
+            @PathVariable UUID id, Authentication authentication) {
+        byte[] document = documentService.generateFor(id, authentication.getName());
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 // El nombre lleva el id de la solicitud y NUNCA la cédula ni el nombre del

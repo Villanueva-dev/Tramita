@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 import com.uniremington.api.tramita.model.Request;
+import com.uniremington.api.tramita.service.DocumentSealMark;
 import com.uniremington.api.tramita.model.WorkflowDefinition;
 import com.uniremington.api.tramita.model.WorkflowState;
 import java.awt.image.BufferedImage;
@@ -44,6 +45,15 @@ class PdfDeterminismProbeTest {
 
     private final DoFr100Renderer renderer = new DoFr100Renderer();
 
+    /**
+     * EL MISMO CÓDIGO EN LAS DOS RECONSTRUCCIONES, y eso ES el requisito (FR-004). No se
+     * garantiza que dos emisiones den lo mismo —cada una imprime su propio código, así que
+     * difieren a propósito—, sino que reconstruir UNA emisión concreta, con el código que su
+     * sello guarda, devuelva sus bytes exactos.
+     */
+    private static final DocumentSealMark FIXED_MARK = new DocumentSealMark(
+            "FIXEDCODE001", LocalDateTime.of(2026, 9, 18, 15, 30), "Radicada", 0L);
+
     private static final UUID A_REQUEST = UUID.fromString("11111111-1111-4111-8111-111111111111");
     private static final UUID ANOTHER_REQUEST = UUID.fromString("22222222-2222-4222-8222-222222222222");
 
@@ -52,8 +62,8 @@ class PdfDeterminismProbeTest {
     void rebuildingTheSameRequestIsByteIdentical() {
         Request request = request(A_REQUEST, 0L);
 
-        byte[] first = renderer.render(request);
-        byte[] second = renderer.render(request);
+        byte[] first = renderer.render(request, FIXED_MARK);
+        byte[] second = renderer.render(request, FIXED_MARK);
 
         assertArrayEquals(
                 first,
@@ -65,8 +75,8 @@ class PdfDeterminismProbeTest {
     @Test
     @DisplayName("FR-005: dos solicitudes distintas no comparten el identificador del documento")
     void differentRequestsDoNotShareTheDocumentId() {
-        byte[] one = renderer.render(request(A_REQUEST, 0L));
-        byte[] other = renderer.render(request(ANOTHER_REQUEST, 0L));
+        byte[] one = renderer.render(request(A_REQUEST, 0L), FIXED_MARK);
+        byte[] other = renderer.render(request(ANOTHER_REQUEST, 0L), FIXED_MARK);
 
         assertThat(permanentId(one))
                 .as("Un /ID compartido haría que todos los documentos del sistema se "
@@ -77,8 +87,8 @@ class PdfDeterminismProbeTest {
     @Test
     @DisplayName("FR-005: una revisión nueva de la solicitud cambia la segunda cadena del /ID")
     void aNewRevisionChangesTheChangingHalfOfTheDocumentId() {
-        byte[] before = renderer.render(request(A_REQUEST, 0L));
-        byte[] after = renderer.render(request(A_REQUEST, 1L));
+        byte[] before = renderer.render(request(A_REQUEST, 0L), FIXED_MARK);
+        byte[] after = renderer.render(request(A_REQUEST, 1L), FIXED_MARK);
 
         assertThat(permanentId(before))
                 .as("La primera cadena identifica al documento de forma permanente: todas las "

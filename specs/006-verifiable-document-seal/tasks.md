@@ -71,20 +71,26 @@ re-mide, no se cita de memoria.
 
 **Prueba independiente**: emitir el documento de una solicitud y comprobar que (a) quedó un sello nuevo, (b) el documento muestra la marca legible, (c) el registro no admite modificación.
 
-- [ ] T012 [P] [US1] (RED) Crear `src/test/java/com/uniremington/api/tramita/util/VerificationCodeGeneratorTest.java`: el código no se repite entre invocaciones y tiene a lo sumo 13 caracteres alfanuméricos
-- [ ] T013 [P] [US1] (GREEN) Crear `src/main/java/com/uniremington/api/tramita/util/VerificationCodeGenerator.java`: 64 bits de `SecureRandom` con `Long.toUnsignedString(valor, 36)` (research.md D3). **Sin dependencias nuevas**
-- [ ] T014 [US1] (RED) Agregar a `src/test/java/com/uniremington/api/tramita/service/impl/DoFr100RendererTest.java` el caso de que el pie imprime el código, la fecha de emisión, el estado y la revisión (FR-003)
+- [x] T012 [P] [US1] (RED) Crear `src/test/java/com/uniremington/api/tramita/util/VerificationCodeGeneratorTest.java`: el código no se repite entre invocaciones y tiene a lo sumo 13 caracteres alfanuméricos
+- [x] T013 [P] [US1] (GREEN) Crear `src/main/java/com/uniremington/api/tramita/util/VerificationCodeGenerator.java`: 64 bits de `SecureRandom` con `Long.toUnsignedString(valor, 36)` (research.md D3). **Sin dependencias nuevas**
+- [x] T014 [US1] (RED) Agregar a `src/test/java/com/uniremington/api/tramita/service/impl/DoFr100RendererTest.java` el caso de que el pie imprime el código, la fecha de emisión, el estado y la revisión (FR-003)
   - ⚠️ **Este tramo rompe DOS tests existentes de ese mismo archivo, y el mecanismo no es obvio**: `lowestTextBaseline` (`:376-394`) descarta las líneas del pie filtrando por el literal `"Generado por Trámita"`, no por su posición, y dos tests asertan que el resto no baja de `BOTTOM = 70` (`DoFr100Renderer:78`). Extender ese filtro es **parte de esta tarea**, no una sorpresa a descubrir en rojo
-- [ ] T015 [US1] (GREEN) Extender `IDocumentRenderer` en `src/main/java/com/uniremington/api/tramita/service/IDocumentRenderer.java` para que cada formato declare su `formatVersion()`, y `render` reciba el código de verificación
-- [ ] T016 [US1] (GREEN) Implementar en `DoFr100Renderer` la versión del formato —constante del renderer combinada con la huella del logo del classpath (research.md D5)— y el pie con las cuatro líneas legibles
-- [ ] T017 [US1] Actualizar el test de determinismo para pasar **el mismo código** en las dos reconstrucciones. Si el criterio de T003 se respetó, es el único cambio necesario y el test sigue afirmando lo mismo
-- [ ] T018 [US1] (RED) Crear `src/test/java/com/uniremington/api/tramita/service/impl/DocumentSealServiceImplTest.java` con el caso de emisión: se registra un sello con huella, código, versión de formato, revisión, estado (**código y nombre**) y actor
-- [ ] T019 [US1] (GREEN) Crear `src/main/java/com/uniremington/api/tramita/service/IDocumentSealService.java` y `src/main/java/com/uniremington/api/tramita/service/impl/DocumentSealServiceImpl.java` con la emisión del sello
-- [ ] T020 [US1] (RED) Agregar a `src/test/java/com/uniremington/api/tramita/service/impl/DocumentServiceImplTest.java` el caso **fail-closed**: si el guardado del sello falla, no se devuelve documento y no queda sello a medias (FR-012)
-- [ ] T021 [US1] (GREEN) Modificar `src/main/java/com/uniremington/api/tramita/service/impl/DocumentServiceImpl.java`: quitar `readOnly = true` de `generateFor()` (`:69`), generar el código, renderizar con él, calcular la huella y registrar el sello **en la misma transacción**
+- [x] T015 [US1] (GREEN) Extender `IDocumentRenderer` en `src/main/java/com/uniremington/api/tramita/service/IDocumentRenderer.java` para que cada formato declare su `formatVersion()`, y `render` reciba el código de verificación
+- [x] T016 [US1] (GREEN) Implementar en `DoFr100Renderer` la versión del formato —constante del renderer combinada con la huella del logo del classpath (research.md D5)— y el pie con las cuatro líneas legibles
+- [x] T017 [US1] Actualizar el test de determinismo para pasar **el mismo código** en las dos reconstrucciones. Si el criterio de T003 se respetó, es el único cambio necesario y el test sigue afirmando lo mismo
+- [x] T018 [US1] (RED) Crear `src/test/java/com/uniremington/api/tramita/service/impl/DocumentSealServiceImplTest.java` con el caso de emisión: se registra un sello con huella, código, versión de formato, revisión, estado (**código y nombre**) y actor
+- [x] T019 [US1] (GREEN) Crear `src/main/java/com/uniremington/api/tramita/service/IDocumentSealService.java` y `src/main/java/com/uniremington/api/tramita/service/impl/DocumentSealServiceImpl.java` con la emisión del sello
+- [x] T020 [US1] (RED) Agregar a `src/test/java/com/uniremington/api/tramita/service/impl/DocumentServiceImplTest.java` el caso **fail-closed**: si el guardado del sello falla, no se devuelve documento y no queda sello a medias (FR-012)
+- [x] T021 [US1] (GREEN) Modificar `src/main/java/com/uniremington/api/tramita/service/impl/DocumentServiceImpl.java`: quitar `readOnly = true` de `generateFor()` (`:69`), generar el código, renderizar con él, calcular la huella y registrar el sello **en la misma transacción**
   - ⚠️ Anotar en el javadoc de `generateFor()` que quitar `readOnly` **reactiva el dirty checking**: una modificación accidental de `Request` durante el renderizado se persistiría. Hoy el renderer solo lee, y conviene que el próximo que lo toque lo sepa
   - ⛔ **Sin política de reintento, sin transacción aparte, sin manejo de error propio.** Los tres se rechazaron explícitamente como sobreingeniería: reintentar es volver a pedir el documento, y el `GlobalExceptionHandler` ya devuelve RFC 9457
-- [ ] T022 [US1] Verificar la historia: `./mvnw clean verify` en verde y el paso 1 del quickstart ejecutado a mano
+- [x] T022 [US1] Verificar la historia: `./mvnw clean verify` en verde y el paso 1 del quickstart ejecutado a mano
+
+### Agregado durante US1, no estaba planificado
+
+- [x] T022a Aislar las fuentes por documento en `DoFr100Renderer`: compartirlas hacía que emitir un documento de 2000 caracteres cambiara los bytes de los anteriores, y con el renderer como `@Service` singleton eso significaba reportar documentos legítimos como alterados. Vigilado por `DoFr100FontIsolationTest`
+- [x] T022b Sumar la versión de PDFBox a `formatVersion()`, leída en tiempo de ejecución: el pom la fija para poder actualizarla ante vulnerabilidades, y sin esto un parche de seguridad marcaría los sellos previos como alterados en vez de no verificables
+- [x] T022c `DoFr100LayoutCanaryTest`: el plan daba por hecho (D5) que el test de determinismo avisaría ante un cambio de maquetación. **Se midió que no avisa** —compara dos reconstrucciones entre sí y sobrevive a cualquier cambio de trazado—, así que la barrera que D5 describe no existía
 
 **Checkpoint**: US1 entregable por sí sola. Ya responde «cuántas veces se emitió y quién lo pidió», que hoy es imposible.
 
