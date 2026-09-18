@@ -78,6 +78,19 @@ El orden importa porque parece circular y no lo es:
 Hashear el documento *sin* el código y luego imprimirlo encima produciría una huella que no
 describe al archivo que se entrega — se estaría sellando un documento que nadie recibe.
 
+🔑 **Consecuencia que hay que tener presente: dos emisiones de la misma solicitud NO producen
+el mismo archivo.** Cada una imprime su propio código (D3), así que sus bytes difieren a
+propósito: son dos papeles distinguibles, cada uno verificable contra su propio sello. La
+reproducibilidad que el sistema garantiza —y la única que la verificación necesita— es **a
+código fijo**: reconstruir una emisión concreta, con el código que su sello guarda, devuelve
+sus bytes exactos. Es lo que dice el FR-004, y es distinto de «emitir dos veces da lo mismo»,
+que sería falso.
+
+Esa distinción tiene un efecto directo sobre el test de determinismo: debe comparar
+**reconstrucciones a código fijo**, no huellas de emisiones sucesivas ni un hash dorado del
+documento «tal como sale hoy». Un hash dorado se rompería al imprimir el código en el pie, y
+actualizarlo sin pensar desactivaría la barrera que D5 describe.
+
 **Algoritmo**: SHA-256, disponible en `java.security.MessageDigest` sin dependencias. Es el
 mismo que usa el prototipo de `origin/router-ia` para los adjuntos, así que no introduce un
 criterio nuevo en el proyecto.
@@ -194,6 +207,24 @@ decisiones abiertas. Queda fuera del MVP.
 
 ---
 
+## D7-bis — Qué se congela del estado del trámite
+
+**Decisión**: el sello guarda el **código y el nombre** del estado, no solo el código.
+
+El pie impreso muestra el nombre legible —«En facultad»—, no el código interno. Si el sello
+guardara únicamente el código, reconstruir el documento obligaría a resolver el nombre contra
+`workflow_state` en tiempo de verificación, y un **renombre** —cambio de pura configuración,
+que es lo que el §VI habilita— haría que el pie regenerado difiriera del impreso. Ninguna de
+las dos guardas del FR-007 lo detectaría: renombrar un estado no incrementa el `@Version` de
+la solicitud ni cambia la versión del formato. El resultado sería un **`TAMPERED` sobre un
+documento legítimo**, que es precisamente el modo de fallo que esta feature existe para
+impedir.
+
+**Costo**: una columna. **Alternativa rechazada**: resolver el nombre al verificar, que es lo
+que produce el defecto.
+
+---
+
 ## D8 — Precisión de las calificaciones (FR-013, deuda M2)
 
 **Decisión**: validar en la entrada que la calificación tenga a lo sumo un decimal, **y**
@@ -285,6 +316,15 @@ almacenarlo ni por accidente.
 
 **Trade-off**: el cliente tiene que calcular la huella. Para el frontend son cinco líneas;
 para un humano con terminal, un comando.
+
+**El cuerpo mal formado responde `400`, no `422`.** El `422` del canal público no es la norma
+del sistema: lo produce un manejador acotado con
+`@RestControllerAdvice(assignableTypes = PublicRequestController.class)`, y existe porque allí
+quien diligencia es un estudiante y el envío es sintácticamente impecable —lo que falla es el
+formato—. Este endpoint lo consume el frontend de la Coordinación, donde un campo ausente es
+un defecto del contrato de entrada, y el resto del API ya responde `400` por el manejador
+heredado de `ResponseEntityExceptionHandler`. El mismo criterio aplica a la validación de
+precisión de FR-013a, que entra solo por el formulario interno.
 
 ---
 

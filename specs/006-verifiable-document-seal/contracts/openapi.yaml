@@ -160,10 +160,19 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/Problem'
-        '422':
+        '400':
           description: |
             El cuerpo no cumple el contrato: falta el código o la huella, o la huella no
             tiene la forma de un SHA-256 en hexadecimal.
+
+            ⚠️ **Es `400` y no `422`, a diferencia del canal público de captura.** Aquel
+            `422` no es la norma del sistema: lo produce un manejador acotado con
+            `@RestControllerAdvice(assignableTypes = PublicRequestController.class)`, y
+            existe porque allí quien diligencia es un estudiante y el envío es
+            sintácticamente impecable —lo que falla es el formato—. Acá el cliente es el
+            frontend de la Coordinación y un campo ausente o mal formado es un defecto del
+            contrato de entrada, que en el resto de este API responde `400` por el manejador
+            heredado de `ResponseEntityExceptionHandler`.
           content:
             application/problem+json:
               schema:
@@ -206,6 +215,16 @@ paths:
                   $ref: '#/components/schemas/SealEntryResponse'
         '401':
           description: Sin sesión.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '400':
+          description: |
+            El `{id}` de la ruta no es un UUID. Lo resuelve el
+            `ResponseEntityExceptionHandler` del que hereda `GlobalExceptionHandler`, no un
+            mapeo propio de esta feature. Se declara por la misma razón que lo declaró la
+            005: no hacerlo dejaría al cliente sin saber que esta respuesta existe.
           content:
             application/problem+json:
               schema:

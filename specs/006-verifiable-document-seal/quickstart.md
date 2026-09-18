@@ -27,10 +27,31 @@ migración redondea antes de declarar la restricción.
 
 ## El recorrido completo, a mano
 
+### 0. Sesión y token CSRF
+
+⚠️ **Sin esto, todo `POST` de abajo responde `403`, no `401`.** La protección CSRF está activa
+para todo salvo la captura pública (`SecurityConfig:129-130`), así que cada mutación necesita
+la cabecera `X-XSRF-TOKEN`. Los `GET` no la necesitan.
+
+```bash
+# 1) GET inicial: emite la cookie XSRF-TOKEN
+curl -c cookies.txt http://localhost:8080/api/requests/inbox -o /dev/null -s
+
+# 2) login
+XSRF=$(grep XSRF-TOKEN cookies.txt | awk '{print $7}')
+curl -b cookies.txt -c cookies.txt -H 'Content-Type: application/json' \
+     -H "X-XSRF-TOKEN: $XSRF" \
+     -d '{"email":"...","password":"..."}' \
+     http://localhost:8080/api/auth/login
+
+# 3) el token para las mutaciones siguientes
+XSRF=$(grep XSRF-TOKEN cookies.txt | awk '{print $7}')
+```
+
 ### 1. Emitir el documento y ver que queda sellado
 
 ```bash
-# con sesión iniciada; el PDF se guarda y se conserva para verificarlo después
+# el PDF se guarda y se conserva para verificarlo después. Es un GET: sin token
 curl -b cookies.txt -o documento.pdf http://localhost:8080/api/requests/{id}/document
 ```
 
@@ -48,18 +69,25 @@ docker exec tramita-postgres psql -U postgres -d tramita-db -c \
 
 ### 2. Comprobar que el documento es reproducible
 
+⚠️ **Dos emisiones NO dan el mismo archivo, y está bien que así sea.** Cada una imprime su
+propio código de verificación en el pie, así que sus bytes difieren a propósito: son dos
+papeles distinguibles, cada uno con su sello. Comparar dos descargas y esperar huellas
+iguales mide la propiedad equivocada.
+
+Lo que hay que comprobar es **FR-004: que reconstruir una emisión dé exactamente sus bytes**.
+Eso es lo que hace la verificación, y se ejercita en el paso 4: si la huella del archivo
+descargado coincide con la que el sistema recalcula al regenerar, el render es reproducible.
+Un `INTACT` sobre un archivo recién emitido **es** la comprobación del determinismo.
+
+Para verlo aislado, sin pasar por la API, está el test de determinismo (tramo 1), que
+reconstruye dos veces con el mismo código fijo y compara los bytes:
+
 ```bash
-curl -b cookies.txt -o segunda.pdf http://localhost:8080/api/requests/{id}/document
-sha256sum documento.pdf segunda.pdf
+docker start tramita-postgres && ./mvnw clean test -Dtest=PdfDeterminismProbeTest
 ```
 
-⚠️ **Las dos huellas deben ser idénticas.** Si difieren, el determinismo se rompió y ningún
-sello verifica: es el defecto que esta feature existe para cerrar. Antes de arreglarlo,
-comparar dónde difieren — la sonda de `PdfDeterminismProbeTest` imprime el primer byte
-divergente y su contexto.
-
-Nota: son dos emisiones, así que habrá **dos** sellos con la misma huella y códigos
-distintos. Es lo esperado (FR-009): el historial cuenta emisiones, no documentos.
+Si ahí las huellas difieren, el determinismo se rompió y ningún sello verifica: es el defecto
+que esta feature existe para cerrar. La sonda imprime el primer byte divergente y su contexto.
 
 ### 3. Verificar sin cuenta, como lo haría la decanatura
 
@@ -81,7 +109,7 @@ curl -i http://localhost:8080/api/public/seals/ZZZZZZZZZZZZZ
 
 ```bash
 HUELLA=$(sha256sum documento.pdf | cut -d' ' -f1)
-curl -b cookies.txt -H 'Content-Type: application/json' \
+curl -b cookies.txt -H 'Content-Type: application/json' -H "X-XSRF-TOKEN: $XSRF" \
      -d "{\"code\":\"{código}\",\"sha256\":\"$HUELLA\"}" \
      http://localhost:8080/api/seals/verify
 ```
@@ -94,7 +122,7 @@ Ahora la prueba que importa: **alterar el archivo y confirmar que se detecta**.
 cp documento.pdf alterado.pdf
 printf 'x' >> alterado.pdf        # un byte basta
 HUELLA=$(sha256sum alterado.pdf | cut -d' ' -f1)
-curl -b cookies.txt -H 'Content-Type: application/json' \
+curl -b cookies.txt -H 'Content-Type: application/json' -H "X-XSRF-TOKEN: $XSRF" \
      -d "{\"code\":\"{código}\",\"sha256\":\"$HUELLA\"}" \
      http://localhost:8080/api/seals/verify
 ```
@@ -107,9 +135,10 @@ Hacer avanzar el trámite (o editarlo), de modo que cambie la revisión de la so
 volver a verificar **el mismo documento de antes**:
 
 ```bash
-curl -b cookies.txt -X POST http://localhost:8080/api/requests/{id}/transitions ...
+curl -b cookies.txt -H "X-XSRF-TOKEN: $XSRF" -X POST \
+     http://localhost:8080/api/requests/{id}/transitions ...
 HUELLA=$(sha256sum documento.pdf | cut -d' ' -f1)   # el documento LEGÍTIMO de antes
-curl -b cookies.txt -H 'Content-Type: application/json' \
+curl -b cookies.txt -H 'Content-Type: application/json' -H "X-XSRF-TOKEN: $XSRF" \
      -d "{\"code\":\"{código}\",\"sha256\":\"$HUELLA\"}" \
      http://localhost:8080/api/seals/verify
 ```
@@ -135,8 +164,9 @@ del código.
 
 ### 7. Comprobar que la precisión se rechaza en la entrada
 
-Registrar una solicitud con una calificación de más de un decimal debe responder `422` y
-**no** guardarla redondeada.
+Registrar una solicitud con una calificación de más de un decimal debe responder `400` y
+**no** guardarla redondeada. Es `400` y no `422` porque las calificaciones entran por el
+formulario interno, y el `422` pertenece al canal público de captura por un advice acotado.
 
 ```bash
 # proposed_grade: 3.456  → debe ser rechazado

@@ -20,7 +20,8 @@ El registro permanente de que un documento formal salió del sistema. De solo an
 | `document_sha256` | `VARCHAR(64)` | no | Huella del documento emitido, con el código ya impreso dentro |
 | `format_version` | `VARCHAR(80)` | no | Versión del formato con que se emitió (D5) |
 | `request_version` | `BIGINT` | no | Revisión de los datos al emitir — el `@Version` de la solicitud (D7) |
-| `state_code` | `VARCHAR(40)` | no | Estado del trámite al emitir. Se copia, no se referencia: el sello describe un instante |
+| `state_code` | `VARCHAR(50)` | no | Código del estado del trámite al emitir. Se copia, no se referencia |
+| `state_name` | `VARCHAR(120)` | no | **Nombre legible** del estado al emitir, congelado. Es el texto que el pie imprime |
 | `actor_id` | `UUID` | no | Quién pidió la emisión → `users (id)` |
 | `issued_at` | `TIMESTAMP` | no | Momento de la emisión |
 
@@ -30,15 +31,37 @@ El registro permanente de que un documento formal salió del sistema. De solo an
 por el SC-004: un `UUID` habría sido el tipo natural del proyecto pero obliga a transcribir
 36 caracteres desde un papel.
 
-**`state_code` se copia en vez de referenciar `workflow_state (id)`.** Una clave foránea
-diría *en qué estado está hoy aquella transición*, y lo que el sello necesita registrar es
-**en qué estado estaba el trámite cuando el documento se emitió**. Un sello es una
-fotografía: si el estado se renombrara o se retirara de la definición, el sello seguiría
-describiendo correctamente lo que ocurrió. Mismo criterio que usa el pie impreso del
-documento, que también muestra un valor congelado.
+**El estado se copia en vez de referenciarse, y se copian LAS DOS columnas.** Una clave
+foránea diría *en qué estado está hoy aquella transición*, y lo que el sello necesita
+registrar es **en qué estado estaba el trámite cuando el documento se emitió**. Un sello es
+una fotografía.
+
+🔑 **Guardar solo el código no alcanza, y esto es lo que hace falta entender.** El pie
+impreso muestra el **nombre** legible del estado, no su código —`workflow_state` tiene las
+dos columnas (`V2.0.0:24-25`)—. Si el sello guardara únicamente el código, reconstruir el
+documento obligaría a resolver el nombre contra `workflow_state` **en tiempo de
+verificación**, y entonces:
+
+1. Se emite un documento en `EN_FACULTAD`; el pie imprime «En facultad» y la huella lo cubre.
+2. Alguien renombra ese estado a «En decanatura». Es un cambio de **pura configuración**, que
+   es justamente lo que el §VI habilita, y **no toca nada de lo que el sello vigila**: ni la
+   revisión de la solicitud —renombrar un estado no incrementa el `@Version` de `Request`— ni
+   la versión del formato, que depende del renderer y del logo.
+3. Las dos guardas del FR-007 pasan, el sistema compara huellas, el pie regenerado dice «En
+   decanatura» y el original decía «En facultad» → **`TAMPERED`**.
+
+Es decir: una acusación de falsificación contra un documento legítimo, disparada por un
+renombre. Exactamente el modo de fallo que esta feature existe para impedir. Congelar
+`state_name` lo cierra, y cuesta una columna.
 
 **`request_version` es `BIGINT`** para coincidir con el `long` del `@Version`
 (`Request.java:129-131`).
+
+**Los anchos copian los de su origen, no uno más angosto.** `state_code` es `VARCHAR(50)` y
+`state_name` `VARCHAR(120)` porque así están declarados en `workflow_state` (`V2.0.0:24-25`).
+Con fail-closed (FR-012), una columna más corta que su origen no produciría un sello
+truncado: **apagaría la emisión del documento entero**. El código más largo hoy tiene 22
+caracteres, así que el margen existe igual; copiar el ancho lo hace irrelevante.
 
 **No hay columna de «documento»**, porque el archivo no se guarda (FR-010). El sello apunta
 a la solicitud y a la revisión con que se reconstruye.

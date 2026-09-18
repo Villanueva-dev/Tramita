@@ -109,6 +109,7 @@ src/main/java/com/uniremington/api/tramita/
 │   ├── SealController.java                # NUEVO — POST /seals/verify
 │   └── RequestController.java             # TOCADO — GET /requests/{id}/seals
 ├── dto/
+│   ├── SubjectRequestBody.java            # TOCADO — precisión de un decimal (FR-013a)
 │   ├── PublicSealResponse.java            # NUEVO — sin datos personales
 │   ├── VerdictResponse.java               # NUEVO
 │   ├── SealEntryResponse.java             # NUEVO
@@ -139,7 +140,8 @@ src/test/java/com/uniremington/api/tramita/
 ├── repo/
 │   └── DocumentSealImmutabilityIT.java    # NUEVO — imita TimelineImmutabilityIT
 └── service/impl/
-    ├── PdfDeterminismProbeTest.java       # EXISTE sin commitear → pasa a ser el test de FR-004
+    ├── PdfDeterminismProbeTest.java       # YA COMMITEADA (eadad66) → pasa a ser el test de FR-004
+    ├── SubjectRequestBodyTest.java        # NUEVO — la precisión rechazada (FR-013a)
     ├── DocumentSealServiceImplTest.java   # NUEVO — los tres veredictos
     └── DoFr100RendererTest.java           # TOCADO — el pie y el /ID
 ```
@@ -156,14 +158,32 @@ dependencias reales, no por las capas:
 1. **Determinismo del render** — fijar el `/ID` y convertir la sonda en el test de FR-004.
    Sin esto, nada de lo demás verifica nada. *Entrega valor solo: el documento pasa a ser
    reproducible.*
+   - ⚠️ **El test debe nacer con una costura para fijar el código de verificación**, aunque
+     en este tramo todavía no exista ninguno. Si se escribe comparando contra una huella
+     dorada del documento «tal como sale hoy», el tramo 3 lo pondrá en rojo al imprimir el
+     código en el pie, y la reacción natural —actualizar la huella dorada— desactiva en la
+     práctica la única barrera que D5 declara contra olvidar bumpear la versión del formato.
+     Lo que el test debe afirmar es que **reconstruir con un código fijo da bytes idénticos**
+     (FR-004), no que el documento de hoy tenga un hash concreto.
 2. **Migración y entidad** — la tabla, los índices, el trigger, la restricción de precisión
    con su saneamiento. *Se comprueba con el test de inmutabilidad por acceso directo.*
 3. **Sellado al emitir** — el código de verificación, el pie impreso, el `INSERT` dentro de
    la transacción, y `generateFor()` dejando de ser `readOnly`. *Cierra la US1 completa.*
+   - ⚠️ **Este tramo romperá dos tests de `DoFr100RendererTest`, y el mecanismo no es obvio**:
+     `lowestTextBaseline` (`:376-394`) descarta del cálculo las líneas que contienen el
+     literal `"Generado por Trámita"`, porque el pie va deliberadamente bajo el margen. Dos
+     tests asertan que el resto del contenido no baja de `BOTTOM = 70`
+     (`DoFr100Renderer:78`). Cualquier línea nueva del pie —código, fecha, estado, revisión—
+     cae por debajo de ese umbral y entra al cálculo, salvo que el filtro se extienda. No es
+     un defecto del cambio: es un filtro escrito contra un literal. Extenderlo es parte de
+     este tramo, no una sorpresa a descubrir en rojo.
 4. **Verificación** — los tres veredictos, el canal público y el autenticado. *Cierra la US2.*
 5. **Historial de emisiones** — `GET /requests/{id}/seals`. *Cierra la US3, la de menor
    prioridad: si hay que recortar, es lo primero que cae.*
-6. **Validación de precisión en la entrada** — el `422` de FR-013a.
+6. **Validación de precisión en la entrada** — FR-013a, en `SubjectRequestBody` con la
+   anotación de precisión que Bean Validation ya ofrece. Responde **`400`**, no `422`: el
+   `422` pertenece al canal público de captura por un advice acotado, y las calificaciones
+   solo entran por el formulario interno.
 
 ⚠️ El tramo 1 **debe ir primero**. Sellar antes de que el render sea reproducible produciría
 sellos que nunca verifican, y como la tabla es de solo anexado, no se pueden corregir
@@ -174,7 +194,7 @@ después.
 | Riesgo | Mitigación |
 |---|---|
 | Un cambio de formato deja «no verificables» todos los sellos anteriores, sin reparación posible | Aceptado explícitamente en el spec. Es el precio de no almacenar archivos |
-| Alguien cambia la maquetación y olvida bumpear la versión del formato | El test de determinismo se pone en rojo y obliga a mirar (D5) |
+| Alguien cambia la maquetación y olvida bumpear la versión del formato | El test de determinismo se pone en rojo y obliga a mirar (D5). ⚠️ Solo funciona si ese test compara reconstrucciones a código fijo; ver la advertencia del tramo 1 |
 | El trigger se escribe cubriendo también `INSERT` | Apagaría la emisión entera por fail-closed. Es el modo de fallo más caro que esta feature puede introducirse a sí misma; se vigila con un test que inserta |
 | Quitar `readOnly` reactiva el dirty checking | Hoy el renderer solo lee. Se anota en el código para quien venga después |
 | La migración falla por la fila con `proposed_grade = 3.46` | La migración la sanea antes de declarar la restricción (medido, no supuesto) |
