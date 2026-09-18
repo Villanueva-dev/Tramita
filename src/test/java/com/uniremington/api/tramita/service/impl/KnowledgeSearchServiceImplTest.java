@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.uniremington.api.tramita.model.KnowledgeChunk;
@@ -39,5 +40,17 @@ class KnowledgeSearchServiceImplTest {
         assertThat(service.search(" Reglamento_% ")).isEmpty();
 
         verify(chunkRepo).searchValidated("reglamento\\_\\%");
+    }
+
+    @Test
+    void searchesSignificantTermsFromNaturalLanguageQuestion() {
+        when(chunkRepo.searchValidated(anyString())).thenReturn(List.of());
+
+        service.search("¿Cuál es el proceso de adición de créditos?");
+
+        verify(chunkRepo).searchValidated("proceso");
+        verify(chunkRepo).searchValidated("adición");
+        verify(chunkRepo).searchValidated("créditos");
+        verifyNoMoreInteractions(chunkRepo);
     }
 }

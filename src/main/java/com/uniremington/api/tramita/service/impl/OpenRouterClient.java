@@ -10,10 +10,12 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.json.JsonMapper;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class OpenRouterClient implements IOpenRouterClient {
 
@@ -40,6 +42,8 @@ public class OpenRouterClient implements IOpenRouterClient {
             HttpResponse<String> response = HttpClient.newHttpClient()
                     .send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                log.warn("OpenRouter respondió con estado {} para el modelo {}",
+                    response.statusCode(), properties.model());
                 throw new AiProviderException("OpenRouter devolvió un estado no exitoso", null);
             }
             OpenRouterResponse parsed = jsonMapper.readValue(response.body(), OpenRouterResponse.class);

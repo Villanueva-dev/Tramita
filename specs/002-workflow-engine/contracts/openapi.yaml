@@ -261,6 +261,50 @@ paths:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
 
+  /assistant:
+    post:
+      summary: Consulta el asistente documental de trámites
+      description: |
+        Requiere sesión y CSRF. Consulta fragmentos de fuentes institucionales o evidencia
+        operativa validada; la respuesta identifica sus fuentes y no presenta evidencia
+        operativa como norma. Si no existe evidencia suficiente, responde grounded=false sin
+        llamar a OpenRouter. Nunca modifica solicitudes ni recibe la clave del proveedor.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssistantRequest' }
+      responses:
+        '200':
+          description: Orientación con fuentes, o abstención por falta de evidencia validada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssistantResponse' }
+        '400':
+          description: Pregunta vacía, demasiado larga o cuerpo inválido
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429':
+          description: Se superó el límite de consultas del usuario autenticado; Retry-After indica cuándo reintentar.
+          headers:
+            Retry-After:
+              schema: { type: integer, minimum: 1 }
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '502':
+          description: El proveedor de IA no respondió correctamente
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '503':
+          description: El asistente no está habilitado o configurado
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
 components:
   responses:
     Unauthorized:
@@ -286,6 +330,40 @@ components:
         status: { type: integer, example: 409 }
         detail: { type: string }
         instance: { type: string }
+
+    AssistantRequest:
+      type: object
+      required: [question]
+      properties:
+        question:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Consulta general sin datos personales, contraseñas, tokens ni expedientes.
+
+    AssistantSource:
+      type: object
+      required: [sourceId, title, version]
+      properties:
+        sourceId: { type: string, example: reglamento-estudiantil }
+        title: { type: string, example: Reglamento Estudiantil }
+        version: { type: string, example: '2026' }
+        locator: { type: string, nullable: true, example: Sección 4, página 18 }
+        section: { type: string, nullable: true }
+        page: { type: integer, nullable: true, minimum: 1 }
+
+    AssistantResponse:
+      type: object
+      required: [answer, grounded, sources, disclaimer]
+      properties:
+        answer: { type: string }
+        grounded:
+          type: boolean
+          description: True solo si la respuesta se construyó con fuentes institucionales validadas.
+        sources:
+          type: array
+          items: { $ref: '#/components/schemas/AssistantSource' }
+        disclaimer: { type: string }
 
     WorkflowDefinition:
       type: object

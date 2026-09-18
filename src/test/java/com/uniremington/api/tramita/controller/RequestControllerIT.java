@@ -361,6 +361,27 @@ class RequestControllerIT {
     }
 
     @Test
+        @DisplayName("asistente: exige sesión y se abstiene sin fuentes validadas coincidentes")
+    void assistantRequiresSessionAndAbstainsWithoutValidatedSources() throws Exception {
+        mockMvc.perform(post("/api/assistant")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\":\"¿Qué documentos necesito?\"}"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/api/assistant")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\":\"¿Qué documentos necesito?\"}")
+                        .session(login()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.grounded").value(false))
+                .andExpect(jsonPath("$.sources").isEmpty())
+                .andExpect(jsonPath("$.answer").value(
+                        "No encontré respaldo suficiente en las fuentes validadas disponibles."));
+    }
+
+    @Test
     @DisplayName("aprobaciones documentales: registra firma externa con sello UTC y conserva el hash aprobado")
     void documentApprovalsPersistSignatureTrace() throws Exception {
         MockHttpSession session = login();

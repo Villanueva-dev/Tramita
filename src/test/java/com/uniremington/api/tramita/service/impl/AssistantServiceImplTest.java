@@ -27,7 +27,7 @@ class AssistantServiceImplTest {
     void abstainsWithoutValidatedContext() {
         when(searchService.search(request.question())).thenReturn(List.of());
         AssistantServiceImpl service = new AssistantServiceImpl(
-                searchService, openRouterClient, new AiProperties(false, "", "http://localhost", "model", 500, 20));
+                searchService, openRouterClient, new AiProperties(false, "", "http://localhost", "model", 500, 20, 10, 60));
 
         var response = service.answer(request);
 
@@ -42,7 +42,7 @@ class AssistantServiceImplTest {
                 UUID.randomUUID(), "Requisitos documentales", "reglamento", "Reglamento", "2026", "p. 1", "Sección 1", 1);
         when(searchService.search(request.question())).thenReturn(List.of(result));
         AssistantServiceImpl service = new AssistantServiceImpl(
-                searchService, openRouterClient, new AiProperties(true, "", "http://localhost", "model", 500, 20));
+                searchService, openRouterClient, new AiProperties(true, "", "http://localhost", "model", 500, 20, 10, 60));
 
         assertThatExceptionOfType(AiUnavailableException.class).isThrownBy(() -> service.answer(request));
         verify(openRouterClient, never()).answer(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyList());
@@ -56,7 +56,7 @@ class AssistantServiceImplTest {
         when(openRouterClient.answer(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyList()))
                 .thenReturn("Debe presentar los documentos indicados en la fuente.");
         AssistantServiceImpl service = new AssistantServiceImpl(
-                searchService, openRouterClient, new AiProperties(true, "secret-no-real", "http://localhost", "model", 500, 20));
+                searchService, openRouterClient, new AiProperties(true, "secret-no-real", "http://localhost", "model", 500, 20, 10, 60));
 
         var response = service.answer(request);
 

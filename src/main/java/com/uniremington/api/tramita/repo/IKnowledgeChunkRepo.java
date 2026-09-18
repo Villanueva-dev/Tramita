@@ -11,12 +11,12 @@ public interface IKnowledgeChunkRepo extends JpaRepository<KnowledgeChunk, UUID>
 
     List<KnowledgeChunk> findBySourceIdOrderByChunkOrderAsc(UUID sourceId);
 
-    /** Recuperación léxica inicial: solo fuentes institucionales validadas. */
+    /** Recuperación léxica inicial: fuentes validadas aptas para orientación. */
     @Query("""
             select chunk from KnowledgeChunk chunk
             join fetch chunk.source source
             where source.status = 'VALIDATED'
-              and source.sourceClass = 'OFFICIAL_INSTITUTIONAL'
+              and source.sourceClass in ('OFFICIAL_INSTITUTIONAL', 'INTERVIEW_EVIDENCE')
               and lower(chunk.content) like lower(concat('%', :term, '%')) escape '\\'
             order by source.title asc, chunk.chunkOrder asc
             """)

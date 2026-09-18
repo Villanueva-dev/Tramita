@@ -10,5 +10,7 @@ public record AiProperties(
         String baseUrl,
         String model,
         int maxTokens,
-        int timeoutSeconds) {
+        int timeoutSeconds,
+        int maxRequests,
+        int windowSeconds) {
 }

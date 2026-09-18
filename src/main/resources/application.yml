@@ -41,6 +41,8 @@ app:
     model: ${OPENROUTER_MODEL:}
     max-tokens: ${OPENROUTER_MAX_TOKENS:500}
     timeout-seconds: ${OPENROUTER_TIMEOUT_SECONDS:20}
+    max-requests: ${OPENROUTER_MAX_REQUESTS:10}
+    window-seconds: ${OPENROUTER_WINDOW_SECONDS:60}
 
 server:
   servlet:

@@ -81,6 +81,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .body(problem);
     }
 
+    @ExceptionHandler(AssistantRateLimitExceededException.class)
+    ResponseEntity<ProblemDetail> handleAssistantRateLimit(AssistantRateLimitExceededException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.TOO_MANY_REQUESTS);
+        problem.setTitle(ex.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(problem);
+    }
+
     /** El proveedor no está habilitado o configurado: 503 sin revelar secretos. */
     @ExceptionHandler(AiUnavailableException.class)
     ProblemDetail handleAiUnavailable(AiUnavailableException ex) {

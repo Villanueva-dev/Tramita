@@ -7,8 +7,8 @@ import java.util.List;
 
 /**
  * Body de POST /api/requests (contracts/openapi.yaml). Datos mínimos de
- * identificación (FR-002): nombre y cédula son los dos datos con los que la
- * Coordinación localiza un trámite; el resto del formato oficial es SP2 y va
+ * identificación (FR-002): nombre, cédula y código institucional son los datos
+ * con los que la Coordinación localiza un trámite; el resto del formato oficial es SP2 y va
  * en la feature 003. Aquí sí corre @Valid (path de MVC, no de filtro).
  */
 public record CreateRequestBody(
@@ -24,7 +24,8 @@ public record CreateRequestBody(
                 @Valid List<SubjectRequestBody> subjects) {
 
         /** Compatibilidad con los tests y clientes de la primera versión del API. */
-        public CreateRequestBody(String definitionCode, String studentName, String studentDocument) {
-                this(definitionCode, studentName, studentDocument, null, null, null, null, null, "normal", List.of());
+        public CreateRequestBody(String definitionCode, String studentName, String ignoredStudentDocument) {
+                this(definitionCode, studentName, ignoredStudentDocument, null, null, null, null, null, "normal", List.of());
         }
+
 }

@@ -18,8 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AssistantServiceImpl implements IAssistantService {
 
-    private static final String DISCLAIMER = "Orientación informativa; la decisión corresponde a la institución.";
-    private static final String NO_CONTEXT = "No encontré respaldo suficiente en las fuentes institucionales validadas.";
+    private static final String DISCLAIMER = "Orientación informativa basada en fuentes institucionales o evidencia operativa validada; la decisión corresponde a la institución.";
+    private static final String NO_CONTEXT = "No encontré respaldo suficiente en las fuentes validadas disponibles.";
 
     private final IKnowledgeSearchService searchService;
     private final IOpenRouterClient openRouterClient;

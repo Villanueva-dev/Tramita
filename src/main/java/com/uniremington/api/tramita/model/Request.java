@@ -54,7 +54,8 @@ public class Request {
     @Column(name = "student_name", nullable = false, updatable = false)
     private String studentName;
 
-    @Column(name = "student_document", nullable = false, updatable = false)
+    /** Conserva el dato de solicitudes históricas; no se escribe ni expone en solicitudes nuevas. */
+    @Column(name = "student_document", updatable = false)
     private String studentDocument;
 
         // Datos estructurados del formulario; se separan las asignaturas para conservar su cardinalidad.

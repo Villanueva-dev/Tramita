@@ -3,6 +3,7 @@ package com.uniremington.api.tramita.controller;
 import com.uniremington.api.tramita.dto.AssistantRequest;
 import com.uniremington.api.tramita.dto.AssistantResponse;
 import com.uniremington.api.tramita.service.IAssistantService;
+import com.uniremington.api.tramita.service.impl.AssistantRateLimitService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,9 +18,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AssistantController {
 
     private final IAssistantService assistantService;
+    private final AssistantRateLimitService rateLimitService;
 
     @PostMapping
-    public AssistantResponse answer(@Valid @RequestBody AssistantRequest request) {
+    public AssistantResponse answer(
+            @Valid @RequestBody AssistantRequest request, org.springframework.security.core.Authentication authentication) {
+        rateLimitService.checkAndRecord(authentication.getName());
         return assistantService.answer(request);
     }
 }
