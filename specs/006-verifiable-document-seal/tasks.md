@@ -53,13 +53,13 @@ re-mide, no se cita de memoria.
 
 ### Tramo 2 — migración, entidad y repositorio (FR-001, FR-002, FR-008)
 
-- [ ] T007 (RED) Crear `src/test/java/com/uniremington/api/tramita/repo/DocumentSealImmutabilityIT.java` imitando `TimelineImmutabilityIT`: afirmar que `UPDATE` y `DELETE` sobre `request_document_seal` fallan **por acceso directo al motor**, y que `INSERT` sí funciona
+- [x] T007 (RED) Crear `src/test/java/com/uniremington/api/tramita/repo/DocumentSealImmutabilityIT.java` imitando `TimelineImmutabilityIT`: afirmar que `UPDATE` y `DELETE` sobre `request_document_seal` fallan **por acceso directo al motor**, y que `INSERT` sí funciona
   - ⚠️ El caso del `INSERT` no es de relleno: si el trigger llegara a cubrir `INSERT`, con fail-closed **apagaría la emisión de documentos por completo**. Es el modo de fallo más caro que esta feature puede causarse a sí misma
-- [ ] T008 (GREEN) Escribir `src/main/resources/db/migration/V4.1.0__Register_document_seals.sql` en este orden exacto: (a) **sanear** las calificaciones con más de un decimal —hay **1 fila medida**, `04f93f4d-a718-470e-9e0c-f8fde6f9e33f`, `proposed_grade = 3.46`—, (b) la restricción `ck_request_subject_grades_one_decimal`, (c) la tabla `request_document_seal`, (d) los dos índices, (e) la función y el trigger `BEFORE UPDATE OR DELETE`
+- [x] T008 (GREEN) Escribir `src/main/resources/db/migration/V4.1.0__Register_document_seals.sql` en este orden exacto: (a) **sanear** las calificaciones con más de un decimal —hay **1 fila medida**, `04f93f4d-a718-470e-9e0c-f8fde6f9e33f`, `proposed_grade = 3.46`—, (b) la restricción `ck_request_subject_grades_one_decimal`, (c) la tabla `request_document_seal`, (d) los dos índices, (e) la función y el trigger `BEFORE UPDATE OR DELETE`
   - ⚠️ El saneamiento va **antes** de la restricción. Invertirlo hace que Flyway falle al aplicar la migración y deja el arranque roto
-- [ ] T009 [P] Crear la entidad `src/main/java/com/uniremington/api/tramita/model/RequestDocumentSeal.java` con las columnas de `data-model.md`, todas `updatable = false`, y **sin setters** (es de solo anexado)
-- [ ] T010 [P] Crear `src/main/java/com/uniremington/api/tramita/repo/IRequestDocumentSealRepo.java` con la búsqueda por `verificationCode` y el listado por solicitud ordenado por `issuedAt`
-- [ ] T011 Verificar el tramo: `./mvnw clean verify` con el IT de inmutabilidad en verde y Flyway aplicando `V4.1.0` sin error
+- [x] T009 [P] Crear la entidad `src/main/java/com/uniremington/api/tramita/model/RequestDocumentSeal.java` con las columnas de `data-model.md`, todas `updatable = false`, y **sin setters** (es de solo anexado)
+- [x] T010 [P] Crear `src/main/java/com/uniremington/api/tramita/repo/IRequestDocumentSealRepo.java` con la búsqueda por `verificationCode` y el listado por solicitud ordenado por `issuedAt`
+- [x] T011 Verificar el tramo: `./mvnw clean verify` con el IT de inmutabilidad en verde y Flyway aplicando `V4.1.0` sin error
 
 **Checkpoint**: el documento es reproducible y el sello tiene dónde vivir. Recién ahora pueden empezar las historias.
 
