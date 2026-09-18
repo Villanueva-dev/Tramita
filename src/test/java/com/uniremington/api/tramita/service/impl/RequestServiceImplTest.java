@@ -10,19 +10,25 @@ import static org.mockito.Mockito.when;
 
 import com.uniremington.api.tramita.dto.AdvanceRequestBody;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
+import com.uniremington.api.tramita.dto.PublicRequestBody;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.model.RequestTransitionLog;
 import com.uniremington.api.tramita.model.User;
 import com.uniremington.api.tramita.model.WorkflowDefinition;
+import com.uniremington.api.tramita.model.WorkflowParameter;
 import com.uniremington.api.tramita.model.WorkflowState;
 import com.uniremington.api.tramita.model.WorkflowTransition;
 import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
 import com.uniremington.api.tramita.repo.IUserRepo;
+import com.uniremington.api.tramita.repo.IWorkflowParameterRepo;
 import com.uniremington.api.tramita.repo.IWorkflowDefinitionRepo;
-import com.uniremington.api.tramita.service.IRequestNotificationService;
+import com.uniremington.api.tramita.service.IRequestBusinessRules;
+import com.uniremington.api.tramita.service.IWorkflowGuard;
+import com.uniremington.api.tramita.shared.exception.GuardRejectedException;
 import com.uniremington.api.tramita.shared.exception.IllegalTransitionException;
+import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationException;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
 import java.util.List;
@@ -47,16 +53,26 @@ class RequestServiceImplTest {
     private final IRequestRepo requestRepo = mock(IRequestRepo.class);
     private final IRequestTransitionLogRepo logRepo = mock(IRequestTransitionLogRepo.class);
     private final IUserRepo userRepo = mock(IUserRepo.class);
-    // El validador se aísla aquí: sus reglas tienen pruebas propias y este test cubre el motor.
-    private final RequestBusinessRules businessRules = mock(RequestBusinessRules.class);
-    private final IRequestNotificationService notificationService = mock(IRequestNotificationService.class);
-    private final RequestServiceImpl service =
-            new RequestServiceImpl(definitionRepo, requestRepo, logRepo, userRepo, businessRules, notificationService);
+    /**
+     * Las reglas de negocio (003/US2) tienen su propio test unitario. Acá van
+     * mockeadas y permisivas a propósito: estos casos verifican el MOTOR —que no
+     * conoce ningún trámite—, y meterle reglas concretas los ataría a un dominio
+     * que el motor no debe conocer.
+     */
+    private final IRequestBusinessRules businessRules = mock(IRequestBusinessRules.class);
+
+    /**
+     * Lo usa el canal público de la 004 para leer PUBLIC_CAPTURE_ENABLED. Los casos
+     * de este test no lo ejercitan; está para satisfacer al constructor.
+     */
+    private final IWorkflowParameterRepo parameterRepo = mock(IWorkflowParameterRepo.class);
+    /** Sin guardas registradas: los casos de US1–US3 no las ejercitan (FR-017). */
+    private final RequestServiceImpl service = serviceWith();
 
     private final User actor = new User();
 
     /**
-        * Definición mínima en memoria: INICIAL → SIGUIENTE → FINALIZADA, más la
+     * Definición mínima en memoria: INICIAL → SIGUIENTE → FINAL, más la
      * devolución SIGUIENTE → INICIAL con nota obligatoria (FR-013/FR-014).
      * Códigos genéricos a propósito: el motor no conoce trámites (US4) y este
      * test tampoco debería.
@@ -66,7 +82,7 @@ class RequestServiceImplTest {
     private final WorkflowState next =
             WorkflowState.builder().code("SIGUIENTE").name("Siguiente").build();
     private final WorkflowState terminal =
-            WorkflowState.builder().code("FINALIZADA").name("Finalizada").finalState(true).build();
+            WorkflowState.builder().code("FINAL").name("Final").finalState(true).build();
     private final WorkflowDefinition definition = WorkflowDefinition.builder()
             .code("TRAMITE_PRUEBA")
             .version(1)
@@ -93,7 +109,7 @@ class RequestServiceImplTest {
         stubHappyPath();
 
         RequestResponse response = service.register(
-                new CreateRequestBody("TRAMITE_PRUEBA", "Ana María Pérez", "1144099888"), EMAIL);
+                new CreateRequestBody("TRAMITE_PRUEBA", "Ana María Pérez", "DOC-PRUEBA-001"), EMAIL);
 
         // La respuesta refleja el nacimiento: estado inicial y transiciones derivadas
         assertThat(response.currentState().code()).isEqualTo("INICIAL");
@@ -163,10 +179,10 @@ class RequestServiceImplTest {
     void advanceUndefinedTransitionRejectsWithoutSideEffects() {
         Request request = requestAt(initial);
 
-        // INICIAL → FINALIZADA no existe en la definición (el camino pasa por SIGUIENTE)
+        // INICIAL → FINAL no existe en la definición (el camino pasa por SIGUIENTE)
         assertThatExceptionOfType(IllegalTransitionException.class)
                 .isThrownBy(() -> service.advance(
-                        REQUEST_ID, new AdvanceRequestBody("FINALIZADA", null), EMAIL));
+                        REQUEST_ID, new AdvanceRequestBody("FINAL", null), EMAIL));
 
         assertThat(request.getCurrentState()).isSameAs(initial);
         verify(logRepo, never()).save(any());
@@ -225,47 +241,191 @@ class RequestServiceImplTest {
                         REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL));
     }
 
+    // --- US4: guardas de transición ------------------------------------------------------
+
+    private static final String GUARD_KEY = "REGLA_DE_PRUEBA";
+
+    /**
+     * Guarda de prueba: vive SOLO en el árbol de tests. Esta feature entrega el
+     * mecanismo y ninguna guarda de producción (research.md D5), así que esta es la
+     * única implementación que existe. Cuenta evaluaciones para poder afirmar que
+     * una transición sin guard_key no la consulta (FR-017).
+     */
+    private static final class TestGuard implements IWorkflowGuard {
+
+        private final String key;
+        private final boolean verdict;
+        private int evaluations;
+
+        private TestGuard(String key, boolean verdict) {
+            this.key = key;
+            this.verdict = verdict;
+        }
+
+        @Override
+        public String guardKey() {
+            return key;
+        }
+
+        @Override
+        public boolean isSatisfiedBy(Request request) {
+            evaluations++;
+            return verdict;
+        }
+    }
+
+    /** Definición mínima INICIAL → SIGUIENTE condicionada por la clave dada. */
+    // --- Canal público: la compuerta que decide qué trámites se diligencian sin sesión ---
+
+    private static final java.util.UUID PUBLIC_DEFINITION_ID =
+            java.util.UUID.fromString("00000000-0000-0000-0000-0000000000ff");
+
     @Test
-    @DisplayName("al llegar a FINALIZADA dispara la notificación de cierre")
-    void advanceToFinalizadaTriggersNotification() {
-        Request request = requestAt(next);
+    @DisplayName("PUBLIC_CAPTURE_ENABLED no interpretable: es configuración rota, nunca un canal cerrado en silencio")
+    void nonBooleanPublicCaptureFlagIsInvalidConfiguration() {
+        stubPublicDefinition("sí");
 
-        RequestResponse response = service.advance(
-                REQUEST_ID, new AdvanceRequestBody("FINALIZADA", null), EMAIL);
+        // Leerlo como false dejaría un trámite declarado como público rechazando todo
+        // con un 404 y culpando de la configuración rota a quien diligencia el formato.
+        // Leerlo como true es peor: abriría a envíos anónimos un trámite que nadie habilitó.
+        assertThatExceptionOfType(IncompleteConfigurationException.class)
+                .isThrownBy(() -> service.registerFromPublicChannel("ADICION_CREDITOS", publicBody()));
 
-        assertThat(response.currentState().code()).isEqualTo("FINALIZADA");
-        verify(notificationService).notifyFinalized(request);
+        verify(requestRepo, never()).save(any());
     }
 
     @Test
-    @DisplayName("un final distinto de FINALIZADA no dispara notificación")
-    void advanceToOtherFinalStateDoesNotTriggerNotification() {
-        WorkflowState rejected = WorkflowState.builder().code("RECHAZADA").name("Rechazada").finalState(true).build();
-        WorkflowDefinition rejectionDefinition = WorkflowDefinition.builder()
-                .code("TRAMITE_RECHAZABLE")
+    @DisplayName("PUBLIC_CAPTURE_ENABLED en false explícito: el canal queda cerrado, no abierto")
+    void explicitFalsePublicCaptureFlagKeepsTheChannelClosed() {
+        stubPublicDefinition("false");
+
+        // El trámite declara que NO tiene canal público. Abrirlo sería aceptar envíos
+        // anónimos en un trámite que nadie habilitó: el mismo fail-open que vigila el
+        // caso no interpretable, por la otra puerta de la misma compuerta.
+        assertThatExceptionOfType(ResourceNotFoundException.class)
+                .isThrownBy(() -> service.registerFromPublicChannel("ADICION_CREDITOS", publicBody()));
+
+        verify(requestRepo, never()).save(any());
+    }
+
+    private void stubPublicDefinition(String flagValue) {
+        WorkflowDefinition definition = WorkflowDefinition.builder()
+                .id(PUBLIC_DEFINITION_ID)
+                .code("ADICION_CREDITOS")
                 .version(1)
-                .name("Trámite rechazable")
-                .states(List.of(initial, rejected))
+                .name("Adición de créditos")
+                .states(List.of(initial, next))
+                .build();
+        when(definitionRepo.findTopByCodeOrderByVersionDesc("ADICION_CREDITOS"))
+                .thenReturn(Optional.of(definition));
+        when(parameterRepo.findByDefinitionIdAndKey(PUBLIC_DEFINITION_ID, "PUBLIC_CAPTURE_ENABLED"))
+                .thenReturn(Optional.of(WorkflowParameter.builder()
+                        .key("PUBLIC_CAPTURE_ENABLED")
+                        .value(flagValue)
+                        .build()));
+    }
+
+    /** Cuerpo válido: la compuerta se evalúa antes de mirarlo, así que su contenido no influye. */
+    private PublicRequestBody publicBody() {
+        return new PublicRequestBody("Ana Pérez", "1234567890", "ana@uniremington.edu.co",
+                "3001234567", null, "Ingeniería de Sistemas", "Cali", "Ingeniería",
+                "Distancia", "8", "Necesito la asignatura para graduarme", "data:image/png;base64,AAAA");
+    }
+
+    private WorkflowDefinition definitionGuardedBy(String code, String guardKey) {
+        return WorkflowDefinition.builder()
+                .code(code)
+                .version(1)
+                .name("Trámite con guarda")
+                .states(List.of(initial, next))
                 .transitions(List.of(WorkflowTransition.builder()
-                        .fromState(initial).toState(rejected)
-                        .responsible("EXTERNO").requiresNote(false).build()))
+                        .fromState(initial).toState(next)
+                        .responsible("COORDINACION").requiresNote(false)
+                        .guardKey(guardKey).build()))
                 .build();
-        Request request = Request.builder()
-                .definition(rejectionDefinition)
-                .currentState(initial)
-                .studentName("Ana María Pérez")
-                .studentDocument("1144099888")
-                .build();
-        when(requestRepo.findById(REQUEST_ID)).thenReturn(Optional.of(request));
-        when(userRepo.findByEmail(EMAIL)).thenReturn(Optional.of(actor));
-        when(requestRepo.save(any(Request.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(logRepo.save(any(RequestTransitionLog.class))).thenAnswer(inv -> inv.getArgument(0));
+    }
 
-        RequestResponse response = service.advance(
-                REQUEST_ID, new AdvanceRequestBody("RECHAZADA", null), EMAIL);
+    @Test
+    @DisplayName("guarda satisfecha: la transición procede como cualquier otra (US4-1)")
+    void advanceWithSatisfiedGuardProceeds() {
+        TestGuard guard = new TestGuard(GUARD_KEY, true);
+        Request request = requestAt(initial, definitionGuardedBy("CON_GUARDA", GUARD_KEY));
 
-        assertThat(response.currentState().code()).isEqualTo("RECHAZADA");
-        verify(notificationService, never()).notifyFinalized(any(Request.class));
+        RequestResponse response = serviceWith(guard)
+                .advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL);
+
+        assertThat(response.currentState().code()).isEqualTo("SIGUIENTE");
+        assertThat(request.getCurrentState()).isSameAs(next);
+        assertThat(guard.evaluations).isEqualTo(1);
+        verify(logRepo).save(any());
+    }
+
+    @Test
+    @DisplayName("guarda no satisfecha: 409, sin efectos, y el detalle nombra la regla (US4-2)")
+    void advanceWithUnsatisfiedGuardBlocksWithoutSideEffects() {
+        TestGuard guard = new TestGuard(GUARD_KEY, false);
+        Request request = requestAt(initial, definitionGuardedBy("CON_GUARDA", GUARD_KEY));
+
+        // El tipo es la afirmación: GuardRejectedException, no su padre. Si el motor
+        // dejara de resolver la guarda y cayera en el "transición no definida" de
+        // arriba, lanzaría IllegalTransitionException y este caso fallaría.
+        assertThatExceptionOfType(GuardRejectedException.class)
+                .isThrownBy(() -> serviceWith(guard)
+                        .advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL))
+                .withMessageContaining(GUARD_KEY);
+
+        assertThat(request.getCurrentState()).isSameAs(initial);
+        verify(logRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("transición sin guarda: se comporta como en la 002 y no consulta regla alguna (US4-3, FR-017)")
+    void advanceWithoutGuardKeySkipsEvaluationEntirely() {
+        // La definición de siempre: todas sus transiciones tienen guard_key nulo,
+        // como las que V2.1.0 dejó sembradas. La guarda registrada NIEGA, así que si
+        // el motor la consultara este avance fallaría en vez de proceder.
+        TestGuard guard = new TestGuard(GUARD_KEY, false);
+        Request request = requestAt(initial);
+
+        RequestResponse response = serviceWith(guard)
+                .advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL);
+
+        assertThat(response.currentState().code()).isEqualTo("SIGUIENTE");
+        assertThat(request.getCurrentState()).isSameAs(next);
+        assertThat(guard.evaluations).isZero();
+    }
+
+    @Test
+    @DisplayName("dos definiciones con la misma clave: ambas la evalúan sin que el motor conozca el trámite (US4-4, FR-018)")
+    void advanceResolvesSameGuardKeyAcrossDifferentDefinitions() {
+        TestGuard guard = new TestGuard(GUARD_KEY, true);
+        RequestServiceImpl guarded = serviceWith(guard);
+
+        requestAt(initial, definitionGuardedBy("ADICION_PRUEBA", GUARD_KEY));
+        assertThat(guarded.advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL)
+                .currentState().code()).isEqualTo("SIGUIENTE");
+
+        requestAt(initial, definitionGuardedBy("NOVEDAD_PRUEBA", GUARD_KEY));
+        assertThat(guarded.advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL)
+                .currentState().code()).isEqualTo("SIGUIENTE");
+
+        assertThat(guard.evaluations).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("clave sin implementación registrada: 500 de configuración y la transición NO se ejecuta (US4-5, FR-019)")
+    void advanceWithUnknownGuardKeyFailsClosed() {
+        Request request =
+                requestAt(initial, definitionGuardedBy("CON_GUARDA", "REGLA_INEXISTENTE"));
+
+        // Sin guardas registradas la clave no resuelve. Falla cerrado: omitirla
+        // ejecutaría una transición cuya condición nadie llegó a evaluar.
+        assertThatExceptionOfType(IncompleteConfigurationException.class)
+                .isThrownBy(() -> serviceWith()
+                        .advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL));
+
+        assertThat(request.getCurrentState()).isSameAs(initial);
+        verify(logRepo, never()).save(any());
     }
 
     // --- helpers -------------------------------------------------------------------------
@@ -273,13 +433,25 @@ class RequestServiceImplTest {
     private static final java.util.UUID REQUEST_ID =
             java.util.UUID.fromString("00000000-0000-0000-0000-000000000001");
 
+    /** Motor con las guardas dadas registradas; sin argumentos, ninguna. */
+    private RequestServiceImpl serviceWith(IWorkflowGuard... guards) {
+        return new RequestServiceImpl(
+                definitionRepo, requestRepo, logRepo, userRepo, businessRules, parameterRepo,
+                List.of(guards));
+    }
+
     /** Solicitud del trámite de prueba parada en el estado dado, con stubs de I/O listos. */
     private Request requestAt(WorkflowState state) {
+        return requestAt(state, definition);
+    }
+
+    /** Igual, para una definición distinta de la de siempre (US4). */
+    private Request requestAt(WorkflowState state, WorkflowDefinition definition) {
         Request request = Request.builder()
                 .definition(definition)
                 .currentState(state)
                 .studentName("Ana María Pérez")
-                .studentDocument("1144099888")
+                .studentDocument("DOC-PRUEBA-001")
                 .build();
         when(requestRepo.findById(REQUEST_ID)).thenReturn(Optional.of(request));
         when(userRepo.findByEmail(EMAIL)).thenReturn(Optional.of(actor));

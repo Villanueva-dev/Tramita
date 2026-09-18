@@ -39,18 +39,13 @@ public class RequestBusinessRules {
     private void validateGrades(List<SubjectRequestBody> subjects) {
         subjects.stream().flatMap(subject -> java.util.stream.Stream.of(
                 subject.currentGrade(), subject.proposedGrade()))
-                .filter(grade -> grade != null && !grade.isBlank())
+                .filter(java.util.Objects::nonNull)
                 .forEach(this::validateGrade);
     }
 
-    private void validateGrade(String rawGrade) {
-        try {
-            BigDecimal grade = new BigDecimal(rawGrade.trim());
-            if (grade.compareTo(BigDecimal.ZERO) < 0 || grade.compareTo(BigDecimal.valueOf(5)) > 0) {
-                throw new UnprocessableRequestException("Las notas deben estar entre 0.0 y 5.0");
-            }
-        } catch (NumberFormatException exception) {
-            throw new UnprocessableRequestException("Las notas deben ser valores numéricos entre 0.0 y 5.0");
+    private void validateGrade(BigDecimal grade) {
+        if (grade.compareTo(BigDecimal.ZERO) < 0 || grade.compareTo(BigDecimal.valueOf(5)) > 0) {
+            throw new UnprocessableRequestException("Las notas deben estar entre 0.0 y 5.0");
         }
     }
 

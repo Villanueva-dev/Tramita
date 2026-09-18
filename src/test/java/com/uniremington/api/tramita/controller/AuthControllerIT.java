@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.uniremington.api.tramita.TestcontainersConfiguration;
+import com.uniremington.api.tramita.TramitaIntegrationTest;
 import com.uniremington.api.tramita.model.User;
 import com.uniremington.api.tramita.repo.IUserRepo;
 import org.junit.jupiter.api.DisplayName;
@@ -17,8 +17,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 // Paquete de Boot 4 (modularizado): antes org.springframework.boot.test.autoconfigure.web.servlet
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
@@ -34,22 +32,12 @@ import org.springframework.test.web.servlet.MvcResult;
  * que MockMvc sí prueba con honestidad: estados, rotación del id de sesión, cuerpo
  * problem+json idéntico (anti-enumeración) y throttling.
  */
-@SpringBootTest(properties = {
-        // Placeholders fail-fast de application.yml: deben resolver; los de datasource
-        // los pisa @ServiceConnection con los del contenedor.
-        "DB_URL=jdbc:postgresql://placeholder:5432/placeholder",
-        "DB_USER=placeholder",
-        "DB_PASSWORD=placeholder",
-        "APP_CORS_ALLOWED_ORIGINS=http://localhost:5173",
-        "SEED_COORD_EMAIL=" + AuthControllerIT.SEED_EMAIL,
-        "SEED_COORD_PASSWORD=" + AuthControllerIT.SEED_PASSWORD
-})
+@TramitaIntegrationTest
 @AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
 class AuthControllerIT {
 
-    static final String SEED_EMAIL = "coordinacion.cali@uniremington.edu.co";
-    static final String SEED_PASSWORD = "frase de paso de integracion";
+    static final String SEED_EMAIL = TramitaIntegrationTest.SEED_EMAIL;
+    static final String SEED_PASSWORD = TramitaIntegrationTest.SEED_PASSWORD;
 
     @Autowired
     private MockMvc mockMvc;
@@ -189,6 +177,18 @@ class AuthControllerIT {
         assertThat(session.isInvalid()).isTrue();
 
         mockMvc.perform(get("/api/auth/me").session(session))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // --- (g) la cuenta del portal público no es una cuenta (T009, FR-011, D4) -----------
+
+    @Test
+    @DisplayName("la identidad del portal público no puede iniciar sesión: 401")
+    void portalAccountCannotAuthenticate() throws Exception {
+        // Existe como fila en users solo para firmar el tramo inicial del histórico sin
+        // aflojar el NOT NULL de actor_id (§VII). Que exista no puede volverla usable:
+        // nace inactiva y con un hash que ninguna clave produce.
+        mockMvc.perform(loginRequest("portal-publico@tramita.local", "cualquier clave imaginable"))
                 .andExpect(status().isUnauthorized());
     }
 

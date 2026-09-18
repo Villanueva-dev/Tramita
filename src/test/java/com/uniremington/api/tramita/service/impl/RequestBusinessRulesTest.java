@@ -14,6 +14,7 @@ import com.uniremington.api.tramita.shared.exception.UnprocessableRequestExcepti
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -59,9 +60,10 @@ class RequestBusinessRulesTest {
                 .key("MAX_CREDITS").value(value).build();
     }
 
-    private CreateRequestBody bodyWithSubject(Integer credits, String grade) {
+        private CreateRequestBody bodyWithSubject(Integer credits, String grade) {
         return new CreateRequestBody("ADICION_CREDITOS", "Estudiante", "123456",
-                null, null, null, null, null, "normal",
-                List.of(new SubjectRequestBody("MAT-01", "Materia", credits, null, grade, null)));
+                                null, null, null, null,
+                                List.of(new SubjectRequestBody("MAT-01", "Materia", credits, null,
+                                                grade == null ? null : new BigDecimal(grade), null)));
     }
 }

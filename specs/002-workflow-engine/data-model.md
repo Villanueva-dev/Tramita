@@ -40,7 +40,7 @@ semilla — si en el futuro hay UI de administración, la garantía se re-evalú
 |---|---|---|
 | `id` | `UUID` | PK |
 | `definition_id` | `UUID` | NOT NULL, FK → `workflow_definition` |
-| `code` | `VARCHAR(50)` | NOT NULL — `'REGISTRADA'`, `'EN_FACULTAD'`, … |
+| `code` | `VARCHAR(50)` | NOT NULL — `'EN_COORDINACION'`, `'EN_FACULTAD'`, … |
 | `name` | `VARCHAR(120)` | NOT NULL |
 | `is_initial` | `BOOLEAN` | NOT NULL DEFAULT false |
 | `is_final` | `BOOLEAN` | NOT NULL DEFAULT false |
@@ -145,23 +145,29 @@ ni el 21. Esa ausencia es verificable leyendo la clase y es el argumento de la d
 
 ### Adición de créditos v1 — **CERRADA** (hilo de correo real; engram #878)
 
-Estados: `REGISTRADA*` → `EN_FACULTAD` → `APROBADA_FACULTAD` → `EN_REGISTRO_CALI` →
+Estados: `EN_COORDINACION*` → `EN_FACULTAD` → `APROBADA_FACULTAD` → `EN_REGISTRO_CALI` →
 `EN_REGISTRO_NACIONAL` → `FINALIZADA†` · `DEVUELTA` · `RECHAZADA†`  (* inicial, † final)
 
 | Transición | `responsible` | `requires_note` |
 |---|---|---|
-| REGISTRADA → EN_FACULTAD | COORDINACION | no |
+| EN_COORDINACION → EN_FACULTAD | COORDINACION | no |
 | EN_FACULTAD → APROBADA_FACULTAD | FACULTAD | no |
 | APROBADA_FACULTAD → EN_REGISTRO_CALI | COORDINACION | no |
 | EN_REGISTRO_CALI → EN_REGISTRO_NACIONAL | REGISTRO_CALI | no |
 | EN_REGISTRO_NACIONAL → FINALIZADA | REGISTRO_NACIONAL | no |
+| EN_COORDINACION → DEVUELTA | COORDINACION | **sí** |
 | EN_FACULTAD → DEVUELTA | FACULTAD | **sí** |
 | EN_REGISTRO_CALI → DEVUELTA | REGISTRO_CALI | **sí** |
 | EN_REGISTRO_NACIONAL → DEVUELTA | REGISTRO_NACIONAL | **sí** |
-| DEVUELTA → EN_FACULTAD | COORDINACION | no |
+| DEVUELTA → EN_COORDINACION | COORDINACION | no |
 | EN_FACULTAD → RECHAZADA | FACULTAD | no |
 
 El rechazo (extemporánea) solo existe desde `EN_FACULTAD`: es la facultad quien niega.
+
+`EN_COORDINACION` es el estado de revisión de la Coordinación, y por eso es también el
+destino del retorno: lo corregido vuelve a pasar por su filtro antes de salir de nuevo
+hacia la facultad (V3.2.0). El sistema no devuelve nada al estudiante —eso sigue siendo
+el correo de la Coordinación—: registra que devolvió, cuándo y con qué motivo.
 
 ### Novedad de notas v1 — **PROPUESTA, provisional** (engram #880; confirmar con la Coordinación)
 

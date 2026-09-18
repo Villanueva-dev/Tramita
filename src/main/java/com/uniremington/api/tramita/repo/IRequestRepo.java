@@ -3,6 +3,7 @@ package com.uniremington.api.tramita.repo;
 import com.uniremington.api.tramita.model.Request;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -31,4 +32,17 @@ public interface IRequestRepo extends JpaRepository<Request, UUID> {
             order by r.createdAt desc
             """)
     List<Request> search(@Param("q") String q, @Param("pattern") String escapedPattern);
+
+    /**
+     * Las solicitudes más recientes, sin criterio (004, FR-012/FR-013). Es la
+     * consulta que la búsqueda de arriba deliberadamente NO ofrece: allá un patrón
+     * sin escapar devolvería el padrón completo, y acá el listado total es el
+     * contrato — lo que evita el volcado de datos personales no es negarse a
+     * listar, sino que {@code InboxEntryResponse} no lleve documento (D8).
+     *
+     * El {@link Limit} es obligatorio en la firma y no un default del repositorio:
+     * una consulta sin cota podría convertirse en un volcado el día que el volumen
+     * crezca, y quien la llame debe decidir explícitamente cuánto pide.
+     */
+    List<Request> findAllByOrderByCreatedAtDesc(Limit limit);
 }

@@ -1,0 +1,63 @@
+name: CI
+
+# Dos gatillos, cada uno con su motivo:
+#  - push a main: nada roto sobrevive en la rama principal
+#  - pull_request: verifica ANTES del merge, que es donde el error todavía es barato
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Mínimo privilegio: el job solo necesita leer el repositorio.
+# Sin esto, el token heredaría permisos de escritura que no usa.
+permissions:
+  contents: read
+
+jobs:
+  # El id del job es el nombre del status check que se exige en branch protection.
+  # Se deja sin 'name:' a propósito: el check aparece como "build", sin espacios.
+  build:
+    runs-on: ubuntu-latest
+    # Testcontainers puede colgarse esperando un contenedor; sin tope, un job
+    # trabado quema minutos hasta el timeout por defecto (6 h).
+    timeout-minutes: 20
+
+    steps:
+      # El runner arranca vacío: sin checkout no hay código que compilar.
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
+
+      # 'temurin' es la build de Eclipse Adoptium. 'cache: maven' persiste ~/.m2
+      # entre corridas; sin eso Maven re-descarga todas las dependencias cada vez.
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      # Git no siempre conserva el bit de ejecución del wrapper.
+      - name: Dar permiso de ejecución al wrapper
+        run: chmod +x ./mvnw
+
+      # 'verify' recorre el ciclo completo: compilar, Surefire (*Test), empaquetar,
+      # Failsafe (*IT sobre Testcontainers) y el reporte de JaCoCo.
+      # 'clean' es innegociable: un build incremental puede dar un RED falso.
+      # No hacen falta secretos: los IT traen su propio Postgres vía @ServiceConnection
+      # y declaran APP_CORS_ALLOWED_ORIGINS en su @SpringBootTest(properties = {...}).
+      - name: Compilar y correr toda la suite
+        run: ./mvnw clean verify
+
+      # if: always() sube los reportes incluso con el build en rojo, que es
+      # justamente cuando hacen falta para diagnosticar sin re-correr en local.
+      - name: Publicar reportes de test
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            target/surefire-reports/
+            target/failsafe-reports/
+            target/site/jacoco/
+          retention-days: 14

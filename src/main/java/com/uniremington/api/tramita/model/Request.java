@@ -1,5 +1,6 @@
 package com.uniremington.api.tramita.model;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -14,9 +15,9 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.UUID;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -58,30 +59,69 @@ public class Request {
     @Column(name = "student_document", updatable = false)
     private String studentDocument;
 
-        // Datos estructurados del formulario; se separan las asignaturas para conservar su cardinalidad.
-        @Column(name = "student_code", updatable = false)
-        private String studentCode;
+    /**
+     * Datos académicos del formulario (FR-001). Opcionales: una solicitud creada
+     * con el cuerpo mínimo de la 002 sigue siendo válida (FR-006).
+     *
+     * Hasta la 004, acá decía que NO existía campo de correo del estudiante «hasta
+     * que exista quien lo use». El consumidor apareció: el PDF formal del trámite
+     * (SP3) debe reproducir el formato oficial, que pide correo, teléfono, sede,
+     * facultad y modalidad. Ver los campos de captura pública más abajo.
+     */
+    @Column(name = "student_code", updatable = false, length = 30)
+    private String studentCode;
 
-        @Column(name = "student_email", updatable = false)
-        private String studentEmail;
+    @Column(updatable = false, length = 120)
+    private String program;
 
-        @Column(updatable = false)
-        private String program;
+    @Column(updatable = false, length = 50)
+    private String semester;
 
-        @Column(updatable = false)
-        private String semester;
+    @Column(updatable = false, length = 2000)
+    private String reason;
 
-        @Column(updatable = false)
-        private String reason;
+    /**
+     * Los campos del DO-FR-100 que llegan por el canal público (004, FR-005/FR-005a).
+     *
+     * Opcionales en el modelo y OBLIGATORIOS en el canal público: la diferencia es
+     * deliberada. La obligatoriedad vive en el contrato de entrada
+     * ({@code PublicRequestBody}), no acá, porque las solicitudes que ya existían y
+     * las que entran por el formulario interno no tienen estos datos.
+     */
+    @Column(name = "student_email", updatable = false, length = 255)
+    private String studentEmail;
 
-        @Column(nullable = false, updatable = false)
-        @Builder.Default
-        private String priority = "normal";
+    @Column(name = "student_phone", updatable = false, length = 30)
+    private String studentPhone;
 
-        @OneToMany(mappedBy = "request", cascade = jakarta.persistence.CascadeType.ALL,
+    @Column(updatable = false, length = 120)
+    private String campus;
+
+    @Column(updatable = false, length = 120)
+    private String faculty;
+
+    @Column(updatable = false, length = 50)
+    private String modality;
+
+    /**
+     * Trazo de la firma como URL de datos. Sin {@code length}: su cota real la fija
+     * el tope del cuerpo entero del envío (research.md D7), no este campo.
+     *
+     * El sistema lo conserva y NO afirma que tenga valor probatorio (FR-021): su
+     * validez legal no ha sido confirmada por la institución.
+     */
+    @Column(name = "student_signature", updatable = false, columnDefinition = "TEXT")
+    private String studentSignature;
+
+    /**
+     * Asignaturas del trámite (FR-002). Se separan en su propia tabla para
+     * conservar la cardinalidad: un trámite involucra N asignaturas, cada una con
+     * sus propios datos.
+     */
+    @OneToMany(mappedBy = "request", cascade = CascadeType.ALL,
             orphanRemoval = true, fetch = FetchType.LAZY)
-        @Builder.Default
-        private List<RequestSubject> subjects = new ArrayList<>();
+    @Builder.Default
+    private List<RequestSubject> subjects = new ArrayList<>();
 
     /**
      * Locking optimista (research.md D6): ante dos avances casi simultáneos solo

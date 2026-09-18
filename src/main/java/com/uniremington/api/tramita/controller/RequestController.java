@@ -2,20 +2,20 @@ package com.uniremington.api.tramita.controller;
 
 import com.uniremington.api.tramita.dto.AdvanceRequestBody;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
-import com.uniremington.api.tramita.dto.DocumentApprovalRequest;
-import com.uniremington.api.tramita.dto.DocumentApprovalResponse;
-import com.uniremington.api.tramita.dto.DocumentResponse;
+import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
 import com.uniremington.api.tramita.dto.TimelineEntryResponse;
+import com.uniremington.api.tramita.service.IDocumentService;
 import com.uniremington.api.tramita.service.IRequestService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -25,9 +25,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Ciclo de vida de solicitudes (contracts/openapi.yaml). El actor de cada
@@ -41,8 +39,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class RequestController {
 
     private final IRequestService requestService;
-    private final com.uniremington.api.tramita.service.impl.PdfDocumentService pdfDocumentService;
-    private final com.uniremington.api.tramita.service.impl.RequestDocumentService documentService;
+    private final IDocumentService documentService;
 
     /** US1: 201 + Location del recurso creado (semántica REST de creación). */
     @PostMapping
@@ -69,10 +66,26 @@ public class RequestController {
     /** US3/FR-011: localización por cédula exacta o fragmento del nombre. */
     @GetMapping
     public List<RequestSummaryResponse> search(
-            @RequestParam(required = false) @Size(min = 2) String search) {
-        return search == null || search.isBlank()
-                ? requestService.findAll()
-                : requestService.search(search);
+            @RequestParam @NotBlank @Size(min = 2) String search) {
+        return requestService.search(search);
+    }
+
+    /**
+     * US2 de la 004/FR-012: las solicitudes recientes, sin criterio de búsqueda.
+     *
+     * DECLARADO ANTES de {@code @GetMapping("/{id}")} a propósito. Spring resuelve
+     * por especificidad del patrón —un segmento literal gana sobre una variable—, de
+     * modo que el orden del archivo no es lo que lo hace funcionar; pero la colisión
+     * es real y ya se midió: antes de que este método existiera,
+     * {@code GET /api/requests/inbox} entraba por {@code /{id}}, fallaba al convertir
+     * «inbox» a UUID y devolvía 400. Dejarlo contiguo es lo que hace evidente al
+     * siguiente lector que estas dos rutas compiten.
+     *
+     * Devuelve InboxEntryResponse, SIN documento de identidad (FR-014).
+     */
+    @GetMapping("/inbox")
+    public List<InboxEntryResponse> getInbox() {
+        return requestService.getInbox();
     }
 
     /** US3: detalle con las transiciones disponibles desde el estado actual. */
@@ -87,48 +100,32 @@ public class RequestController {
         return requestService.getTimeline(id);
     }
 
-    /** Descarga la constancia PDF real solo para solicitudes finalizadas. */
-    @GetMapping(value = "/{id}/document", produces = MediaType.APPLICATION_PDF_VALUE)
-    public ResponseEntity<byte[]> document(@PathVariable UUID id) {
-        byte[] pdf = pdfDocumentService.generate(id);
+    /**
+     * SP3: el formato oficial del trámite, diligenciado con los datos de la solicitud.
+     *
+     * SE GENERA BAJO DEMANDA Y NO SE GUARDA. El DO-FR-100 es el documento que circula PARA
+     * ser firmado, así que se emite en cualquier momento de la vida de la solicitud: si
+     * solo saliera al cerrar el trámite, no serviría para aquello por lo que existe. Que
+     * una solicitud en revisión pueda imprimir su formato no la vuelve aprobada, y el
+     * propio documento lo muestra: el bloque «Firma de la Facultad» va vacío.
+     *
+     * Congelar el documento y sellarlo es SP4 (issue #11), no esto.
+     *
+     * NO LO PUEDE PEDIR EL ESTUDIANTE, por dos vías independientes: la ruta exige sesión
+     * —`anyRequest().authenticated()` en SecurityConfig— y además el recibo del canal
+     * público no devuelve identificador (FR-008), así que quien envía el formato no tiene
+     * con qué construir esta URL.
+     */
+    @GetMapping("/{id}/document")
+    public ResponseEntity<byte[]> getDocument(@PathVariable UUID id) {
+        byte[] document = documentService.generateFor(id);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
-                .header("Content-Disposition", "attachment; filename=constancia_%s.pdf".formatted(id))
-                .body(pdf);
-    }
-
-    /** Carga un PDF y conserva sus metadatos y hash para auditoría documental. */
-    @PostMapping(value = "/{id}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public DocumentResponse uploadDocument(@PathVariable UUID id, @RequestPart("file") MultipartFile file) {
-        return documentService.upload(id, file);
-    }
-
-    /** Lista los adjuntos sin exponer la ruta física de almacenamiento. */
-    @GetMapping("/{id}/documents")
-    public List<DocumentResponse> listDocuments(@PathVariable UUID id) {
-        return documentService.list(id);
-    }
-
-    /** Descarga un adjunto perteneciente a la solicitud indicada. */
-    @GetMapping("/{id}/documents/{documentId}")
-    public ResponseEntity<Resource> downloadDocument(@PathVariable UUID id, @PathVariable UUID documentId) {
-        Resource resource = documentService.download(id, documentId);
-        return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF).body(resource);
-    }
-
-    /** Registra una firma externa sobre un adjunto con sello UTC y hash aprobado. */
-    @PostMapping("/{id}/documents/{documentId}/approvals")
-    public DocumentApprovalResponse registerDocumentApproval(
-            @PathVariable UUID id,
-            @PathVariable UUID documentId,
-            @Valid @RequestBody DocumentApprovalRequest body,
-            Authentication authentication) {
-        return documentService.registerApproval(id, documentId, body, authentication.getName());
-    }
-
-    /** Lista la traza append-only de aprobaciones sobre el documento adjunto. */
-    @GetMapping("/{id}/documents/{documentId}/approvals")
-    public List<DocumentApprovalResponse> listDocumentApprovals(@PathVariable UUID id, @PathVariable UUID documentId) {
-        return documentService.listApprovals(id, documentId);
+                // El nombre lleva el id de la solicitud y NUNCA la cédula ni el nombre del
+                // estudiante: el archivo se descarga, se reenvía y queda en carpetas
+                // compartidas, y el nombre viaja con él (§III, minimización).
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"DO-FR-100-%s.pdf\"".formatted(id))
+                .body(document);
     }
 }

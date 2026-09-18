@@ -1,0 +1,354 @@
+openapi: 3.1.0
+info:
+  title: Trámita — delta de contrato de la feature 004
+  version: 0.4.0
+  description: |
+    Delta sobre los contratos de las features 002 y 003, cuyas estructuras NO se alteran.
+    Aquí se declara únicamente lo que esta feature agrega:
+
+      * `POST /public/requests/{definitionCode}` — recepción SIN autenticación del formato
+        DO-FR-100. Es el segundo endpoint abierto del sistema; el primero es el login.
+      * `GET /requests/inbox` — vista de solicitudes recientes para la Coordinación, SIN
+        número de documento (FR-014).
+
+    Ningún endpoint existente cambia. `POST /requests` conserva su contrato, ampliado por
+    la 003, y suma seis campos opcionales heredados del modelo (`studentEmail`,
+    `signature`, `studentPhone`, `campus`, `faculty`, `modality`) que esta feature agrega
+    a la entidad. Que sean opcionales ahí y obligatorios en el canal público es
+    deliberado: el formulario interno sigue aceptando el cuerpo mínimo de la 002.
+
+    Lo no listado aquí se rige por `specs/003-request-form-rules/contracts/openapi.yaml` y,
+    en lo que aquella no altera, por el de la 002.
+
+servers:
+  - url: /api
+
+paths:
+  /public/requests/{definitionCode}:
+    post:
+      summary: Recibe un formato diligenciado por el estudiante, sin sesión
+      description: |
+        NO requiere autenticación ni token CSRF (research.md D2): sin sesión no hay
+        identidad que suplantar, de modo que CSRF no protege nada en esta ruta y solo
+        agregaría un paso previo que puede fallar.
+
+        El trámite lo determina la RUTA, no el cuerpo (FR-002a): un cuerpo manipulado no
+        puede cambiar a qué trámite corresponde la solicitud.
+
+        Solo responde para trámites cuya definición declara `PUBLIC_CAPTURE_ENABLED` en
+        `true` (research.md D1). Para cualquier otro devuelve 404, sin distinguir entre
+        «el trámite no existe» y «el trámite no admite captura pública»: la distinción no
+        le sirve a quien envía legítimamente y sí a quien sondea.
+      security: []
+      parameters:
+        - name: definitionCode
+          in: path
+          required: true
+          description: Código del trámite. El enlace público que recibe el estudiante ya lo trae.
+          schema:
+            type: string
+            maxLength: 50
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicRequestBody'
+      responses:
+        '201':
+          description: |
+            Solicitud registrada. El cuerpo NO incluye identificador, estado ni enlace de
+            consulta (FR-008, research.md D5): devolverlos abriría de hecho la ventana de
+            consulta que la Coordinación decidió no dar.
+
+            Tampoco se devuelve cabecera `Location`, por la misma razón — apuntaría a un
+            recurso que quien envía no puede consultar.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicReceiptResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: |
+            No hay captura pública para ese trámite: o no existe, o no la tiene habilitada.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '413':
+          description: |
+            El cuerpo excede el tope admitido (research.md D7). Se corta antes de
+            procesarlo: nada se materializa en memoria.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '415':
+          description: |
+            El `Content-Type` del envío no es `application/json`. Lo resuelve el
+            `ResponseEntityExceptionHandler` del que hereda `GlobalExceptionHandler`, no
+            un mapeo propio de esta feature.
+
+            Se declara desde el issue #27: este canal ya respondía 415 y el contrato no
+            lo decía, mientras el `400` afirmaba cubrirlo. Medido con
+            `submissionWithUnsupportedMediaTypeIsRejected` en `PublicRequestControllerIT`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '422':
+          description: |
+            El envío es sintácticamente válido pero incumple el contrato de captura: falta
+            —o llega vacío— alguno de los once campos obligatorios, alguno llegó lleno con
+            un valor que no se puede procesar, o se incumple alguna regla de negocio del
+            trámite (las mismas que aplica el registro autenticado).
+
+            LAS DOS PRIMERAS CAUSAS SE DISTINGUEN EN LA RESPUESTA (issue #27). Un campo
+            ausente y un campo con valor inválido no son el mismo problema para quien
+            diligencia: decirle «el formato está incompleto» cuando el correo está escrito
+            —solo que mal— le pide rellenar una casilla que ve llena.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/PublicCaptureProblemDetail'
+        '429':
+          description: |
+            Se superó el límite de envíos desde este origen dentro de la ventana. El
+            bloqueo expira solo; NUNCA es permanente (FR-019).
+          headers:
+            Retry-After:
+              description: Segundos a esperar antes de reintentar.
+              schema:
+                type: integer
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '500':
+          description: |
+            Configuración incompleta o no interpretable del trámite — por ejemplo,
+            `PUBLIC_CAPTURE_ENABLED` con un valor que no es `true` ni `false`. El defecto
+            es del servidor y NUNCA se degrada a una aceptación silenciosa.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /requests/inbox:
+    get:
+      summary: Solicitudes recientes, sin criterio de búsqueda
+      description: |
+        Existe porque `GET /requests` exige un criterio de búsqueda y no se puede buscar a
+        alguien de cuya solicitud nadie se enteró (FR-012).
+
+        NO expone el número de documento (FR-014). El repositorio ya documenta que un
+        volcado con documentos de identidad contraviene la minimización de la Ley 1581 de
+        2012; la objeción es a exponerlos en masa, no a listar, y un contrato propio sin
+        ese campo la resuelve conservando el listado (research.md D8).
+      responses:
+        '200':
+          description: Solicitudes de la más reciente a la más antigua.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InboxEntryResponse'
+        '401':
+          description: Sin sesión válida.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+components:
+  responses:
+    BadRequest:
+      description: |
+        Cuerpo que el servidor no puede interpretar: JSON mal formado o tipo equivocado
+        en un campo.
+
+        NO cubre el media type no soportado: eso es **415**, y está declarado aparte. La
+        frase que lo ponía acá era falsa y la corrigió el issue #27.
+
+        NO cubre el caso de un campo obligatorio ausente o vacío — eso es 422 en este
+        canal. La distinción es deliberada y se decidió al implementar: el cliente de
+        este endpoint es un estudiante diligenciando un formato oficial, y un formato
+        al que le falta una casilla llegó perfectamente bien formado. El 422 dice
+        exactamente eso, «entendí el cuerpo y no puedo procesarlo», y deja el 400 para
+        lo que sí es un defecto de formato.
+
+        ⚠️ Difiere del resto del API, donde una violación de Bean Validation devuelve
+        400 (ver `anOversizedReasonIsRejectedInsteadOfTruncated` en RequestControllerIT).
+        La asimetría es conocida y aceptada, no un descuido: el otro cliente es el
+        formulario interno de la Coordinación, donde un campo vacío sí es un defecto
+        del contrato de entrada.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+  schemas:
+    PublicRequestBody:
+      type: object
+      description: |
+        Formato DO-FR-100 diligenciado por el estudiante. NO lleva `definitionCode`: el
+        trámite lo determina la ruta (FR-002a).
+
+        **Los once campos declarados como `required` son obligatorios y ninguno admite
+        quedar vacío** (FR-003). Un valor compuesto solo por espacios no cuenta como
+        diligenciado.
+
+        Lo único del formato que NO se declara aquí es lo que el sistema ya conoce o no le
+        corresponde al estudiante: la ciudad y la fecha las pone el servidor, y los trece
+        motivos pertenecen a otros tipos de solicitud del formato —no a la adición de
+        créditos—, así que el motivo viaja como texto libre en `reason`. Si llegaran, se
+        ignoran.
+      required:
+        [studentName, studentDocument, studentEmail, studentPhone, program, campus,
+         faculty, modality, semester, reason, signature]
+      properties:
+        studentName:
+          type: string
+          maxLength: 120
+        studentDocument:
+          type: string
+          maxLength: 20
+        studentEmail:
+          type: string
+          format: email
+          maxLength: 255
+          description: Canal por el que la Coordinación responde.
+        studentPhone:
+          type: string
+          maxLength: 30
+          description: |
+            Número de contacto del formato. Se conserva porque el PDF formal del trámite
+            (SP3) debe reproducir el formato oficial; ver la rectificación de FR-005a.
+        studentCode:
+          type: string
+          maxLength: 30
+          description: Único campo opcional del cuerpo — el formato no siempre lo exige.
+        program:
+          type: string
+          maxLength: 120
+        campus:
+          type: string
+          maxLength: 120
+          description: Sede declarada en el formato.
+        faculty:
+          type: string
+          maxLength: 120
+          description: |
+            Facultad declarada en el formato. Tiene consumidor dentro del propio motor: el
+            flujo del trámite pasa por un estado `EN_FACULTAD`.
+        modality:
+          type: string
+          maxLength: 50
+          description: Modalidad declarada en el formato.
+        semester:
+          type: string
+          maxLength: 50
+        reason:
+          type: string
+          maxLength: 2000
+          description: |
+            Celda «Compromisos adquiridos» del formato. Obligatorio en este canal: es el
+            único lugar donde el estudiante narra su caso, y —como el formato no tiene
+            tabla de asignaturas— también donde menciona la asignatura que necesita.
+        signature:
+          type: string
+          description: |
+            Trazo de la firma como URL de datos. Obligatorio en este canal.
+
+            El sistema lo conserva y NO afirma que tenga valor probatorio (FR-021): su
+            validez legal no ha sido confirmada por la institución.
+
+    PublicReceiptResponse:
+      type: object
+      description: |
+        Confirmación de recepción. Deliberadamente pobre: sin identificador, sin estado y
+        sin enlace de consulta.
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: Confirmación legible para el estudiante.
+          examples:
+            - Tu solicitud llegó a la Coordinación.
+
+    InboxEntryResponse:
+      type: object
+      description: |
+        Entrada de la vista de recientes. Es `RequestSummary` (contrato de la 002) MENOS
+        `studentDocument`. No es duplicación: son dos contratos con reglas de exposición
+        distintas, y esa diferencia es el punto.
+      required: [id, definition, studentName, currentState, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        definition:
+          $ref: '#/components/schemas/WorkflowDefinition'
+        studentName:
+          type: string
+        currentState:
+          $ref: '#/components/schemas/State'
+        createdAt:
+          type: string
+          format: date-time
+
+    # Declarados en el contrato de la 002; se referencian, no se redefinen.
+    WorkflowDefinition:
+      type: object
+      description: Ver `specs/002-workflow-engine/contracts/openapi.yaml`.
+    State:
+      type: object
+      description: Ver `specs/002-workflow-engine/contracts/openapi.yaml`.
+    PublicCaptureProblemDetail:
+      type: object
+      description: |
+        El `ProblemDetail` del 422 de este canal, con los dos miembros de extensión que
+        la RFC 9457 §3.2 admite (issue #27).
+
+        POR QUÉ EXISTEN. El cliente necesita atar el error a SU campo. Sin estos arreglos
+        esa información solo viaja dentro del `detail`, una frase en español, y extraerla
+        obliga a parsear texto: cualquier retoque de redacción rompería al cliente.
+
+        Los dos llegan SIEMPRE, aunque vengan vacíos: una forma estable es más barata de
+        consumir que una que aparece y desaparece.
+
+        Se nombran campos, NUNCA valores. Nada de lo que envió quien diligencia se refleja
+        de vuelta (§III de la constitución, minimización de datos personales).
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetail'
+        - type: object
+          required: [missingFields, invalidFields]
+          properties:
+            missingFields:
+              type: array
+              description: |
+                Campos que no llegaron diligenciados: ausentes, vacíos o de solo espacios.
+                Si hay al menos uno, el `title` es «Formato incompleto».
+              items:
+                type: string
+              example: [campus, faculty]
+            invalidFields:
+              type: array
+              description: |
+                Campos que SÍ llegaron diligenciados pero cuyo valor no se puede procesar
+                (formato de correo, longitud sobre el tope).
+
+                Un campo que incumple las dos cosas a la vez —`studentEmail` con solo
+                espacios viola `@NotBlank` y `@Email`— aparece SOLO en `missingFields`:
+                la ausencia domina, para no obligar al cliente a decidir cuál mostrar.
+              items:
+                type: string
+              example: [studentEmail]
+
+    ProblemDetail:
+      type: object
+      description: |
+        RFC 9457 (`application/problem+json`), que obsoleta a la RFC 7807.
+        Ver `specs/002-workflow-engine/contracts/openapi.yaml`.

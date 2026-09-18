@@ -1,0 +1,255 @@
+# Research — El documento formal del trámite (DO-FR-100)
+
+**Feature**: `005-formal-document` · **Issue**: `Tramita#10` (SP3)
+
+Las decisiones de esta feature, con la evidencia que las sostiene. Varias salieron de
+**medir antes de diseñar**, y dos invirtieron lo que el plan daba por supuesto.
+
+---
+
+## D1 — El PDF reproduce el formato oficial; la constancia propia queda descartada
+
+El prototipo de `origin/router-ia` generaba un documento propio titulado «DOCUMENTO OFICIAL
+DE CIERRE»: cabecera institucional, datos del estudiante, detalle de asignaturas y
+justificación, con layout inventado.
+
+**No sirve.** Lo que la Coordinación tramita, imprime y anexa es el formato oficial, y el
+propio issue lo dice: *«un PDF que no reproduce el formato oficial no sirve para lo que el
+trámite necesita»*. Además producía una incoherencia con el frontend, que en su Fase 1 se
+esmeró en reproducir los bloques y rótulos exactos del DO-FR-100: el estudiante llenaría el
+formato oficial y recibiría una constancia que no se le parece.
+
+**Decisión del usuario, 2026-09-17**: el PDF reproduce el DO-FR-100. Del prototipo se cosecha
+**la mecánica de PDFBox**, no el layout.
+
+## D2 — Fidelidad: grilla fiel, sin las trece casillas de motivos
+
+«Reproducir el formato» admitía tres lecturas, y se resolvió mirando un PDF de muestra real
+antes de escribir el renderer definitivo:
+
+| Opción | Qué implicaba |
+|---|---|
+| Réplica fiel completa | tablas con bordes **más** las 13 casillas de motivos impresas sin marcar |
+| **Grilla fiel sin motivos** ← elegida | tablas con bordes, casilla del tipo marcada, dos páginas, sin los motivos |
+| Fidelidad de contenido | mismos rótulos y orden, sin dibujar la grilla |
+
+**Se eligió la intermedia.** Las trece casillas pertenecen a otros tipos de solicitud
+—cancelación de semestre, bajo rendimiento— y la Coordinación confirmó que casi no se
+diligencian. El formulario de captura ya decidió no mostrarlas; el PDF la acompaña, y front
+y documento quedan coherentes.
+
+La plantilla tiene **6 tablas en Arial, sin imágenes en el cuerpo, y un salto de página**
+antes del campo de firmas (`<w:br w:type="page">` en `word/document.xml`): por eso el
+documento son **dos hojas**.
+
+## D2-bis — Tres desviaciones menores del papel, declaradas
+
+Un review independiente comparó el documento emitido contra `word/document.xml` y encontró
+tres diferencias que no estaban escritas en ningún lado. Ninguna es un defecto, pero **una
+desviación no declarada es indistinguible de un error de transcripción** para quien compare
+el PDF contra el formato:
+
+1. **El rótulo «Datos del solicitante» no existe en la plantilla.** En el papel los nueve
+   campos van directos tras la marca de tipo. Se agrega como encabezado de sección porque el
+   PDF generado no tiene las líneas de guía del formulario impreso y, sin él, la tabla queda
+   suelta.
+2. **El pie «Generado por Trámita — Coordinación Académica, Sede Cali» tampoco.** Es marca de
+   origen: quien reciba el documento tiene que poder saber que lo emitió el sistema y no que
+   alguien lo diligenció a mano.
+3. **La fecha bajo «Firma del estudiante» va prellenada**, donde el papel dice solo «Fecha:».
+   El sistema conoce la fecha de radicación y dejarla en blanco obligaría a escribirla a mano
+   sobre un dato que ya tiene. La de la Facultad **sí** queda en blanco, porque esa fecha la
+   pone quien firma.
+
+## D3 — Se corrige la ortografía del original
+
+La plantilla escribe, las dos veces, **sin tilde**: `SOLICITUD DE EXCEPCIÓN DE MATRICULA` en
+el encabezado y `Matricula créditos adicionales` en el tipo de solicitud.
+
+El documento emitido escribe **«Matrícula»**. Criterio: **la RAE manda sobre la errata del
+documento fuente**. Alinea además el PDF con el formulario del front, que ya había
+normalizado la grafía en su spec.
+
+⚠️ Queda registrado acá porque **quien compare el PDF contra el papel va a ver la
+diferencia**, y sin este párrafo parece un defecto de transcripción.
+
+## D4 — 🔑 Helvetica escribe todo el español: el saneador del prototipo era daño gratuito
+
+El prototipo aplicaba `replaceAll("[^\x20-\x7E]", "?")` sobre todo el texto, lo que convierte
+en interrogante cada tilde y cada eñe de un documento oficial en español.
+
+**Medido antes de diseñar** (`PDType1Font` HELVETICA, WinAnsiEncoding):
+
+| Caso | Resultado |
+|---|---|
+| `á é í ó ú` · `Á É Í Ó Ú` | ✅ |
+| `ñ Ñ` · `ü Ü` | ✅ |
+| `¿ ¡ º ª` | ✅ |
+| `«»` | ✅ |
+| `— –` | ✅ |
+| `“ ” ‘ ’` · `…` | ✅ |
+
+**Nueve de nueve.** No hacía falta embeber ninguna fuente, y **no había problema de
+codificación que resolver**: aquel parche mutilaba el idioma del documento sin arreglar nada.
+
+⚠️ La hipótesis previa también era falsa, aunque menos: se suponía que fallarían `«»` y `—`
+por no estar en WinAnsi. **Están.** CP1252 cubre la puntuación tipográfica que este proyecto
+usa.
+
+**Lo que sí queda**: `reason` admite 2000 caracteres libres desde un canal anónimo, y un
+emoji pegado desde un teléfono haría lanzar a PDFBox en pleno trazado, convirtiendo la
+generación en un 500. El saneador **le pregunta a la fuente** si puede codificar cada
+carácter, en vez de llevar lista blanca —que sería una suposición y vencería al cambiar de
+fuente— y recorre por **code points** para no partir un emoji en dos mitades inválidas.
+
+## D5 — 🔑 El motivo fluye a otra hoja, y esta decisión se equivocó una vez
+
+**Historia completa, porque la lección vale más que la conclusión.**
+
+La primera implementación traía maquinaria para continuar el motivo en una hoja nueva. Un
+mutante —fijar el alto de la caja en cuatro líneas— sobrevivía a toda la clase de tests, y al
+investigar por qué se midió que 2000 caracteres ocupaban ~18 líneas contra las ~19 que caben.
+Se concluyó que **el máximo del campo siempre cabía**, se eliminó la maquinaria por el §I
+—defender un caso imposible— y esa conclusión se escribió acá, en el javadoc del renderer y
+en un cuerpo de commit.
+
+⛔ **Era falsa.** La medición se hizo con **UNA cadena de prosa española** y se generalizó. Un
+review independiente la desmintió, y al re-medir excluyendo el pie de página:
+
+| Motivo de 2000 caracteres | Texto más bajo | Margen: 70 |
+|---|---|---|
+| prosa española | **121 pt** | holgado |
+| `W ` repetido | **56 pt** | ❌ invade el margen |
+| `MM ` repetido | **30 pt** | ❌ por debajo del propio pie |
+
+Con palabras anchas entran muchas más por línea y el texto baja mucho más. **Una medición de
+peor caso no se hace con una muestra típica** — es el mismo error de método que produjo la
+errata v2.2.1 de la constitución.
+
+Y `noTextFallsOffThePage`, nombrado entonces como custodio de la premisa, **no podía
+detectarlo**: usaba esa misma frase benigna y medía **solo el eje vertical**.
+
+**Decisión vigente**: la maquinaria de continuación se restauró. Perder texto no es opción en
+un documento oficial, y recortar en silencio lo que el estudiante escribió es peor que gastar
+una hoja. La custodia ahora son dos tests con el **peor caso**:
+`theWidestAllowedReasonStaysAboveTheMargin` (vertical, con palabras anchas) y
+`aReasonWithoutSpacesStaysInsideTheSheet` (horizontal, con un token de 2000 caracteres).
+
+## D5-bis — Una palabra más ancha que la caja se parte por carácter
+
+El mismo review encontró que `wrap()` nunca partía una palabra: la guarda
+`&& !current.isEmpty()` impide cortar la primera, así que un token que ya excede el ancho se
+emitía entero. Medido: 2000 caracteres sin un solo espacio llegaban a **x = 12 059** sobre una
+hoja de **612** puntos. Lo que se dibuja pasado el borde no existe para quien imprime.
+
+2000 caracteres en una sola palabra son entrada legal: `@Size(max = 2000)` no exige espacios,
+y el canal es anónimo.
+
+## D5-ter — 🔑 Cada Enter del estudiante se imprimía como «?»
+
+`wrap()` saneaba el texto **antes** de partirlo por espacios. `PdfTextEncoder` le pregunta a
+la fuente si puede escribir cada carácter, Helvetica no puede escribir un salto de línea, y lo
+reemplazaba por «?». Para cuando llegaba el `split("\s+")`, los saltos ya no eran espacios en
+blanco: eran interrogantes.
+
+**Medido**, con lo que cualquiera escribe en un `textarea`:
+
+```
+Me comprometo a lo siguiente:??1. Sostener el promedio…?2. Cumplir con la asistencia…
+```
+
+Un review independiente lo reportó como «los saltos de línea se colapsan», que habría sido
+cosmético. La realidad era **basura visible en un documento que se firma y se anexa**, y el
+disparador es lo más natural que hace alguien llenando un formulario: apretar Enter.
+
+**Arreglo**: los saltos se tratan **antes** de sanear. Una línea en blanco separa párrafos y un
+salto suelto empieza renglón — se distinguen a propósito, porque tratarlos igual metía una
+línea vacía entre cada ítem de una lista y con diez ítems eso puede empujar el texto a una
+hoja de continuación sin necesidad.
+
+⚠️ **El primer mutante que probé sobrevivió, y tenía razón**: quitar la partición por párrafos
+deja intacta la partición por líneas, que es la que evita los «?». Hubo que atacar la línea
+correcta, y agregar una aserción de **espaciado** —medida con las posiciones reales del
+texto— para cubrir la separación de párrafos, que la extracción de texto no distingue de
+renglones contiguos.
+
+## D6 — El formato se elige por dato, no por código
+
+Un `if (definitionCode.equals("ADICION_CREDITOS"))` mataría la tesis del proyecto. La
+definición declara `DOCUMENT_TEMPLATE` y el valor selecciona la implementación, con el
+**mismo patrón que `IWorkflowGuard`** (§VI).
+
+**La unicidad se valida al arrancar**, y eso es una corrección deliberada: el motor resuelve
+las guardas con `.findFirst()` sin comprobar que dos beans no declaren la misma clave, de
+modo que con dos gana el primero de la lista inyectada y cuál es el primero depende del orden
+de escaneo de Spring, sin error ni log (deuda **M5** del review de la 003). La pieza nueva no
+la hereda: dos formatos con la misma clave **impiden arrancar**.
+
+⚠️ **La deuda original sigue viva** en `RequestServiceImpl`. Esta feature no la toca.
+
+**Ausencia y rotura son cosas distintas**:
+
+| Situación | Respuesta | Por qué |
+|---|---|---|
+| Parámetro ausente | **404** | el trámite no emite documento — caso por defecto, misma lectura que `PUBLIC_CAPTURE_ENABLED` |
+| Formato declarado sin implementación | **500** | configuración rota; un 404 la escondería |
+
+## D7 — Se genera bajo demanda y sin compuerta de estado
+
+El prototipo exigía que la solicitud estuviera en estado final. **Acá sería un defecto**: el
+DO-FR-100 es el documento que circula *para* ser firmado, y si solo saliera al cerrar el
+trámite no serviría para aquello por lo que existe.
+
+Que una solicitud en revisión pueda emitir su formato no la vuelve aprobada, y **el propio
+documento lo evidencia**: el bloque «Firma de la Facultad» va vacío, igual que el papel.
+
+No se persiste. Archivar sin sellar produce un artefacto viejo sin garantía de integridad,
+indistinguible de uno vigente — peor que no tenerlo. Congelar y sellar es SP4 (`Tramita#11`).
+
+## D8 — PDFBox 3.0.8, no la 3.0.3 del prototipo
+
+PDFBox **no lo gestiona el parent de Spring Boot**: no pertenece al ecosistema Spring y su
+versión no sale de ningún BOM, así que va explícita en el `pom`.
+
+El prototipo usaba **3.0.3**, que está afectada por `CVE-2026-23907` y `CVE-2026-33929`
+(path traversal), corregidas en 3.0.7 y 3.0.8 respectivamente
+([fuente](https://pdfbox.apache.org/security.html)). Ambas viven en el módulo `examples`,
+que este proyecto no usa, así que el riesgo real es nulo — **se sube igual** porque fijar una
+versión con vulnerabilidades conocidas en un trabajo que se audita cuesta más explicarlo que
+corregirlo.
+
+## D9 — El logo institucional viaja como recurso, reescalado
+
+El encabezado del formato lleva el logo. Se extrae de la plantilla (`word/media/image1.jpg`,
+2036×470, 190 KB) y se incluye reescalado a **600×139, 48 KB**: se dibuja a 120 puntos de
+ancho, y cargar 190 KB en el repositorio por eso no tiene sentido.
+
+## D10 — 🔑 Una firma ilegible no puede impedir emitir el formato
+
+`signature` llega del canal **anónimo** y solo exige `@NotBlank`: nadie comprueba que sea una
+imagen. `loadSignature` decodificaba el base64 y construía la imagen sin protección, y ambas
+operaciones lanzan **`IllegalArgumentException`** —que NO es `IOException`, de modo que el
+`catch` de `render()` no la veía—.
+
+**Camino al fallo, medido**: cualquiera envía `data:image/png;base64,esto-no-es-base64!!`; la
+solicitud se registra con 201; y como `student_signature` es `updatable = false`, esa
+solicitud responde **500 en cada intento de emitir su documento, para siempre**. Un actor sin
+sesión inutilizaba el entregable central de la feature, sin forma de recuperarse salvo
+editando la base.
+
+**Decisión**: el renderer **degrada a documento sin firma** y lo registra en el log, igual que
+ya hacía el camino de la firma ausente. Un trazo ilegible es un dato malo, no una razón para
+no emitir el formato.
+
+⚠️ **Por qué la corrección va en el renderer y no solo en el DTO.** Validar la forma de la
+data URL en `PublicRequestBody` es defensa útil, pero no alcanza: las filas que ya están en la
+base no la atravesarían, y el renderer también sirve solicitudes creadas por otros caminos. La
+regla que vale es que **emitir el documento no dependa de que un dato de entrada sea bueno**.
+
+## Lo que esta feature NO resuelve
+
+- **El sello y el hash** → SP4 (`Tramita#11`). El objetivo específico 4 los promete.
+- **El formato de novedad de notas** → bloqueado por la Coordinación: el papel es **por
+  asignatura con varios estudiantes** mientras el modelo es un estudiante con N asignaturas,
+  y lleva **cuatro notas parciales del 25 % más la definitiva** contra las dos columnas que
+  hoy existen. Por eso `NOVEDAD_NOTAS` **no declara formato**.

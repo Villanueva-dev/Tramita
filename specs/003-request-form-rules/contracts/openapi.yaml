@@ -1,0 +1,226 @@
+openapi: 3.1.0
+info:
+  title: Trámita — delta de contrato de la feature 003
+  version: 0.3.0
+  description: |
+    Delta sobre el contrato de la feature 002: su ESTRUCTURA no se altera —es una feature
+    cerrada— y lo que aquí no aparece se rige por ella. Sí se corrigieron en su archivo los
+    datos de ejemplo con forma de documento de identidad (T050, FR-022), que no cambian el
+    contrato. Aquí se declara únicamente lo que esta feature cambia:
+
+      * `CreateRequestBody` se amplía con los datos del formulario y las asignaturas.
+        Todos los campos nuevos son opcionales: una petición con los tres campos
+        originales sigue siendo válida (FR-006, SC-007).
+      * `Request` incorpora esos datos en la respuesta: se listan SOLO los campos
+        nuevos, y lo heredado del 002 no se redeclara.
+      * Se declara el 500 de configuración incompleta (FR-010, FR-011, FR-019), que
+        alcanza tanto al registro como a las transiciones.
+      * Se agregan dos causas de 422 en el registro (FR-009a): una asignatura sin
+        créditos en un trámite que los captura, y créditos declarados en uno que no.
+      * `POST /requests/{id}/transitions` suma una causa nueva al 409 —la guarda de la
+        transición no se cumple (FR-016)— y el 500 de una guarda que ninguna
+        implementación atiende (FR-019). Los demás códigos de ese endpoint no cambian.
+
+    Lo no listado aquí se rige por `specs/002-workflow-engine/contracts/openapi.yaml`.
+
+servers:
+  - url: /api
+
+paths:
+  /requests:
+    post:
+      summary: Registrar una solicitud (contrato ampliado)
+      description: |
+        Amplía el POST de la feature 002. El cuerpo mínimo anterior sigue siendo aceptado.
+        Las reglas de negocio configuradas para el trámite se validan antes de registrar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRequestBody' }
+      responses:
+        '201':
+          description: Solicitud registrada en el estado inicial de su trámite
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Request' }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/IncompleteConfiguration'
+
+  /requests/{id}/transitions:
+    post:
+      summary: Avanzar una solicitud (dos resultados nuevos por las guardas de negocio)
+      description: |
+        El endpoint es el de la feature 002 y su comportamiento no cambia. Aquí se declaran
+        únicamente los dos resultados que la 003 agregó al evaluar la guarda que la transición
+        declara: el 409 gana una causa (FR-016) y aparece un 500 (FR-019). Los códigos que no
+        se listan —200, 400, 401, 404, 422— se rigen por
+        `specs/002-workflow-engine/contracts/openapi.yaml` sin modificación, y el cuerpo de
+        la petición (`AdvanceRequestBody`) tampoco cambia, por eso no se redeclara acá.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '409':
+          description: |
+            A las causas de la feature 002 —transición no definida desde el estado actual,
+            estado final, conflicto de concurrencia— se suma una: la transición existe pero
+            está condicionada a una regla de negocio que la solicitud no cumple (FR-016).
+
+            ATENCIÓN, cliente: las causas NO son distinguibles por el status ni por el
+            título. Todas responden `409` con el título "Transición no permitida" y solo
+            cambia el `detail`, que es texto libre y no es contrato. Es una decisión
+            deliberada del servidor: el conflicto es con el estado del recurso en los dos
+            casos. Si alguna vez hiciera falta ramificar por causa, el servidor agregaría un
+            campo de extensión al problem+json, y ese campo se declararía aquí.
+
+            En todos los casos el estado no cambia y no se escribe timeline.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '500':
+          $ref: '#/components/responses/IncompleteConfiguration'
+
+components:
+  responses:
+    BadRequest:
+      description: Cuerpo mal formado o que incumple la validación de forma
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+    Unauthorized:
+      description: Sin sesión válida
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+    UnprocessableContent:
+      description: |
+        La solicitud es sintácticamente válida pero incumple una regla de negocio del
+        trámite: supera el máximo de créditos configurado, o declara una nota fuera del
+        rango configurado (FR-008, FR-012).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: about:blank
+            title: Unprocessable Content
+            status: 422
+            detail: La solicitud supera el máximo configurado de 21 créditos
+
+    IncompleteConfiguration:
+      description: |
+        La configuración del trámite está incompleta o es inválida. Dos causas, según el
+        endpoint:
+
+          * en el registro, el trámite no tiene cargado un parámetro que su validación
+            necesita, o lo tiene con un valor no interpretable (FR-010, FR-011);
+          * en una transición, la transición declara una guarda que ninguna implementación
+            atiende (FR-019). El sistema NO ejecuta la transición omitiendo una regla que
+            no supo evaluar: bloquear es la conducta correcta, no un efecto colateral.
+
+        En ambos casos es un fallo de configuración del sistema, no de la petición, y la
+        operación no se aplica: la solicitud no queda registrada, o la transición no ocurre
+        y no se escribe timeline. Reintentar la misma petición no ayuda hasta que se corrija
+        la configuración. El cuerpo no revela detalle interno alguno.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: about:blank
+            title: Configuración del trámite incompleta
+            status: 500
+
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457 (https://www.rfc-editor.org/rfc/rfc9457.html)
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+
+    CreateRequestBody:
+      type: object
+      required: [definitionCode, studentName, studentDocument]
+      properties:
+        definitionCode: { type: string, maxLength: 50, example: ADICION_CREDITOS }
+        studentName: { type: string, maxLength: 120, example: Estudiante De Prueba }
+        studentDocument: { type: string, maxLength: 20, example: 'DOC-TEST-0001' }
+        studentCode: { type: string, maxLength: 30, example: 'EST-0001' }
+        program: { type: string, maxLength: 120, example: Ingeniería de Sistemas }
+        semester: { type: string, maxLength: 50, example: '2026-2' }
+        reason:
+          type: string
+          maxLength: 2000
+          description: Motivo de la solicitud (FR-004)
+          example: Requiere cursar una asignatura adicional para completar el plan.
+        subjects:
+          type: array
+          description: Asignaturas del trámite. Opcional; una solicitud sin asignaturas es válida.
+          items: { $ref: '#/components/schemas/SubjectRequestBody' }
+
+    SubjectRequestBody:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string, maxLength: 30, example: 'MAT-101' }
+        name: { type: string, maxLength: 150, example: Cálculo Diferencial }
+        credits:
+          type: integer
+          minimum: 1
+          maximum: 30
+          description: |
+            Créditos de la asignatura. Debe ser positivo (FR-009): ningún valor puede
+            restar del total y situar por debajo del límite una solicitud que lo excede.
+            La cota superior es de sanidad de entrada, sin respaldo normativo.
+          example: 3
+        group: { type: string, maxLength: 30, example: 'G1' }
+        currentGrade:
+          type: number
+          format: double
+          description: Nota actual. Numérica (D3); su rango válido lo fija la configuración del trámite.
+          example: 2.8
+        proposedGrade:
+          type: number
+          format: double
+          description: Nota propuesta. Numérica (D3).
+          example: 3.5
+
+    SubjectResponse:
+      type: object
+      properties:
+        code: { type: string }
+        name: { type: string }
+        credits: { type: integer }
+        group: { type: string }
+        currentGrade: { type: number, format: double }
+        proposedGrade: { type: number, format: double }
+
+    Request:
+      type: object
+      description: |
+        SOLO los campos que esta feature AGREGA a la respuesta de una solicitud. El
+        resto —id, definition, currentState, availableTransitions, studentName,
+        studentDocument, createdAt— se hereda sin cambios del contrato de la 002 y NO
+        se redeclara aquí: redeclararlo ya produjo una divergencia real, con
+        `definition` y `currentState` descritos como strings cuando el backend
+        devuelve objetos, y `availableTransitions` ausente aunque siempre viaja.
+
+        NO incluye ningún dato de contacto del estudiante (FR-020, constitución §III).
+      properties:
+        studentCode: { type: string }
+        program: { type: string }
+        semester: { type: string }
+        reason: { type: string }
+        subjects:
+          type: array
+          items: { $ref: '#/components/schemas/SubjectResponse' }

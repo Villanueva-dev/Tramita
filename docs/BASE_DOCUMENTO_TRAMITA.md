@@ -178,28 +178,147 @@ La selección de estas ediciones responde a una verificación del estado de vige
 
 # Metodología
 
-La metodología propuesta combina análisis documental, entrevistas, diseño de requisitos, desarrollo iterativo y validación funcional. La intención es construir una solución viable en un horizonte de tiempo acotado, priorizando el valor del sistema para el usuario final y la posibilidad de realizar ajustes en función del feedback recibido.
+Este trabajo combina una fase de investigación, orientada a comprender el proceso administrativo
+tal como ocurre hoy, y una fase de construcción, orientada a producir un artefacto de software que
+lo soporte. Ambas se describen a continuación con las metodologías y normas que las rigen.
 
-## Fases de desarrollo
+## Enfoque y alcance de la investigación
 
-1. **Recolección de información**  
-   Se revisó la documentación existente del proyecto, la plantilla de trabajo de grado, los documentos de planteamiento del problema y la información generada a partir de entrevistas y análisis de contexto.
+La investigación es de **enfoque cualitativo** y **carácter aplicado**: no busca generalizar a una
+población, sino caracterizar en profundidad dos procesos administrativos concretos —adición de
+créditos y novedad de notas— en una unidad institucional determinada, la Sede Cali de la
+Universidad Remington, para derivar de esa caracterización los requisitos de un sistema.
 
-2. **Análisis de requisitos**  
-   Se definieron los procesos críticos, los actores involucrados, las reglas de negocio y los requerimientos funcionales y no funcionales.
+El **alcance es descriptivo y proyectivo**. Descriptivo, porque documenta el flujo real de los dos
+trámites, sus actores, sus reglas y sus puntos de fricción. Proyectivo, porque a partir de esa
+descripción propone y construye una solución técnica. No es un estudio explicativo ni
+correlacional: no se contrastan hipótesis sobre relaciones entre variables.
 
-3. **Diseño del sistema**  
-   Se propuso una arquitectura basada en módulos de captura, workflow, auditoría, generación de documentos y visualización de solicitudes.
+La **unidad de análisis** es el proceso administrativo, no la persona. El estudiante no es sujeto de
+investigación ni usuario del sistema propuesto; su relación con el trámite se observa de forma
+mediada, a través de la coordinación.
 
-4. **Desarrollo incremental**  
-   Se organizó el desarrollo en sprints o iteraciones cortas, priorizando primero la columna vertebral del sistema y luego la salida formal del trámite.
+## Técnicas e instrumentos de recolección
 
-5. **Validación y ajuste**  
-   El sistema se valida continuamente con base en criterios de aceptación y retroalimentación del usuario final, en este caso la coordinadora académica.
+### Entrevista semiestructurada a informante clave
 
-## Enfoque de trabajo
+La técnica principal de levantamiento fue la **entrevista semiestructurada**. La selección de la
+informante no fue aleatoria sino **intencional por criterio de posición**: la Coordinación
+Académica de la Sede Cali es el único actor que interviene en la totalidad de los dos trámites, de
+extremo a extremo, y por tanto el único con visión completa del proceso. En un levantamiento cuyo
+objeto es el proceso y no la percepción individual, el criterio pertinente es la posición del
+informante respecto del flujo, no el tamaño de la muestra.
 
-El proyecto sigue un enfoque de desarrollo ágil, con foco en la entrega de una demostración funcional y en la mejora continua del producto. La estrategia prioriza la viabilidad del MVP, la claridad del flujo y la capacidad de adaptación a nuevas reglas del proceso institucional.
+Se realizaron **dos sesiones**, con diseño deliberadamente distinto:
+
+| | **Sesión 1** — 12 de mayo | **Sesión 2** — 4 de junio |
+|---|---|---|
+| Conducción | Exploratoria, sin guion previo | Estructurada sobre guion escrito |
+| Diseño | Pregunta de apertura amplia y profundización emergente | 35 preguntas en 9 bloques temáticos |
+| Origen del guion | — | Vacíos detectados al analizar la Sesión 1 |
+| Modalidad | Presencial, grabada con autorización expresa | Presencial, grabada con autorización expresa |
+
+La secuencia no es casual: la primera sesión sirvió para **descubrir** la estructura del proceso, y
+la segunda para **cerrar** los vacíos que ese descubrimiento dejó abiertos. El guion de la segunda
+es, en sí mismo, un producto del análisis de la primera.
+
+Ambas sesiones fueron grabadas previa autorización expresa de la entrevistada, solicitada al inicio
+de cada encuentro, y transcritas mediante un servicio automático de voz a texto.
+
+### Tratamiento de datos personales
+
+El material derivado de las entrevistas está **anonimizado por rol**: cada persona mencionada se
+sustituye por su función institucional, conforme a la Ley 1581 de 2012 (Régimen General de
+Protección de Datos Personales). Se trata de datos de terceros que no otorgaron consentimiento para
+figurar nominalmente en un documento académico. Las transcripciones originales, que sí conservan
+los nombres, permanecen bajo custodia del equipo y fuera del repositorio del proyecto.
+
+### Documento de evidencia
+
+El registro completo del levantamiento —ficha técnica de cada sesión, transcripción de los bloques
+temáticos con sus citas textuales, inventario de fuentes primarias, instrumento íntegro de la
+Sesión 2, trazabilidad entre cada decisión de diseño y la cita que la sustenta, y limitaciones del
+levantamiento— se consigna en un **documento de evidencia independiente**, referenciado en el
+Anexo A de este trabajo.
+
+Este apartado presenta únicamente la síntesis metodológica y los hallazgos que sustentan
+directamente el planteamiento del problema y la definición de requisitos. La remisión al documento
+dedicado responde a una decisión editorial: incorporar aquí el corpus completo desplazaría el
+argumento del trabajo sin aportar a su comprensión, y el material conserva mayor utilidad como
+instrumento consultable que como cuerpo del texto.
+
+### Limitaciones declaradas del instrumento
+
+El documento de evidencia declara las limitaciones del levantamiento, de las cuales interesa
+destacar aquí las que condicionan la lectura de las citas:
+
+- El servicio de transcripción empleado **no realiza diarización de hablantes**: el texto resultante
+  es un flujo continuo sin marca de quién habla en cada turno. La atribución de las preguntas al
+  entrevistador se reconstruyó por análisis del contenido y del giro dialógico.
+- La transcripción presenta **errores de reconocimiento acústico** recurrentes sobre nombres
+  propios, siglas y terminología institucional. Las citas se reproducen sin corrección editorial,
+  marcando con `[sic]` los pasajes donde el error es evidente.
+- La duración registrada de la Sesión 2 es una **estimación del equipo**, no un dato del
+  instrumento.
+
+Estas limitaciones no invalidan el levantamiento —la cobertura temática está completa— pero
+determinan que toda afirmación atribuida a la Coordinación se contraste contra el giro dialógico
+completo y no contra una línea aislada.
+
+## Análisis del problema: Marco Lógico
+
+El análisis del problema se estructuró con la **Metodología del Marco Lógico** (Ortegón, Pacheco y
+Prieto, 2005). El procedimiento consistió en construir un árbol de problemas que identifica un
+problema central, sus causas raíz y sus efectos, y en derivar de cada causa un sub-problema y su
+objetivo específico correspondiente.
+
+La descomposición se realizó bajo criterio **MECE** —mutuamente excluyente, colectivamente
+exhaustivo—, de modo que cada causa se traduzca en un único sub-problema y que el conjunto cubra el
+problema central sin solapamientos. Los verbos de los objetivos específicos se seleccionaron sobre
+la **taxonomía de Bloom revisada** (Anderson y Krathwohl, 2001), priorizando los niveles de
+*aplicar*, *analizar* y *crear*.
+
+El resultado son siete sub-problemas (SP1 a SP7), cada uno con su objetivo específico medible, que
+constituyen el insumo directo del backlog de desarrollo.
+
+## Metodología de desarrollo: Scrum
+
+La construcción se organiza con **Scrum**, en tres sprints. El ordenamiento no responde a
+conveniencia sino a **dependencia técnica**: cada sprint presupone lo que entregó el anterior.
+
+| Sprint | Sub-problemas | Criterio de agrupación |
+|---|---|---|
+| **1** | SP1, SP2, SP6 | La columna vertebral. Sin motor de workflow, datos validados ni auditoría, los demás módulos no tienen dónde apoyarse |
+| **2** | SP3, SP4 | Lo que permite que el trámite *salga* del sistema con valor formal: documento generado y traza de aprobaciones |
+| **3** | SP5, SP7 | La experiencia operativa diaria. Llega último porque presupone que el flujo y el documento ya funcionan |
+
+El proceso de desarrollo se inscribe en el marco de **ISO/IEC/IEEE 12207:2017**, que define los
+procesos del ciclo de vida del software y bajo el cual se ubican las actividades de especificación,
+diseño, construcción y verificación descritas en este apartado.
+
+## Normas de especificación y diseño
+
+**Requisitos.** La especificación de requisitos se estructura según **ISO/IEC/IEEE 29148:2018**,
+cláusula 9.6. Esta norma sustituye a IEEE 830-1998, retirada del catálogo del IEEE Standards
+Association, que figuraba en versiones previas de este marco.
+
+**Arquitectura.** La arquitectura se documenta mediante el **modelo C4** para la descripción
+estructural en niveles de abstracción sucesivos —contexto, contenedores, componentes y código— y el
+**modelo de vistas 4+1** para la separación entre vistas lógica, de proceso, de desarrollo, física y
+de escenarios. Se descartó IEEE 1016-2009, cuyo estado en el catálogo del IEEE es
+*inactive-reserved*.
+
+## Validación
+
+La validación prevista opera en dos niveles:
+
+- **Verificación técnica**, durante el desarrollo: pruebas automatizadas sobre el comportamiento
+  especificado y revisión de código contra los criterios de aceptación de cada sub-problema.
+- **Validación funcional con el usuario final**, sobre la demostración operativa del sistema, con la
+  Coordinación Académica en el rol de validadora.
+
+La validación funcional **está prevista y no se ha realizado al momento de redactar este apartado**.
+Sus resultados se consignarán en el capítulo correspondiente.
 
 ## Criterios de selección de fuentes bibliográficas
 
@@ -335,14 +454,30 @@ Las fichas de este apartado fueron verificadas individualmente contra la fuente 
 - Sorour, A., Atkins, A. S., Stanier, C. F., & Alharbi, F. D. (2020). Comparative frameworks for monitoring quality assurance in higher education institutions using business intelligence. En *2020 International Conference on Computing and Information Technology (ICCIT-1441)* (pp. 1–5). IEEE. https://doi.org/10.1109/ICCIT-144147971.2020.9213808
 - Tsakalidis, G. (2022). *A framework for systematic evaluation of Business Process Redesign (BPR) initiatives using the notion of model plasticity* [Tesis doctoral, University of Macedonia, Department of Applied Informatics]. National Archive of PhD Theses. https://doi.org/10.12681/eadd/52832
 
+### Metodología de investigación y de proyecto
+
+- Anderson, L. W., y Krathwohl, D. R. (Eds.). (2001). *A taxonomy for learning, teaching, and assessing: A revision of Bloom's taxonomy of educational objectives*. Longman. *(excepción metodológica — ver nota 3)*
+- Congreso de la República de Colombia. (2012, 17 de octubre). *Ley 1581 de 2012. Por la cual se dictan disposiciones generales para la protección de datos personales*. Diario Oficial No. 48.587.
+- Ortegón, E., Pacheco, J. F., y Prieto, A. (2005). *Metodología del marco lógico para la planificación, el seguimiento y la evaluación de proyectos y programas* (Serie Manuales N.º 42). CEPAL/ILPES. *(excepción metodológica — ver nota 3)*
+
+### Modelos de descripción arquitectónica
+
+- Brown, S. (s.f.). *The C4 model for visualising software architecture*. https://c4model.com
+- Kruchten, P. (1995). Architectural blueprints — The «4+1» view model of software architecture. *IEEE Software*, *12*(6), 42–50. https://doi.org/10.1109/52.469759 *(excepción metodológica — ver nota 3)*
+
 ### Normas de ingeniería de software
 
 - ISO/IEC/IEEE. (2017). *Systems and software engineering — Software life cycle processes* (ISO/IEC/IEEE 12207:2017). IEEE. https://doi.org/10.1109/IEEESTD.2017.8100771
 - ISO/IEC/IEEE. (2018). *Systems and software engineering — Life cycle processes — Requirements engineering* (ISO/IEC/IEEE 29148:2018). IEEE. https://doi.org/10.1109/IEEESTD.2018.8559686
 
 > **Notas de trabajo (no forman parte del documento final).**
-> 1. **Sustento del diseño arquitectónico**: al retirarse IEEE 1016 del marco normativo, la descripción de la arquitectura y el diseño queda sin referente declarado. Los modelos C4 y 4+1 están previstos para ese fin pero todavía no figuran en la Metodología de este documento; deben incorporarse allí antes de redactar la sección de arquitectura.
+> 1. ✅ **Sustento del diseño arquitectónico — RESUELTO.** C4 y el modelo de vistas 4+1 ya figuran en la Metodología, en «Normas de especificación y diseño», con la constancia de que IEEE 1016-2009 se descartó por estar *inactive-reserved*. Sus referencias se incorporaron a la bibliografía.
 > 2. **Especificación de requisitos**: la migración a ISO/IEC/IEEE 29148:2018 implica que la especificación de requisitos se estructure según la cláusula 9.6 de esa norma y no según la plantilla de IEEE 830. El entregable de requisitos aún no está redactado, de modo que el cambio no obliga a rehacer trabajo existente.
+> 3. ⚠️ **CONFLICTO ABIERTO — la Metodología cita tres fuentes que su propio criterio de selección excluiría.** Ortegón, Pacheco y Prieto (2005), Anderson y Krathwohl (2001) y Kruchten (1995) son anteriores a la ventana 2020–2026, y **no las cubre la excepción declarada**, que está circunscrita al eje de motores de workflow y modelos de proceso configurables. No son normas técnicas —esas sí están exentas—, sino literatura metodológica.
+>
+> El argumento que ya sostiene la excepción vigente aplica de forma idéntica a estas tres: *«la obra fundacional no queda obsoleta por el paso del tiempo del modo en que sí lo queda un reporte de implementación tecnológica, porque describe una construcción conceptual y no un estado de la técnica»*. Marco Lógico, la taxonomía de Bloom revisada y el modelo 4+1 son, las tres, formulaciones canónicas de una construcción conceptual, y ninguna tiene sustituto posterior que las derogue.
+>
+> **Propuesta**: ampliar la excepción con un tercer supuesto —*fuentes que constituyan la formulación canónica de una metodología o de un modelo de descripción empleado por este trabajo*— en lugar de citarlas sin declarar. **Requiere aval de la tutora**, igual que el criterio general del que depende. Mientras no se resuelva, quedan marcadas *(excepción metodológica)* en la bibliografía.
 
 ---
 
