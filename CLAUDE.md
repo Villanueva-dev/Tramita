@@ -90,30 +90,40 @@ issue por SP1–SP7), no en un archivo. Se cierra con `Closes #N` en el cuerpo d
 Al citar literatura o normativa institucional, **incluir la referencia exacta** en cada afirmación — alineado con la regla general #4 del CLAUDE.md global.
 
 <!-- SPECKIT START -->
-Feature **activa**: `004-public-request-capture` — captura pública del formato DO-FR-100: el
-estudiante diligencia y firma desde un enlace sin sesión, y la Coordinación ve lo que llegó en una
-vista de recientes. Fase actual: **tasks cerradas (46), pendiente `/speckit-implement`** — nada
-implementado todavía. Plan e insumos: `specs/004-public-request-capture/plan.md` (+ `research.md`
-con D1–D10, `data-model.md`, `contracts/openapi.yaml`, `tasks.md`, `quickstart.md`).
-Diseño: el trámite se habilita por configuración (`PUBLIC_CAPTURE_ENABLED` en `workflow_parameter`)
-y viaja en la RUTA, nunca en el cuerpo; CSRF **desactivado solo en esa ruta** (sin sesión no hay
-identidad que suplantar) y el canal se protege con límite de envíos por origen y tope de 256 KB;
-actor del tramo inicial = fila sintética `portal-publico@tramita.local` con `active = false`, para
-no aflojar el `NOT NULL` de `actor_id` (§VII); vista de recientes con DTO propio **sin cédula**.
-El recibo NO devuelve `id` ni estado. Sin dependencias nuevas.
-**Migración `V3.3.0`: SEIS columnas** (`student_email`, `student_signature`, `student_phone`,
-`campus`, `faculty`, `modality`), todas nullable. **Los once campos del formato son obligatorios
-en el canal público y ninguno admite quedar vacío** (FR-003, D10) — la obligatoriedad es del
-contrato de entrada, no del modelo: las filas existentes no tienen esos datos. 🔑 **D10 INVIRTIÓ a
-FR-005a**, que hasta el 2026-09-16 prohibía persistir el teléfono «por no tener consumidor»; el
-consumidor que aquel análisis no miró es el PDF formal del SP3 (`Tramita#10`).
-⚠️ Dos riesgos **aceptados y declarados** en el spec: el canal anónimo admite suplantación (lo
-contiene la revisión de la Coordinación) y los envíos duplicados se registran por separado.
-Última feature entregada: `003-request-form-rules` (SP2 — formularios validados + reglas de negocio
-configurables por trámite). Antes: `002-workflow-engine` (motor + timeline, SP1+SP6, PR #3) y la
-devolución en la propia revisión de Coordinación (**PR #23**, `7b55b20`).
+Feature **activa**: `006-verifiable-document-seal` — SP4 (issue `Tramita#11`, el último abierto del
+Sprint 2): sello verificable sobre los documentos que el sistema emite, y registro de emisiones.
+Completa el **objetivo específico 4** del documento de grado. Fase actual: **plan cerrado, pendiente
+`/speckit-tasks`**. Plan e insumos: `specs/006-verifiable-document-seal/plan.md` (+ `research.md`
+con D1–D11, `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`, `checklists/requirements.md`).
+🔑 **Medición que define el diseño**: el PDF NO es reproducible hoy, y la causa **NO son los
+metadatos de fecha** — `CreationDate`, `ModDate` y `Producer` están AUSENTES (PDFBox 3 no los
+escribe). La única causa es el `/ID` aleatorio del trailer: de 52 348 bytes, los primeros 52 021
+son idénticos. **El contenido ya es determinista.** Fijar el `/ID` da bytes iguales, probado. Debe
+DERIVARSE del trámite, nunca una constante (todos los documentos compartirían identificador).
+Diseño: sello en tabla append-only `request_document_seal` con trigger `BEFORE UPDATE OR DELETE`
+⚠️ **que NUNCA debe cubrir INSERT** (con fail-closed, apagaría la emisión entera). El patrón **NO se
+cosecha de `router-ia`: ya está en `main`**, `trg_timeline_immutable` (`V2.0.0:80-88`), y el §VII lo
+nombra como mecanismo vigente. Verificación con **TRES** resultados —íntegro / alterado / **no
+verificable**— y el tercero cubre DOS causas: cambió el formato o cambió la revisión de los datos.
+🔑 **El orden de las comprobaciones ES el requisito**: comparar huellas primero produciría
+«alterado» donde el sistema no puede pronunciarse, que es la acusación falsa que FR-007 prohíbe.
+Canal público `GET /public/seals/{code}` autorizado **por posesión** de un código de 64 bits en
+base 36 (≤13 chars) impreso en el pie: sin datos personales, **sin excluir nada de CSRF** (un GET no
+lo necesita) y **sin límite de tasa** (la protección es el tamaño del espacio). La verificación
+exacta `POST /seals/verify` recibe la **huella, no el archivo** — sin multipart, sin tope, y hace
+literal el «no almacenamos archivos». **Migración `V4.1.0`** (la última es `V4.0.0`, no `V3.3.0`).
+FR-012 **fail-closed**: sellar y entregar son atómicos; ⛔ **sin política de reintento** (reintentar
+es volver a pedir el documento), sin transacción aparte, sin contador propio — los tres se
+rechazaron como sobreingeniería. FR-013 **disuelve la deuda M2**: se valida un decimal en la entrada
+y en la base (Acuerdo n.º 13 de 2023, **art. 32**), sin cambiar el tipo de columna. ⚠️ El
+`MAX_GRADE = 100` que cita el issue #11 es **falso**: `V3.0.0:51` siembra `5.0`.
+⚠️ La traza de aprobaciones **YA EXISTE** desde SP6 (`request_transition_log` + `GET /requests/{id}/timeline`):
+no reimplementarla. Sin dependencias nuevas.
+Última feature entregada: `005-formal-document` (SP3 — el PDF del DO-FR-100, PR #31). Antes:
+`004-public-request-capture` (captura pública del formato, sin sesión) y `003-request-form-rules`
+(SP2 — formularios validados + reglas configurables por trámite).
 Stack: Java 21 · Spring Boot 4.0.7 (Security 7, Data JPA, Validation, WebMVC) · PostgreSQL + Flyway
-(validate) · BCrypt · Lombok · Testcontainers (test).
+(validate) · PDFBox 3 · BCrypt · Lombok · Testcontainers (test).
 Paquete `com.uniremington.api.tramita`, estructura **package-by-layer**: `controller/`,
 `dto/`, `model/`, `repo/`, `security/`, `service/` (contratos) + `service/impl/`, `util/`
 y `shared/` (`config/`, `exception/`, `seed/`). Interfaces con prefijo `I`.

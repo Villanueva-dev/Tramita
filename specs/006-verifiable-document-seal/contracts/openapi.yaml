@@ -1,0 +1,325 @@
+openapi: 3.1.0
+info:
+  title: Trámita — delta de contrato de la feature 006
+  version: 0.6.0
+  description: |
+    Delta sobre los contratos de las features 002, 003, 004 y 005, cuyas estructuras NO se
+    alteran. Aquí se declara únicamente lo que esta feature agrega:
+
+      * `GET  /public/seals/{code}` — verificación abierta por posesión del código impreso.
+      * `POST /seals/verify`        — verificación exacta por huella, con sesión.
+      * `GET  /requests/{id}/seals` — historial de emisiones de una solicitud, con sesión.
+
+    Y un cambio de comportamiento en un endpoint existente, sin cambio de forma:
+
+      * `GET /requests/{id}/document` sigue devolviendo el mismo PDF, pero ahora **registra
+        un sello** por cada emisión y el documento sale con el código impreso en el pie. Su
+        petición y sus respuestas no cambian de estructura; sí puede fallar donde antes no
+        fallaba (ver FR-012, fail-closed).
+
+    Lo no listado aquí se rige por `specs/005-formal-document/contracts/openapi.yaml` y, en
+    lo que aquélla no altera, por los de la 004, la 003 y la 002.
+
+servers:
+  - url: /api
+
+paths:
+
+  /public/seals/{code}:
+    get:
+      summary: Verificar un documento con el código que lleva impreso
+      description: |
+        **Tercer y último endpoint abierto del sistema**, después del login y de la captura
+        pública. Existe porque el destinatario natural de la verificación —la decanatura,
+        que es quien autoriza según el Reglamento Estudiantil, Acuerdo n.º 13 art. 24 §1, y
+        quien asienta el resultado en los sistemas académicos— **no tiene cuenta en
+        Trámita**. Un canal que exigiera sesión dejaría la cara legible del sello sin
+        destinatario.
+
+        LA POSESIÓN DEL DOCUMENTO ES LA AUTORIZACIÓN. El código tiene 64 bits de entropía
+        (research.md D3), de modo que recorrer el espacio no es viable y **este canal no
+        necesita límite de tasa propio**: la protección es el tamaño del espacio, no un
+        contador.
+
+        NO REQUIERE EXCLUSIÓN DE CSRF, a diferencia de la captura pública. CSRF protege
+        operaciones que cambian estado usando la sesión del navegante; un `GET` no cambia
+        estado y Spring Security no lo protege. No se toca la configuración de CSRF.
+
+        NUNCA DEVUELVE DATOS PERSONALES (FR-014c, §III). Quien tiene el documento ya ve
+        impresos el nombre y la cédula; quien no lo tiene no debe obtenerlos del sistema.
+      parameters:
+        - name: code
+          in: path
+          required: true
+          description: El código impreso en el pie del documento.
+          schema:
+            type: string
+            maxLength: 13
+      responses:
+        '200':
+          description: |
+            El veredicto. **Son tres resultados, no dos**, y el tercero es el requisito
+            central (FR-007): si el formato con que se emitió ya no está vigente, o si los
+            datos de la solicitud cambiaron desde la emisión, el sistema **no puede
+            pronunciarse** y lo dice. Reportar «alterado» en esos casos sería acusar de
+            falsificación a un documento legítimo.
+
+            Por este canal el veredicto se emite sin comparar el archivo, así que confirma
+            que el documento **fue emitido por el sistema** y con qué datos de emisión.
+            Detectar la alteración de un campo requiere la huella exacta: `POST /seals/verify`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicSealResponse'
+              examples:
+                emitido:
+                  summary: El sello existe y el formato sigue vigente
+                  value:
+                    status: ISSUED
+                    issuedAt: '2026-09-17T10:30:00'
+                    stateName: En revisión de Coordinación
+                    revision: 3
+                formatoVencido:
+                  summary: Emitido con un formato que ya no está vigente
+                  value:
+                    status: NOT_VERIFIABLE
+                    reason: FORMAT_CHANGED
+                    issuedAt: '2026-08-02T09:15:00'
+                    stateName: En revisión de Coordinación
+                    revision: 1
+        '404':
+          description: |
+            No hay ningún sello con ese código. Se responde lo mismo para un código con
+            forma válida que nunca existió y para uno mal escrito: distinguirlos permitiría
+            sondear el espacio de códigos, y no le sirve a nadie con el papel en la mano.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /seals/verify:
+    post:
+      summary: Verificación exacta de un documento por su huella
+      description: |
+        Compara la huella del archivo contra la registrada al emitir. Es lo único que
+        detecta la **alteración de un campo** dejando el pie intacto, que la consulta
+        pública no puede ver.
+
+        EL ARCHIVO NO SE ENVÍA, SE ENVÍA SU HUELLA (research.md D10). Calcular un SHA-256 es
+        trivial en cualquier entorno —`sha256sum` en la terminal, `crypto.subtle.digest` en
+        el navegador— y enviarlo en lugar del archivo elimina el manejo de cargas: sin
+        `multipart`, sin tope de tamaño, sin materializar un cuerpo grande en memoria. Hace
+        además literal el FR-010: el sistema nunca recibe el archivo, así que no puede
+        almacenarlo ni por accidente.
+
+        EXIGE SESIÓN (FR-014d).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyBody'
+      responses:
+        '200':
+          description: El veredicto, con los tres resultados posibles.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerdictResponse'
+              examples:
+                integro:
+                  value:
+                    status: INTACT
+                    issuedAt: '2026-09-17T10:30:00'
+                    issuedBy: coordinacion@uniremington.edu.co
+                    revision: 3
+                alterado:
+                  summary: La huella no coincide y el sistema SÍ podía comparar
+                  value:
+                    status: TAMPERED
+                    issuedAt: '2026-09-17T10:30:00'
+                    issuedBy: coordinacion@uniremington.edu.co
+                    revision: 3
+                noVerificable:
+                  summary: Los datos del trámite cambiaron desde la emisión
+                  value:
+                    status: NOT_VERIFIABLE
+                    reason: DATA_CHANGED
+                    issuedAt: '2026-09-17T10:30:00'
+                    issuedBy: coordinacion@uniremington.edu.co
+                    revision: 3
+        '401':
+          description: Sin sesión.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: No hay ningún sello con ese código.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: |
+            El cuerpo no cumple el contrato: falta el código o la huella, o la huella no
+            tiene la forma de un SHA-256 en hexadecimal.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /requests/{id}/seals:
+    get:
+      summary: Historial de emisiones del documento de una solicitud
+      description: |
+        Responde una pregunta que hoy el sistema **no puede responder**: cuántas veces se
+        emitió el documento de un trámite, cuándo y quién lo pidió.
+
+        CADA EMISIÓN ES UNA ENTRADA, sin deduplicar. Dos emisiones sin cambios producen
+        documentos idénticos y aun así se registran por separado, porque el valor de este
+        historial es precisamente el recuento.
+
+        NO DUPLICA EL RECORRIDO DEL TRÁMITE. La traza de aprobaciones —estado, autor,
+        momento de cada avance— ya existe desde SP6 en `GET /requests/{id}/timeline`. Este
+        endpoint cubre las emisiones del documento, que es lo que faltaba.
+
+        EXIGE SESIÓN.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: |
+            Las emisiones, de la más antigua a la más reciente. Una solicitud cuyo documento
+            nunca se emitió devuelve una lista vacía, **no** un 404: la solicitud existe y
+            la respuesta correcta es que no tiene emisiones.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SealEntryResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: La solicitud no existe.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+components:
+  schemas:
+
+    PublicSealResponse:
+      type: object
+      description: |
+        Lo que ve quien verifica SIN cuenta. Contiene únicamente datos de emisión: ningún
+        nombre, ninguna cédula, ningún correo, ningún dato académico (FR-014c).
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ISSUED, NOT_VERIFIABLE]
+          description: |
+            `ISSUED` — existe un sello con ese código y el formato sigue vigente.
+            `NOT_VERIFIABLE` — existe, pero el sistema no puede sostener una comparación.
+        reason:
+          type: string
+          enum: [FORMAT_CHANGED, DATA_CHANGED]
+          description: Presente solo con `NOT_VERIFIABLE`. Por qué el sistema no puede pronunciarse.
+        issuedAt:
+          type: string
+          format: date-time
+          description: Cuándo se emitió. Contrastable contra el pie impreso.
+        stateName:
+          type: string
+          description: |
+            Nombre del estado del trámite al emitir, congelado. Es el mismo texto que el pie
+            del documento muestra, para que el contraste sea directo.
+        revision:
+          type: integer
+          format: int64
+          description: Revisión de los datos al emitir. También impresa en el pie.
+
+    VerdictResponse:
+      type: object
+      description: El veredicto de la comparación exacta, para quien tiene sesión.
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [INTACT, TAMPERED, NOT_VERIFIABLE]
+        reason:
+          type: string
+          enum: [FORMAT_CHANGED, DATA_CHANGED]
+          description: Presente solo con `NOT_VERIFIABLE`.
+        issuedAt:
+          type: string
+          format: date-time
+        issuedBy:
+          type: string
+          description: Quién pidió la emisión. Solo en el canal autenticado.
+        revision:
+          type: integer
+          format: int64
+
+    SealEntryResponse:
+      type: object
+      description: Una emisión registrada.
+      required: [verificationCode, issuedAt, issuedBy, revision, formatVersion]
+      properties:
+        verificationCode:
+          type: string
+          description: El código impreso en ese documento.
+        issuedAt:
+          type: string
+          format: date-time
+        issuedBy:
+          type: string
+        revision:
+          type: integer
+          format: int64
+        formatVersion:
+          type: string
+        stateName:
+          type: string
+
+    VerifyBody:
+      type: object
+      required: [code, sha256]
+      properties:
+        code:
+          type: string
+          maxLength: 13
+          description: El código impreso en el documento.
+        sha256:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+          description: |
+            Huella SHA-256 del archivo, en hexadecimal minúscula. La calcula el cliente:
+            `sha256sum documento.pdf` o `crypto.subtle.digest('SHA-256', bytes)`.
+
+    Problem:
+      type: object
+      description: Error en `application/problem+json` (RFC 9457), como el resto de la API.
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
