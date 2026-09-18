@@ -8,15 +8,23 @@ import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pdfbox.cos.COSArray;
+import org.apache.pdfbox.cos.COSString;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -76,6 +84,9 @@ public class DoFr100Renderer implements IDocumentRenderer {
     private static final PDFont BOLD = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
 
     private static final float LEFT = 45, RIGHT = 567, TOP = 750, BOTTOM = 70;
+
+    /** Longitud en bytes de cada mitad del `/ID`, la que usa PDFBox por omisión. */
+    private static final int ID_LENGTH = 16;
     private static final float ROW_HEIGHT = 18, LINE_HEIGHT = 13, BODY_SIZE = 9;
 
     /**
@@ -130,10 +141,51 @@ public class DoFr100Renderer implements IDocumentRenderer {
             drawOverflowPages(document, logo, pending);
             drawSignaturePage(document, logo, request, signature);
 
+            fixDocumentId(document, request);
             document.save(output);
             return output.toByteArray();
         } catch (IOException failure) {
             throw new IllegalStateException("No fue posible generar el documento del trámite", failure);
+        }
+    }
+
+    /**
+     * FIJA EL `/ID` DEL TRAILER PARA QUE EL DOCUMENTO SE PUEDA RECONSTRUIR BYTE A BYTE.
+     *
+     * Sin esto el documento NO es reproducible, y se midió dónde: de 52 348 bytes, los
+     * primeros 52 021 ya son idénticos entre dos renders: el contenido es determinista. Lo
+     * único que varía son los 32 bytes que PDFBox sortea en cada {@code save()} para el
+     * identificador del trailer. Una huella calculada sobre un documento reconstruido no
+     * verificaría nada mientras esos bytes cambien (`research.md` D1).
+     *
+     * SE RESPETA LA SEMÁNTICA QUE EL FORMATO PDF LE DA AL CAMPO, que son dos cadenas con
+     * papeles distintos: la primera identifica al documento de forma permanente, la segunda
+     * cambia cuando el documento se modifica. De ahí que la primera derive solo del
+     * identificador de la solicitud y la segunda incorpore además su revisión.
+     *
+     * ⛔ NO PUEDE SER UNA CONSTANTE LITERAL, aunque daría bytes igual de estables y costaría
+     * menos: haría que TODOS los documentos del sistema se identificaran igual, que es
+     * exactamente lo que este campo existe para evitar.
+     */
+    private static void fixDocumentId(PDDocument document, Request request) {
+        UUID requestId = Objects.requireNonNull(
+                request.getId(),
+                "La solicitud no tiene identificador, y sin él el documento no puede declarar "
+                        + "un /ID propio: todos los documentos emitidos compartirían el mismo");
+
+        COSString permanent = new COSString(derive(requestId.toString()));
+        COSString revision = new COSString(derive(requestId + ":" + request.getVersion()));
+        document.getDocument().setDocumentID(new COSArray(List.of(permanent, revision)));
+    }
+
+    /** Los primeros {@value #ID_LENGTH} bytes del SHA-256 de la semilla. */
+    private static byte[] derive(String seed) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(seed.getBytes(StandardCharsets.UTF_8));
+            return Arrays.copyOf(digest, ID_LENGTH);
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 es parte de la plataforma", impossible);
         }
     }
 

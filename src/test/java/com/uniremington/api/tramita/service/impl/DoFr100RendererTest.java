@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.imageio.ImageIO;
@@ -465,6 +466,9 @@ class DoFr100RendererTest {
                 .build();
 
         return Request.builder()
+                // El renderer deriva de acá el /ID del documento: una solicitud sin
+                // identidad no puede emitir un documento distinguible de los demás.
+                .id(UUID.fromString("33333333-3333-4333-8333-333333333333"))
                 .definition(definition)
                 .currentState(initial)
                 .studentName("Ana María Peñaranda Gutiérrez")

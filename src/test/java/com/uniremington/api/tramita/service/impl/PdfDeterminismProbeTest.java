@@ -1,16 +1,17 @@
 package com.uniremington.api.tramita.service.impl;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+
 import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.model.WorkflowDefinition;
 import com.uniremington.api.tramita.model.WorkflowState;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
-import java.security.MessageDigest;
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.Base64;
-import java.util.HexFormat;
 import java.util.List;
+import java.util.UUID;
 import javax.imageio.ImageIO;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.cos.COSArray;
@@ -20,126 +21,100 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * SONDA DE MEDICIÓN — no es un test de comportamiento, es un instrumento.
+ * FR-004 y FR-005: EL DOCUMENTO SE PUEDE RECONSTRUIR BYTE A BYTE.
  *
- * Existe para responder UNA pregunta que decide el diseño de SP4 (issue #11): ¿dos
- * renders del mismo trámite producen el mismo archivo? Si la respuesta es no, un hash
- * calculado sobre un PDF regenerado no verifica nada, y el sello obliga a persistir el
- * documento en vez de reconstruirlo.
+ * Este archivo nació como sonda de medición —no afirmaba nada, imprimía lo que medía— para
+ * responder si un hash calculado sobre un PDF regenerado verifica algo. La respuesta y sus
+ * números quedaron registrados en `research.md` D1: de 52 348 bytes, los primeros 52 021 ya
+ * eran idénticos, y toda la diferencia caía dentro del `/ID` aleatorio que PDFBox sortea en
+ * cada `save()`. Cumplida esa función, la sonda se convierte en la guarda de lo que midió.
  *
- * No afirma nada: imprime lo que mide. Se borra o se convierte en guarda según el
- * resultado.
+ * ⚠️ ESTE TEST COMPARA DOS RECONSTRUCCIONES ENTRE SÍ, NUNCA CONTRA UNA HUELLA DORADA.
+ * La tentación es congelar un SHA-256 literal del documento «tal como sale hoy» y compararlo.
+ * Sería una trampa con fecha de vencimiento: al imprimirse el código de verificación en el pie
+ * (FR-003), ese hash cambia, y la reacción natural —actualizar la constante— desactiva en
+ * silencio la única barrera que D5 pone contra olvidar bumpear la versión del formato. Un test
+ * que se «arregla» reescribiendo su valor esperado dejó de medir algo.
+ *
+ * 🔑 LO QUE SE GARANTIZA ES REPRODUCIBILIDAD A CÓDIGO FIJO, no que dos emisiones den lo mismo.
+ * Dos emisiones de la misma solicitud imprimen códigos distintos y por lo tanto difieren a
+ * propósito (D2): son dos papeles distinguibles, cada uno verificable contra su propio sello.
  */
 class PdfDeterminismProbeTest {
 
     private final DoFr100Renderer renderer = new DoFr100Renderer();
 
+    private static final UUID A_REQUEST = UUID.fromString("11111111-1111-4111-8111-111111111111");
+    private static final UUID ANOTHER_REQUEST = UUID.fromString("22222222-2222-4222-8222-222222222222");
+
     @Test
-    @DisplayName("SONDA: ¿el mismo trámite renderizado dos veces da los mismos bytes?")
-    void probeDeterminism() throws Exception {
-        Request request = request();
+    @DisplayName("FR-004: reconstruir la misma solicitud devuelve exactamente los mismos bytes")
+    void rebuildingTheSameRequestIsByteIdentical() {
+        Request request = request(A_REQUEST, 0L);
 
         byte[] first = renderer.render(request);
         byte[] second = renderer.render(request);
 
-        System.out.println("=== SONDA DE DETERMINISMO DEL PDF ===");
-        System.out.println("tamaño #1        : " + first.length + " bytes");
-        System.out.println("tamaño #2        : " + second.length + " bytes");
-        System.out.println("sha256 #1        : " + sha256(first));
-        System.out.println("sha256 #2        : " + sha256(second));
-        System.out.println("¿bytes iguales?  : " + Arrays.equals(first, second));
-
-        System.out.println("--- metadatos del render #1 ---");
-        describe(first);
-        System.out.println("--- metadatos del render #2 ---");
-        describe(second);
-
-        if (!Arrays.equals(first, second)) {
-            System.out.println("--- dónde difieren ---");
-            int diffs = 0;
-            for (int i = 0; i < Math.min(first.length, second.length) && diffs < 6; i++) {
-                if (first[i] != second[i]) {
-                    int from = Math.max(0, i - 40);
-                    int to = Math.min(first.length, i + 40);
-                    System.out.println("offset " + i + ":");
-                    System.out.println("   #1: " + printable(first, from, to));
-                    System.out.println("   #2: " + printable(second, from, to));
-                    diffs++;
-                    i = to;
-                }
-            }
-        }
-        System.out.println("=== FIN DE LA SONDA ===");
+        assertArrayEquals(
+                first,
+                second,
+                "El documento no es reproducible: sin bytes estables, la huella del sello no "
+                        + "describe nada verificable");
     }
 
     @Test
-    @DisplayName("SONDA 2: ¿fijar el /ID del trailer alcanza para que dos guardados coincidan?")
-    void probeFixedTrailerId() throws Exception {
-        System.out.println("=== SONDA 2: /ID FIJADO ===");
-        String primero = sha256(savedWithFixedId());
-        String segundo = sha256(savedWithFixedId());
-        System.out.println("sha256 #1        : " + primero);
-        System.out.println("sha256 #2        : " + segundo);
-        System.out.println("¿iguales?        : " + primero.equals(segundo));
+    @DisplayName("FR-005: dos solicitudes distintas no comparten el identificador del documento")
+    void differentRequestsDoNotShareTheDocumentId() {
+        byte[] one = renderer.render(request(A_REQUEST, 0L));
+        byte[] other = renderer.render(request(ANOTHER_REQUEST, 0L));
 
-        System.out.println("--- control: el mismo documento SIN fijar el /ID ---");
-        System.out.println("sha256 #1        : " + sha256(savedWithDefaultId()));
-        System.out.println("sha256 #2        : " + sha256(savedWithDefaultId()));
-        System.out.println("=== FIN DE LA SONDA 2 ===");
+        assertThat(permanentId(one))
+                .as("Un /ID compartido haría que todos los documentos del sistema se "
+                        + "identificaran igual, que es justo lo que el campo existe para evitar")
+                .isNotEqualTo(permanentId(other));
     }
 
-    /** El documento más simple posible, guardado con un /ID constante. */
-    private static byte[] savedWithFixedId() throws Exception {
-        try (PDDocument document = new PDDocument();
-                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            document.addPage(new org.apache.pdfbox.pdmodel.PDPage());
-            org.apache.pdfbox.cos.COSString fixed =
-                    new org.apache.pdfbox.cos.COSString("tramita-sello-determinista".getBytes());
-            document.getDocument().setDocumentID(new COSArray(List.of(fixed, fixed)));
-            document.save(output);
-            return output.toByteArray();
-        }
+    @Test
+    @DisplayName("FR-005: una revisión nueva de la solicitud cambia la segunda cadena del /ID")
+    void aNewRevisionChangesTheChangingHalfOfTheDocumentId() {
+        byte[] before = renderer.render(request(A_REQUEST, 0L));
+        byte[] after = renderer.render(request(A_REQUEST, 1L));
+
+        assertThat(permanentId(before))
+                .as("La primera cadena identifica al documento de forma permanente: todas las "
+                        + "emisiones de un mismo trámite la comparten")
+                .isEqualTo(permanentId(after));
+        assertThat(changingId(before))
+                .as("La segunda cambia cuando los datos cambian, que es cuando el documento "
+                        + "deja de ser el mismo")
+                .isNotEqualTo(changingId(after));
     }
 
-    /** El mismo documento sin tocar el /ID, para aislar la variable. */
-    private static byte[] savedWithDefaultId() throws Exception {
-        try (PDDocument document = new PDDocument();
-                ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            document.addPage(new org.apache.pdfbox.pdmodel.PDPage());
-            document.save(output);
-            return output.toByteArray();
-        }
+    // --- lectura del trailer ---------------------------------------------------------------
+
+    /** La primera cadena del `/ID`: identifica al documento de forma permanente. */
+    private static String permanentId(byte[] pdf) {
+        return trailerId(pdf).getString(0);
     }
 
-    private static void describe(byte[] pdf) throws Exception {
+    /** La segunda cadena del `/ID`: cambia cuando el documento se modifica. */
+    private static String changingId(byte[] pdf) {
+        return trailerId(pdf).getString(1);
+    }
+
+    private static COSArray trailerId(byte[] pdf) {
         try (PDDocument document = Loader.loadPDF(pdf)) {
-            var info = document.getDocumentInformation();
-            System.out.println("  CreationDate : " + format(info.getCreationDate()));
-            System.out.println("  ModDate      : " + format(info.getModificationDate()));
-            System.out.println("  Producer     : " + info.getProducer());
             COSArray id = (COSArray) document.getDocument().getTrailer().getDictionaryObject(COSName.ID);
-            System.out.println("  /ID          : " + (id == null ? "(ausente)" : id.toString()));
+            assertThat(id).as("El documento no declara /ID en el trailer").isNotNull();
+            return id;
+        } catch (Exception failure) {
+            throw new IllegalStateException("No fue posible leer el trailer del documento", failure);
         }
     }
 
-    private static String format(java.util.Calendar calendar) {
-        return calendar == null ? "(ausente)" : calendar.toInstant().toString();
-    }
+    // --- datos de prueba ---------------------------------------------------------------------
 
-    private static String printable(byte[] data, int from, int to) {
-        StringBuilder out = new StringBuilder();
-        for (int i = from; i < to; i++) {
-            char c = (char) (data[i] & 0xFF);
-            out.append(c >= 32 && c < 127 ? c : '.');
-        }
-        return out.toString();
-    }
-
-    private static String sha256(byte[] data) throws Exception {
-        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(data));
-    }
-
-    private static Request request() {
+    private static Request request(UUID id, long version) {
         WorkflowState initial = WorkflowState.builder()
                 .code("RADICADA").name("Radicada").initial(true).build();
         WorkflowDefinition definition = WorkflowDefinition.builder()
@@ -149,6 +124,8 @@ class PdfDeterminismProbeTest {
                 .build();
 
         return Request.builder()
+                .id(id)
+                .version(version)
                 .definition(definition)
                 .currentState(initial)
                 .studentName("Ana María Peñaranda Gutiérrez")

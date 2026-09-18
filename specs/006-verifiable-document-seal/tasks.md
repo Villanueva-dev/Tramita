@@ -34,8 +34,8 @@ re-mide, no se cita de memoria.
 
 **Propósito**: confirmar el punto de partida antes de tocar nada.
 
-- [ ] T001 Levantar la base y confirmar la línea base en verde: `docker start tramita-postgres && ./mvnw clean verify`, anotando el conteo real de unitarios e IT
-- [ ] T002 Comprobar que la sonda `src/test/java/com/uniremington/api/tramita/service/impl/PdfDeterminismProbeTest.java` está presente y corre (ya commiteada en `eadad66`; **no crearla de nuevo**)
+- [x] T001 Levantar la base y confirmar la línea base en verde: `docker start tramita-postgres && ./mvnw clean verify`, anotando el conteo real de unitarios e IT
+- [x] T002 Comprobar que la sonda `src/test/java/com/uniremington/api/tramita/service/impl/PdfDeterminismProbeTest.java` está presente y corre (ya commiteada en `eadad66`; **no crearla de nuevo**)
 
 ---
 
@@ -45,11 +45,11 @@ re-mide, no se cita de memoria.
 
 ### Tramo 1 — determinismo del render (FR-004, FR-005)
 
-- [ ] T003 (RED) Reescribir `src/test/java/com/uniremington/api/tramita/service/impl/PdfDeterminismProbeTest.java` como test de comportamiento: renderizar dos veces la misma solicitud y afirmar `assertArrayEquals`. Debe fallar hoy — el `/ID` del trailer se sortea en cada `save()`
+- [x] T003 (RED) Reescribir `src/test/java/com/uniremington/api/tramita/service/impl/PdfDeterminismProbeTest.java` como test de comportamiento: renderizar dos veces la misma solicitud y afirmar `assertArrayEquals`. Debe fallar hoy — el `/ID` del trailer se sortea en cada `save()`
   - ⚠️ **El test compara dos reconstrucciones entre sí, NUNCA contra una huella dorada literal.** Una constante hexadecimal se rompería en T016, al imprimirse el código en el pie, y actualizarla —la reacción natural— desactiva la única barrera de D5 contra olvidar bumpear la versión del formato. Dejarlo escrito en el javadoc del test
-- [ ] T004 (GREEN) Fijar el `/ID` en `src/main/java/com/uniremington/api/tramita/service/impl/DoFr100Renderer.java` con `document.getDocument().setDocumentID(COSArray)`: primera cadena derivada del identificador de la solicitud, segunda derivada del identificador **más la revisión** (research.md D1)
-- [ ] T005 [P] Agregar a `PdfDeterminismProbeTest` el caso de que **dos solicitudes distintas no comparten `/ID`** (FR-005)
-- [ ] T006 Verificar el tramo: `./mvnw clean test -Dtest=PdfDeterminismProbeTest` en verde, y `DoFr100RendererTest` sin regresiones
+- [x] T004 (GREEN) Fijar el `/ID` en `src/main/java/com/uniremington/api/tramita/service/impl/DoFr100Renderer.java` con `document.getDocument().setDocumentID(COSArray)`: primera cadena derivada del identificador de la solicitud, segunda derivada del identificador **más la revisión** (research.md D1)
+- [x] T005 [P] Agregar a `PdfDeterminismProbeTest` el caso de que **dos solicitudes distintas no comparten `/ID`** (FR-005)
+- [x] T006 Verificar el tramo: `./mvnw clean test -Dtest=PdfDeterminismProbeTest` en verde, y `DoFr100RendererTest` sin regresiones
 
 ### Tramo 2 — migración, entidad y repositorio (FR-001, FR-002, FR-008)
 
