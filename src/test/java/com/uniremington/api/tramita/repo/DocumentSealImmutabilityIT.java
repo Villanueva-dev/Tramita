@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import com.uniremington.api.tramita.TramitaIntegrationTest;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
+import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.service.IRequestService;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -74,14 +75,39 @@ class DocumentSealImmutabilityIT {
                 .isEqualTo(1);
     }
 
-    /** Un sello cualquiera, colgado de una solicitud y un actor reales. */
+    /**
+     * #34 R3-2: el mecanismo de unicidad del código impreso (V4.1.0,
+     * {@code ux_request_document_seal_code}) existe desde que se escribió la migración, pero
+     * ningún test lo vigilaba — es el hueco que el issue nombra.
+     *
+     * SIN ESTO, DOS SELLOS PODRÍAN COMPARTIR CÓDIGO Y ROMPER EL CANAL PÚBLICO (FR-006): la
+     * consulta por código dejaría de identificar un sello único.
+     */
+    @Test
+    @DisplayName("dos sellos con el mismo código de verificación: el índice único los rechaza (#34 R3-2)")
+    void duplicateVerificationCodeIsRejectedByUniqueIndex() {
+        insertSeal("SELLO-DUP", "d".repeat(64));
+
+        assertThatExceptionOfType(org.springframework.dao.DataIntegrityViolationException.class)
+                .isThrownBy(() -> insertSeal("SELLO-DUP", "e".repeat(64)))
+                .withMessageContaining("ux_request_document_seal_code");
+    }
+
+    /**
+     * Un sello cualquiera, colgado de una solicitud y un actor reales.
+     *
+     * ⚠️ EL {@code id} SALE DE LA RESPUESTA DE {@code register()}, NO DE UNA CONSULTA
+     * «la última fila» (issue #35). {@code register()} ya lo devuelve: consultarlo de nuevo
+     * por {@code ORDER BY created_at DESC} desempataba por UUID, que no ordena en el tiempo
+     * — con más de una fila creada en el mismo milisegundo, podía traer la solicitud
+     * equivocada. Usar el valor que el servicio ya entregó elimina la carrera por completo.
+     */
     private UUID insertSeal(String verificationCode, String sha256) {
-        requestService.register(
+        RequestResponse request = requestService.register(
                 new CreateRequestBody("ADICION_CREDITOS", "Sello Inmutable", "777"),
                 TramitaIntegrationTest.SEED_EMAIL);
+        UUID requestId = request.id();
 
-        UUID requestId = jdbcTemplate.queryForObject(
-                "SELECT id FROM request ORDER BY created_at DESC, id DESC LIMIT 1", UUID.class);
         UUID actorId = jdbcTemplate.queryForObject(
                 "SELECT id FROM users WHERE lower(email) = lower(?)", UUID.class,
                 TramitaIntegrationTest.SEED_EMAIL);
