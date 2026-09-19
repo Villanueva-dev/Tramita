@@ -304,6 +304,29 @@ class RequestControllerIT {
     }
 
     @Test
+    @DisplayName("calificación con más de un decimal: 400, no 422 (FR-013a, SC-008)")
+    void gradeWithMoreThanOneDecimalIsRejectedWithBadRequest() throws Exception {
+        // Acuerdo n.º 13 de 2023, art. 32: un decimal como máximo. Las calificaciones entran
+        // solo por el formulario interno, así que un valor mal formado es un defecto del
+        // contrato de entrada (400) y no un formulario a medio llenar (422, exclusivo del
+        // canal público de captura).
+        long requestsBefore = requestRepo.count();
+
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "NOVEDAD_NOTAS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0009",
+                          "subjects": [
+                            {"code":"MAT-101","name":"Cálculo Diferencial","proposedGrade":3.46}
+                          ]
+                        }""").session(login()))
+                .andExpect(status().isBadRequest());
+
+        assertThat(requestRepo.count()).isEqualTo(requestsBefore);
+    }
+
+    @Test
     @DisplayName("supera el tope configurado: 422 con el límite en el detail (FR-008)")
     void exceedingTheConfiguredCreditLimitIsRejected() throws Exception {
         mockMvc.perform(createRequestWithForm("""
