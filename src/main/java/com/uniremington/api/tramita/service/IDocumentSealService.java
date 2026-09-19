@@ -1,5 +1,7 @@
 package com.uniremington.api.tramita.service;
 
+import com.uniremington.api.tramita.dto.PublicSealResponse;
+import com.uniremington.api.tramita.dto.VerdictResponse;
 import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.model.RequestDocumentSeal;
 import com.uniremington.api.tramita.model.User;
@@ -42,5 +44,18 @@ public interface IDocumentSealService {
      *     ningún sello con ese código. NO es un cuarto veredicto: un papel que el sistema nunca
      *     emitió no se declara «alterado», porque no hay nada contra qué compararlo
      */
-    SealVerdict verify(String verificationCode, String documentSha256);
+    VerdictResponse verify(String verificationCode, String documentSha256);
+
+    /**
+     * Dice si existe un sello con ese código, sin comparar nada (FR-014b, canal público).
+     *
+     * ⚠️ NO ES UNA VERSIÓN RECORTADA DE {@link #verify}: no recibe huella, así que no hay
+     * comparación posible y por lo tanto tampoco hay «alterado» ni «no verificable» — el
+     * único resultado con sello existente es {@code ISSUED}. Que el resultado esté acotado a
+     * uno solo es la decisión que separa este canal del autenticado (research.md D9).
+     *
+     * @throws com.uniremington.api.tramita.shared.exception.ResourceNotFoundException si no hay
+     *     ningún sello con ese código
+     */
+    PublicSealResponse lookup(String verificationCode);
 }

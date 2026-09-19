@@ -1,9 +1,10 @@
-package com.uniremington.api.tramita.service;
+package com.uniremington.api.tramita.dto;
 
-import com.uniremington.api.tramita.model.RequestDocumentSeal;
+import java.time.LocalDateTime;
 
 /**
- * EL RESULTADO DE VERIFICAR UN DOCUMENTO CONTRA SU SELLO (FR-006).
+ * EL RESULTADO DE VERIFICAR UN DOCUMENTO CONTRA SU SELLO, para quien tiene sesión
+ * (`POST /api/seals/verify`, FR-006, FR-014d).
  *
  * 🔑 SON TRES RESULTADOS Y NO DOS, Y ESA ES LA DECISIÓN CENTRAL DE LA FEATURE. Un sistema
  * ingenuo compara huellas y responde «íntegro» o «alterado». Pero hay dos situaciones en las
@@ -16,13 +17,21 @@ import com.uniremington.api.tramita.model.RequestDocumentSeal;
  * el FR-007 prohíbe expresamente: una acusación que el sistema no puede sostener es peor que
  * admitir que no puede pronunciarse.
  *
+ * ⚠️ ES EXCLUSIVO DEL CANAL AUTENTICADO. El canal público (`PublicSealResponse`) no recibe
+ * huella (D10), así que no compara nada: solo afirma que el sello existe (FR-014b). Los tres
+ * resultados de acá salen de comparar, y esa comparación necesita la huella que solo trae
+ * este canal.
+ *
  * @param reason por qué el sistema no puede pronunciarse. Presente SOLO con
  *     {@link Status#NOT_VERIFIABLE}; en los otros dos veredictos es {@code null}, porque ahí
  *     la comparación sí ocurrió y su resultado se explica solo
- * @param seal el sello contra el que se verificó, para que quien reciba el veredicto pueda
- *     mostrar cuándo se emitió y sobre qué revisión
+ * @param issuedAt cuándo se emitió el documento que este sello respalda
+ * @param issuedBy quién pidió la emisión. Solo en este canal autenticado — el público no lo
+ *     lleva, es dato personal indirecto (FR-014c, §III)
+ * @param revision la revisión de los datos de la solicitud al emitir (research.md D7)
  */
-public record SealVerdict(Status status, Reason reason, RequestDocumentSeal seal) {
+public record VerdictResponse(
+        Status status, Reason reason, LocalDateTime issuedAt, String issuedBy, long revision) {
 
     /** Los tres resultados posibles. No hay un cuarto: «sin sello conocido» es un 404. */
     public enum Status {
@@ -40,17 +49,5 @@ public record SealVerdict(Status status, Reason reason, RequestDocumentSeal seal
         FORMAT_CHANGED,
         /** Los datos de la solicitud avanzaron: el documento es viejo, no falso. */
         DATA_CHANGED
-    }
-
-    public static SealVerdict intact(RequestDocumentSeal seal) {
-        return new SealVerdict(Status.INTACT, null, seal);
-    }
-
-    public static SealVerdict tampered(RequestDocumentSeal seal) {
-        return new SealVerdict(Status.TAMPERED, null, seal);
-    }
-
-    public static SealVerdict notVerifiable(Reason reason, RequestDocumentSeal seal) {
-        return new SealVerdict(Status.NOT_VERIFIABLE, reason, seal);
     }
 }

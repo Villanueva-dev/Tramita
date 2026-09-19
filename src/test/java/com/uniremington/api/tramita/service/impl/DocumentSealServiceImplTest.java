@@ -8,6 +8,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.uniremington.api.tramita.dto.PublicSealResponse;
+import com.uniremington.api.tramita.dto.VerdictResponse;
 import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.model.RequestDocumentSeal;
 import com.uniremington.api.tramita.model.User;
@@ -15,7 +17,6 @@ import com.uniremington.api.tramita.model.WorkflowState;
 import com.uniremington.api.tramita.repo.IRequestDocumentSealRepo;
 import com.uniremington.api.tramita.service.DocumentSealMark;
 import com.uniremington.api.tramita.service.IDocumentRenderer;
-import com.uniremington.api.tramita.service.SealVerdict;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -105,9 +106,9 @@ class DocumentSealServiceImplTest {
         when(sealRepo.findByVerificationCode("ABC123")).thenReturn(Optional.of(seal));
         when(renderer.formatVersion()).thenReturn("v1");
 
-        SealVerdict verdict = service.verify("ABC123", sha256(document));
+        VerdictResponse verdict = service.verify("ABC123", sha256(document));
 
-        assertThat(verdict.status()).isEqualTo(SealVerdict.Status.INTACT);
+        assertThat(verdict.status()).isEqualTo(VerdictResponse.Status.INTACT);
         assertThat(verdict.reason())
                 .as("Con INTACT la comparación SÍ ocurrió: no hay nada que explicar")
                 .isNull();
@@ -121,10 +122,10 @@ class DocumentSealServiceImplTest {
         when(sealRepo.findByVerificationCode("ABC123")).thenReturn(Optional.of(seal));
         when(renderer.formatVersion()).thenReturn("v1");
 
-        SealVerdict verdict = service.verify(
+        VerdictResponse verdict = service.verify(
                 "ABC123", sha256("el documento ALTERADO".getBytes(StandardCharsets.UTF_8)));
 
-        assertThat(verdict.status()).isEqualTo(SealVerdict.Status.TAMPERED);
+        assertThat(verdict.status()).isEqualTo(VerdictResponse.Status.TAMPERED);
     }
 
     @Test
@@ -135,14 +136,14 @@ class DocumentSealServiceImplTest {
         // El papel cambió: logo, maquetación o tipografías
         when(renderer.formatVersion()).thenReturn("v2");
 
-        SealVerdict verdict = service.verify("ABC123", "cualquier-huella");
+        VerdictResponse verdict = service.verify("ABC123", "cualquier-huella");
 
         assertThat(verdict.status())
                 .as("Un cambio de formato tumba TODOS los sellos anteriores a la vez y en "
                         + "silencio. Llamarlos alterados sería acusar al sistema entero de "
                         + "falsificar sus propios documentos (SC-003)")
-                .isEqualTo(SealVerdict.Status.NOT_VERIFIABLE);
-        assertThat(verdict.reason()).isEqualTo(SealVerdict.Reason.FORMAT_CHANGED);
+                .isEqualTo(VerdictResponse.Status.NOT_VERIFIABLE);
+        assertThat(verdict.reason()).isEqualTo(VerdictResponse.Reason.FORMAT_CHANGED);
     }
 
     @Test
@@ -152,13 +153,13 @@ class DocumentSealServiceImplTest {
         when(sealRepo.findByVerificationCode("ABC123")).thenReturn(Optional.of(seal));
         when(renderer.formatVersion()).thenReturn("v1");
 
-        SealVerdict verdict = service.verify("ABC123", "cualquier-huella");
+        VerdictResponse verdict = service.verify("ABC123", "cualquier-huella");
 
         assertThat(verdict.status())
                 .as("La huella no coincide Y el trámite avanzó: el papel pudo cambiar por eso, "
                         + "así que el sistema no puede sostener una acusación (FR-007)")
-                .isEqualTo(SealVerdict.Status.NOT_VERIFIABLE);
-        assertThat(verdict.reason()).isEqualTo(SealVerdict.Reason.DATA_CHANGED);
+                .isEqualTo(VerdictResponse.Status.NOT_VERIFIABLE);
+        assertThat(verdict.reason()).isEqualTo(VerdictResponse.Reason.DATA_CHANGED);
     }
 
     @Test
@@ -170,7 +171,7 @@ class DocumentSealServiceImplTest {
         when(sealRepo.findByVerificationCode("ABC123")).thenReturn(Optional.of(seal));
         when(renderer.formatVersion()).thenReturn("v1");
 
-        SealVerdict verdict = service.verify("ABC123", sha256(document));
+        VerdictResponse verdict = service.verify("ABC123", sha256(document));
 
         assertThat(verdict.status())
                 .as("ESTE ES EL CASO QUE JUSTIFICA COMPARAR CONTRA LA HUELLA GUARDADA. Que el "
@@ -178,7 +179,7 @@ class DocumentSealServiceImplTest {
                         + "dejar de poder verificar, el sello caducaría el mismo día que se "
                         + "emite y no serviría para nada. La huella coincide, así que ese "
                         + "archivo ES el que salió del sistema, con certeza criptográfica")
-                .isEqualTo(SealVerdict.Status.INTACT);
+                .isEqualTo(VerdictResponse.Status.INTACT);
         assertThat(verdict.reason()).isNull();
     }
 
@@ -191,6 +192,34 @@ class DocumentSealServiceImplTest {
                 .as("Acusar de alteración a un papel que el sistema nunca produjo es la misma "
                         + "acusación insostenible que FR-007 prohíbe: sin sello no hay nada "
                         + "contra qué comparar, y el contrato lo resuelve con 404 (edge case 5)")
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // FR-014b: el canal público, por posesión del código impreso. No recibe huella (D10), así
+    // que no compara nada y no hay veredicto de integridad: solo afirma que el sello existe.
+    // ---------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("lookup: un código existente da ISSUED con fecha, estado y revisión")
+    void lookupOfAnExistingSealIsIssued() {
+        RequestDocumentSeal seal = seal("v1", 4L, request(4L), "cualquier-huella");
+        when(sealRepo.findByVerificationCode("ABC123")).thenReturn(Optional.of(seal));
+
+        PublicSealResponse response = service.lookup("ABC123");
+
+        assertThat(response.status()).isEqualTo(PublicSealResponse.Status.ISSUED);
+        assertThat(response.issuedAt()).isEqualTo(seal.getIssuedAt());
+        assertThat(response.stateName()).isEqualTo(seal.getStateName());
+        assertThat(response.revision()).isEqualTo(seal.getRequestVersion());
+    }
+
+    @Test
+    @DisplayName("lookup: un código que el sistema nunca emitió es 404")
+    void lookupOfAnUnknownCodeIsNotFound() {
+        when(sealRepo.findByVerificationCode("NOEXISTE")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.lookup("NOEXISTE"))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
