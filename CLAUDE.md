@@ -134,8 +134,8 @@ cambiar el tipo de columna. ⚠️ El `MAX_GRADE = 100` que cita el issue #11 es
 siembra `5.0`.
 ⚠️ La traza de aprobaciones **YA EXISTE** desde SP6 (`request_transition_log` + `GET /requests/{id}/timeline`):
 no reimplementarla. Sin dependencias nuevas.
-Suite medida sobre el working tree tras `1fdcc3d` (US3, sin commitear al escribir esto): **139
-unitarios + 93 IT, BUILD SUCCESS**. Como siempre en este repo, se re-mide, no se cita de memoria.
+Suite medida sobre `717f8e0` (cierre de la 006): **145 unitarios + 94 IT, sin fallos**. Como siempre en
+este repo, se re-mide, no se cita de memoria.
 Última feature entregada: `005-formal-document` (SP3 — el PDF del DO-FR-100, PR #31). Antes:
 `004-public-request-capture` (captura pública del formato, sin sesión) y `003-request-form-rules`
 (SP2 — formularios validados + reglas configurables por trámite).

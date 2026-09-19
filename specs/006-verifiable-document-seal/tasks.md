@@ -118,7 +118,7 @@ re-mide, no se cita de memoria.
 - [x] T030 [P] [US2] (RED→GREEN) Crear `src/test/java/com/uniremington/api/tramita/controller/PublicSealControllerIT.java`: **`ISSUED` con fecha, estado y revisión**; el `404` de un código inexistente; y que la respuesta **no contiene nombre ni cédula**
 - [x] T031 [P] [US2] (RED→GREEN) Crear `src/test/java/com/uniremington/api/tramita/controller/SealControllerIT.java`: `INTACT`, `TAMPERED` con un byte alterado, **`404` con un código que no existe**, `401` sin sesión y **`400`** con cuerpo inválido
   - ⚠️ Es `400` y no `422`: el `422` pertenece al canal público de captura por un advice acotado con `assignableTypes`, no es la norma del sistema
-- [ ] T032 [US2] Verificar la historia: los pasos 3, 4 y **5** del quickstart ejecutados a mano. El paso 5 es el que el propio documento declara imprescindible
+- [x] T032 [US2] Verificar la historia: los pasos 3, 4 y **5** del quickstart ejecutados a mano. El paso 5 es el que el propio documento declara imprescindible
 
 **Checkpoint**: US1 + US2 entregables juntas. El sello ya sirve para lo que existe.
 
@@ -145,8 +145,8 @@ re-mide, no se cita de memoria.
   - ⚠️ Va en `dto/`, no en `service/impl/` como lo ubicaba `plan.md:144`: es un test de un DTO y la validación es de Bean Validation, no una regla de negocio configurable. Es el **primer** test de esa capa —el paquete no existe todavía—, y eso es consecuencia de §II (package-by-layer), no un argumento en contra
 - [x] T038 [P] (GREEN) Agregar la anotación de precisión de Bean Validation a `currentGrade` y `proposedGrade` en `src/main/java/com/uniremington/api/tramita/dto/SubjectRequestBody.java`. Responde **`400`**: las calificaciones entran solo por el formulario interno
   - ⚠️ **No terminó siendo `@Digits(fraction = 1)`.** Esa anotación mide la ESCALA literal del `BigDecimal` que Jackson deserializó, y un JSON con `2.80` llega con escala 2: `@Digits` lo rechazaba y rompía dos IT ya existentes de `RequestControllerIT` que usan `2.80`/`3.50` como notas válidas (medido). Se implementó `@AtMostOneDecimal` propio (`shared/validation/`), que compara contra `BigDecimal#stripTrailingZeros()`
-- [ ] T039 Ejecutar el **quickstart completo de punta a punta**, incluidos el paso 6 (inmutabilidad por acceso directo) y el paso 7 (precisión rechazada)
-- [ ] T040 Re-medir el conteo de tests y anotarlo con el commit en que se midió. ⛔ Ningún conteo es canónico fuera de su commit
+- [x] T039 Ejecutar el **quickstart completo de punta a punta**, incluidos el paso 6 (inmutabilidad por acceso directo) y el paso 7 (precisión rechazada)
+- [x] T040 Re-medir el conteo de tests y anotarlo con el commit en que se midió. ⛔ Ningún conteo es canónico fuera de su commit — **Medido sobre `717f8e0` (cierre de la 006, 2026-09-19): 145 unitarios + 94 IT, sin fallos** (`docker start tramita-postgres && ./mvnw clean verify`)
 - [x] T043 Corregir las afirmaciones que la implementación refutó y que ningún artefacto recogió. ⛔ No es cosmética: son los documentos que audita el jurado, y tres de ellos sostienen decisiones sobre mediciones que hoy dan distinto (§IV)
   - `plan.md:21-24` — «el contenido del PDF ya es determinista hoy». Acotar la medición a su alcance real: valía entre dos renders seguidos, no entre emisiones. T022a la refutó
   - `plan.md:82-83` y `plan.md:197` — la mitigación citada no existe. Lo que detecta un cambio de maquetación es `DoFr100LayoutCanaryTest` (T022c), no el test de determinismo
@@ -159,7 +159,7 @@ re-mide, no se cita de memoria.
   - `plan.md:108-110` — la ruta lleva `/api`: no hay `context-path` y los controllers lo declaran en su `@RequestMapping` (`PublicRequestController.java:25`). `research.md:339` ya la escribe completa
   - `plan.md:82` y `:197` — «bumpea/bumpear» → «subir el número de versión»
 - [x] T041 Actualizar el bloque SPECKIT de `CLAUDE.md` al estado real de la feature
-- [ ] T042 Revisar que ningún mensaje de commit del ciclo afirme algo sin su línea `Verificado:` con el comando y su resultado
+- [x] T042 Revisar que ningún mensaje de commit del ciclo afirme algo sin su línea `Verificado:` con el comando y su resultado
 
 ---
 
