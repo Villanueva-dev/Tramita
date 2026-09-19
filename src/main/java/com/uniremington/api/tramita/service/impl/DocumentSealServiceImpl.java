@@ -11,8 +11,10 @@ import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.service.IDocumentRenderer;
 import com.uniremington.api.tramita.service.IDocumentSealService;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
+import com.uniremington.api.tramita.util.CampusTime;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -73,9 +75,7 @@ public class DocumentSealServiceImpl implements IDocumentSealService {
     @Override
     @Transactional(readOnly = true)
     public VerdictResponse verify(String verificationCode, String documentSha256) {
-        RequestDocumentSeal seal = sealRepo.findByVerificationCode(verificationCode)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "No existe un sello con el código " + verificationCode));
+        RequestDocumentSeal seal = findSealOrThrow(verificationCode);
 
         // La comparación que SÍ significa algo: contra la huella del documento EMITIDO.
         // Es definitiva y no caduca: no depende de poder reconstruir nada.
@@ -102,15 +102,13 @@ public class DocumentSealServiceImpl implements IDocumentSealService {
     @Override
     @Transactional(readOnly = true)
     public PublicSealResponse lookup(String verificationCode) {
-        RequestDocumentSeal seal = sealRepo.findByVerificationCode(verificationCode)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "No existe un sello con el código " + verificationCode));
+        RequestDocumentSeal seal = findSealOrThrow(verificationCode);
 
         // Sin huella recibida no hay nada que comparar: el único resultado posible con sello
         // existente es ISSUED (D9). Ni TAMPERED ni NOT_VERIFIABLE tienen sentido acá.
         return new PublicSealResponse(
-                PublicSealResponse.Status.ISSUED, seal.getIssuedAt(), seal.getStateName(),
-                seal.getRequestVersion());
+                PublicSealResponse.Status.ISSUED, CampusTime.toCampus(seal.getIssuedAt()),
+                seal.getStateName(), seal.getRequestVersion());
     }
 
     @Override
@@ -132,8 +130,9 @@ public class DocumentSealServiceImpl implements IDocumentSealService {
     /** Resuelve {@code seal.getActor()} DENTRO de la transacción, igual que {@link #verdict}. */
     private SealEntryResponse toEntry(RequestDocumentSeal seal) {
         return new SealEntryResponse(
-                seal.getVerificationCode(), seal.getIssuedAt(), seal.getActor().getEmail(),
-                seal.getRequestVersion(), seal.getFormatVersion(), seal.getStateName());
+                seal.getVerificationCode(), CampusTime.toCampus(seal.getIssuedAt()),
+                seal.getActor().getEmail(), seal.getRequestVersion(), seal.getFormatVersion(),
+                seal.getStateName());
     }
 
     /**
@@ -146,7 +145,26 @@ public class DocumentSealServiceImpl implements IDocumentSealService {
     private VerdictResponse verdict(
             VerdictResponse.Status status, VerdictResponse.Reason reason, RequestDocumentSeal seal) {
         return new VerdictResponse(
-                status, reason, seal.getIssuedAt(), seal.getActor().getEmail(),
-                seal.getRequestVersion());
+                status, reason, CampusTime.toCampus(seal.getIssuedAt()),
+                seal.getActor().getEmail(), seal.getRequestVersion());
+    }
+
+    /**
+     * ÚNICO LUGAR donde se busca un sello por código (#34 M2, B3): los dos canales —público y
+     * autenticado— pasan por acá.
+     *
+     * NORMALIZA A MAYÚSCULAS (M2): el generador solo emite mayúsculas
+     * ({@code VerificationCodeGenerator}), pero nada en el papel impreso obliga a transcribir
+     * el código así — buscar por igualdad exacta sin normalizar respondía «no existe» a quien
+     * copiaba en minúsculas, un falso «este documento no lo emitió el sistema».
+     *
+     * MENSAJE FIJO, NO EL CÓDIGO RECIBIDO (B3): concatenar la entrada en el mensaje de error
+     * no aporta nada a quien lo lee —ya lo tiene en la mano, en el papel— y es una superficie
+     * de reflexión innecesaria.
+     */
+    private RequestDocumentSeal findSealOrThrow(String verificationCode) {
+        return sealRepo.findByVerificationCode(verificationCode.toUpperCase(Locale.ROOT))
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "No existe un sello con ese código"));
     }
 }

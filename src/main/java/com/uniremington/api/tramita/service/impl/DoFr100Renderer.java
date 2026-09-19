@@ -4,6 +4,7 @@ import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.service.DocumentSealMark;
 import com.uniremington.api.tramita.service.IDocumentRenderer;
 import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationException;
+import com.uniremington.api.tramita.util.CampusTime;
 import com.uniremington.api.tramita.util.PdfTextEncoder;
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
@@ -14,8 +15,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -94,12 +93,15 @@ public class DoFr100Renderer implements IDocumentRenderer {
     private static final int LOGO_DIGEST_LENGTH = 16;
 
     /**
-     * La zona de la sede. `createdAt` se persiste en UTC —convención del chasis— y este
-     * documento lleva la fecha EN LA CELDA DE UN PAPEL QUE SE FIRMA: imprimir el instante
-     * UTC sin convertir adelanta un día entre las 19:00 y las 23:59 de Cali, porque
-     * Colombia es UTC−5. No se cambia el almacenamiento, se convierte al formatear.
+     * La zona de la sede vive en {@link CampusTime}, ÚNICA fuente (revisión #34 M1): antes
+     * era una constante privada de este renderer, y los DTO que exponen `issuedAt` por la
+     * API devolvían el UTC crudo sin convertir — el JSON dejaba de ser «contrastable contra
+     * el pie impreso» que promete el contrato. `createdAt` se persiste en UTC —convención
+     * del chasis— y este documento lleva la fecha EN LA CELDA DE UN PAPEL QUE SE FIRMA:
+     * imprimir el instante UTC sin convertir adelanta un día entre las 19:00 y las 23:59 de
+     * Cali, porque Colombia es UTC−5. No se cambia el almacenamiento, se convierte al
+     * formatear.
      */
-    private static final ZoneId CAMPUS_ZONE = ZoneId.of("America/Bogota");
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd");
     private static final DateTimeFormatter MONTH = DateTimeFormatter.ofPattern("MM");
     private static final DateTimeFormatter YEAR = DateTimeFormatter.ofPattern("yyyy");
@@ -218,7 +220,7 @@ public class DoFr100Renderer implements IDocumentRenderer {
             PDImageXObject signature = loadSignature(document, request.getStudentSignature());
 
             List<String> pending = drawFirstPage(document, logo, request, markedType, mark);
-            drawOverflowPages(document, logo, pending, request, mark);
+            drawOverflowPages(document, logo, pending, mark);
             drawSignaturePage(document, logo, request, signature, mark);
 
             fixDocumentId(document, request);
@@ -337,7 +339,7 @@ public class DoFr100Renderer implements IDocumentRenderer {
      * para que la firma siga cerrando el documento como en el papel.
      */
     private void drawOverflowPages(PDDocument document, PDImageXObject logo, List<String> pending,
-            Request request, DocumentSealMark mark)
+            DocumentSealMark mark)
             throws IOException {
         while (!pending.isEmpty()) {
             PDPage page = new PDPage(PDRectangle.LETTER);
@@ -440,8 +442,7 @@ public class DoFr100Renderer implements IDocumentRenderer {
         write(content, regular(), 7,
                 "Verificación: %s · Emitido: %s · Estado: %s · Revisión: %d".formatted(
                         mark.verificationCode(),
-                        mark.issuedAt().atZone(ZoneOffset.UTC).withZoneSameInstant(CAMPUS_ZONE)
-                                .format(FULL_DATE),
+                        CampusTime.toCampus(mark.issuedAt()).format(FULL_DATE),
                         mark.stateName(),
                         mark.requestVersion()),
                 LEFT, 30);
@@ -560,7 +561,7 @@ public class DoFr100Renderer implements IDocumentRenderer {
     }
 
     private static LocalDateTime atCampus(LocalDateTime utc) {
-        return utc.atOffset(ZoneOffset.UTC).atZoneSameInstant(CAMPUS_ZONE).toLocalDateTime();
+        return CampusTime.toCampus(utc).toLocalDateTime();
     }
 
     /** Recorta un valor al ancho de su celda, marcando el recorte. */

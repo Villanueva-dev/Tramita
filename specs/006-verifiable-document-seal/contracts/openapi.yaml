@@ -76,7 +76,7 @@ paths:
                   summary: El sello existe
                   value:
                     status: ISSUED
-                    issuedAt: '2026-09-17T10:30:00'
+                    issuedAt: '2026-09-17T10:30:00-05:00'
                     stateName: En revisión de Coordinación
                     revision: 3
         '404':
@@ -126,14 +126,14 @@ paths:
                 integro:
                   value:
                     status: INTACT
-                    issuedAt: '2026-09-17T10:30:00'
+                    issuedAt: '2026-09-17T10:30:00-05:00'
                     issuedBy: coordinacion@uniremington.edu.co
                     revision: 3
                 alterado:
                   summary: La huella no coincide y el sistema SÍ podía comparar
                   value:
                     status: TAMPERED
-                    issuedAt: '2026-09-17T10:30:00'
+                    issuedAt: '2026-09-17T10:30:00-05:00'
                     issuedBy: coordinacion@uniremington.edu.co
                     revision: 3
                 noVerificable:
@@ -141,7 +141,7 @@ paths:
                   value:
                     status: NOT_VERIFIABLE
                     reason: DATA_CHANGED
-                    issuedAt: '2026-09-17T10:30:00'
+                    issuedAt: '2026-09-17T10:30:00-05:00'
                     issuedBy: coordinacion@uniremington.edu.co
                     revision: 3
         '401':
@@ -254,7 +254,10 @@ components:
         issuedAt:
           type: string
           format: date-time
-          description: Cuándo se emitió. Contrastable contra el pie impreso.
+          description: |
+            Cuándo se emitió, en la zona de la sede (América/Bogotá) y CON offset —no el
+            instante UTC crudo con que se persiste—, para que sea contrastable contra el pie
+            impreso: los dos usan la misma conversión (revisión #34 M1).
         stateName:
           type: string
           description: |
@@ -289,6 +292,9 @@ components:
         issuedAt:
           type: string
           format: date-time
+          description: |
+            Cuándo se emitió, en la zona de la sede y CON offset (revisión #34 M1) —
+            contrastable contra el pie impreso.
         issuedBy:
           type: string
           description: Quién pidió la emisión. Solo en el canal autenticado.
@@ -307,6 +313,9 @@ components:
         issuedAt:
           type: string
           format: date-time
+          description: |
+            Cuándo se emitió, en la zona de la sede y CON offset (revisión #34 M1) —
+            contrastable contra el pie impreso.
         issuedBy:
           type: string
         revision:

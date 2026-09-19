@@ -1,6 +1,6 @@
 package com.uniremington.api.tramita.dto;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 /**
  * EL RESULTADO DE VERIFICAR UN DOCUMENTO CONTRA SU SELLO, para quien tiene sesión
@@ -25,13 +25,15 @@ import java.time.LocalDateTime;
  * @param reason por qué el sistema no puede pronunciarse. Presente SOLO con
  *     {@link Status#NOT_VERIFIABLE}; en los otros dos veredictos es {@code null}, porque ahí
  *     la comparación sí ocurrió y su resultado se explica solo
- * @param issuedAt cuándo se emitió el documento que este sello respalda
+ * @param issuedAt cuándo se emitió, en la zona de la sede ({@code util.CampusTime}), CON
+ *     offset — no el {@code LocalDateTime} UTC crudo con que se persiste (revisión #34 M1).
+ *     Contrastable contra el pie impreso: los dos usan la misma conversión
  * @param issuedBy quién pidió la emisión. Solo en este canal autenticado — el público no lo
  *     lleva, es dato personal indirecto (FR-014c, §III)
  * @param revision la revisión de los datos de la solicitud al emitir (research.md D7)
  */
 public record VerdictResponse(
-        Status status, Reason reason, LocalDateTime issuedAt, String issuedBy, long revision) {
+        Status status, Reason reason, OffsetDateTime issuedAt, String issuedBy, long revision) {
 
     /** Los tres resultados posibles. No hay un cuarto: «sin sello conocido» es un 404. */
     public enum Status {

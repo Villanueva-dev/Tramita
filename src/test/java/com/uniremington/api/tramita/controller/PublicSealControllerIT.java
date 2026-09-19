@@ -59,7 +59,11 @@ class PublicSealControllerIT {
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.status").value("ISSUED"))
-                .andExpect(jsonPath("$.issuedAt").isNotEmpty())
+                // #34 M1: verifica que Jackson 3 serializa OffsetDateTime como string ISO CON
+                // offset (contrastable contra el pie impreso), no como timestamp numérico ni
+                // sin zona — es la comprobación empírica que motivó el cambio de tipo.
+                .andExpect(jsonPath("$.issuedAt", org.hamcrest.Matchers.matchesPattern(
+                        "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?-05:00$")))
                 .andExpect(jsonPath("$.stateName").isNotEmpty())
                 .andExpect(jsonPath("$.revision").isNumber())
                 .andReturn().getResponse().getContentAsString();
@@ -77,6 +81,24 @@ class PublicSealControllerIT {
         mockMvc.perform(get("/api/public/seals/ZZZZZZZZZZZZZ"))
                 .andExpect(status().isNotFound())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+    }
+
+    @Test
+    @DisplayName("código en minúsculas: 200 ISSUED, el mismo sello que en mayúsculas (#34 M2)")
+    void lookupWithLowercaseCodeStillFindsTheSeal() throws Exception {
+        MockHttpSession session = login();
+        String requestId = registerAndGetId(session, "Ana Consulta Minusculas", "SIN-DATO-REAL-602");
+
+        mockMvc.perform(get("/api/requests/" + requestId + "/document").session(session))
+                .andExpect(status().isOk());
+
+        // El generador solo emite mayúsculas, pero nada en el papel impreso obliga a
+        // transcribirlas así: quien copia «abc123» del pie no puede recibir un 404 falso.
+        String code = onlySealOf(requestId).getVerificationCode();
+
+        mockMvc.perform(get("/api/public/seals/" + code.toLowerCase(java.util.Locale.ROOT)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ISSUED"));
     }
 
     // --- helpers -------------------------------------------------------------------------

@@ -20,6 +20,7 @@ import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.service.DocumentSealMark;
 import com.uniremington.api.tramita.service.IDocumentRenderer;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
+import com.uniremington.api.tramita.util.CampusTime;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -166,6 +167,28 @@ class DocumentSealServiceImplTest {
     }
 
     @Test
+    @DisplayName("formato obsoleto Y revisión avanzada a la vez: NO VERIFICABLE por FORMATO, el formato precede (#34 B1)")
+    void whenBothGuardsApplyFormatTakesPrecedenceOverRevision() {
+        // Sello con formato "v1" (ya no vigente: el renderer actual declara "v2") Y con la
+        // revisión sellada (4) distinta de la actual de la solicitud (9): las DOS guardas de
+        // FR-007 aplican al mismo tiempo. El orden entre ellas no estaba cubierto por ningún
+        // test — los dos casos anteriores aíslan una causa cada uno — y SÍ importa.
+        RequestDocumentSeal seal = seal("v1", 4L, request(9L), "la-huella-de-entonces");
+        when(sealRepo.findByVerificationCode("ABC123")).thenReturn(Optional.of(seal));
+        when(renderer.formatVersion()).thenReturn("v2");
+
+        VerdictResponse verdict = service.verify("ABC123", "cualquier-huella");
+
+        assertThat(verdict.reason())
+                .as("un cambio de formato tumba TODOS los sellos anteriores a la vez y en "
+                        + "silencio (SC-003): explica por sí solo la discrepancia de este "
+                        + "sello sin necesitar mirar la revisión, así que precede. Si el "
+                        + "orden se invirtiera, este caso diría DATA_CHANGED — un motivo real "
+                        + "pero no el que corresponde: el formato ya lo explicaba")
+                .isEqualTo(VerdictResponse.Reason.FORMAT_CHANGED);
+    }
+
+    @Test
     @DisplayName("el trámite avanzó y el documento SIGUE dando ÍNTEGRO: el sello no caduca")
     void anIssuedDocumentStaysIntactAfterTheRequestMovesOn() {
         byte[] document = "el documento emitido".getBytes(StandardCharsets.UTF_8);
@@ -195,7 +218,27 @@ class DocumentSealServiceImplTest {
                 .as("Acusar de alteración a un papel que el sistema nunca produjo es la misma "
                         + "acusación insostenible que FR-007 prohíbe: sin sello no hay nada "
                         + "contra qué comparar, y el contrato lo resuelve con 404 (edge case 5)")
-                .isInstanceOf(ResourceNotFoundException.class);
+                .isInstanceOf(ResourceNotFoundException.class)
+                .as("#34 B3: el mensaje NO refleja la entrada — un código con datos ajenos "
+                        + "pegado en el 404 no le sirve a nadie y es una fuga innecesaria")
+                .hasMessage("No existe un sello con ese código");
+    }
+
+    @Test
+    @DisplayName("verify: un código en minúsculas encuentra el mismo sello que en mayúsculas (#34 M2)")
+    void verifyNormalizesTheCodeToUppercase() {
+        byte[] document = "el documento emitido".getBytes(StandardCharsets.UTF_8);
+        RequestDocumentSeal seal = seal("v1", 4L, request(4L), sha256(document));
+        when(sealRepo.findByVerificationCode("ABC123")).thenReturn(Optional.of(seal));
+        when(renderer.formatVersion()).thenReturn("v1");
+
+        VerdictResponse verdict = service.verify("abc123", sha256(document));
+
+        assertThat(verdict.status())
+                .as("el generador solo emite mayúsculas (VerificationCodeGenerator), pero nada "
+                        + "en el papel impreso obliga a transcribirlas así: quien copia en "
+                        + "minúsculas no puede recibir un «no lo emitió el sistema» falso")
+                .isEqualTo(VerdictResponse.Status.INTACT);
     }
 
     // ---------------------------------------------------------------------------------------
@@ -212,7 +255,7 @@ class DocumentSealServiceImplTest {
         PublicSealResponse response = service.lookup("ABC123");
 
         assertThat(response.status()).isEqualTo(PublicSealResponse.Status.ISSUED);
-        assertThat(response.issuedAt()).isEqualTo(seal.getIssuedAt());
+        assertThat(response.issuedAt()).isEqualTo(CampusTime.toCampus(seal.getIssuedAt()));
         assertThat(response.stateName()).isEqualTo(seal.getStateName());
         assertThat(response.revision()).isEqualTo(seal.getRequestVersion());
     }
@@ -223,7 +266,35 @@ class DocumentSealServiceImplTest {
         when(sealRepo.findByVerificationCode("NOEXISTE")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.lookup("NOEXISTE"))
-                .isInstanceOf(ResourceNotFoundException.class);
+                .isInstanceOf(ResourceNotFoundException.class)
+                .as("#34 B3: mensaje fijo, no el código recibido")
+                .hasMessage("No existe un sello con ese código");
+    }
+
+    @Test
+    @DisplayName("lookup: un código en minúsculas encuentra el mismo sello que en mayúsculas (#34 M2)")
+    void lookupNormalizesTheCodeToUppercase() {
+        RequestDocumentSeal seal = seal("v1", 4L, request(4L), "cualquier-huella");
+        when(sealRepo.findByVerificationCode("ABC123")).thenReturn(Optional.of(seal));
+
+        PublicSealResponse response = service.lookup("abc123");
+
+        assertThat(response.status()).isEqualTo(PublicSealResponse.Status.ISSUED);
+    }
+
+    @Test
+    @DisplayName("lookup: la fecha llega en la zona de la sede, no en UTC crudo (#34 M1)")
+    void lookupConvertsIssuedAtToCampusZone() {
+        // Frontera nocturna: 2026-09-19T02:00 UTC es 2026-09-18T21:00-05:00 en Cali — un DÍA
+        // DISTINTO. Si esta conversión faltara, el JSON diría 19 y el pie impreso diría 18.
+        RequestDocumentSeal seal = seal("ABC123", "v1", 4L, request(4L), "cualquier-huella",
+                LocalDateTime.of(2026, 9, 19, 2, 0));
+        when(sealRepo.findByVerificationCode("ABC123")).thenReturn(Optional.of(seal));
+
+        PublicSealResponse response = service.lookup("ABC123");
+
+        assertThat(response.issuedAt())
+                .isEqualTo(java.time.OffsetDateTime.parse("2026-09-18T21:00:00-05:00"));
     }
 
     // ---------------------------------------------------------------------------------------
