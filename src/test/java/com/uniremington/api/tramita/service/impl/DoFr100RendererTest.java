@@ -473,19 +473,31 @@ class DoFr100RendererTest {
     }
 
     @Test
-    @DisplayName("FR-003: el pie imprime el código, la fecha de emisión, el estado y la revisión")
+    @DisplayName("FR-003: el pie imprime el código, la fecha, el estado y la revisión — la línea exacta")
     void footerPrintsTheHumanReadableSeal() throws Exception {
+        // #34 A2: los cuatro valores DISTINGUIBLES entre sí y del resto del documento.
+        // Revisión 41 no coincide con ningún otro número que el documento imprima (el «7» del
+        // test anterior matcheaba el 17 de createdAt en otra parte del documento). El estado
+        // es un texto exclusivo del pie: "Radicada" es también el default de otros casos de
+        // este archivo y el FIXED_MARK del canario, así que no distingue nada por sí solo.
+        // issuedAt es DISTINTO de createdAt a propósito: si el pie tomara la fecha equivocada,
+        // este test lo vería. 2026-09-19T02:00 UTC cae 2026-09-18T21:00 en Cali (UTC−5): el
+        // pie debe decir 18/09/2026, no 19/09/2026 (#34 M1).
         DocumentSealMark mark = new DocumentSealMark(
-                "ABC123XYZ", LocalDateTime.of(2026, 9, 18, 15, 30), "Radicada", 7L);
+                "ABC123XYZ", LocalDateTime.of(2026, 9, 19, 2, 0), "Estado Exclusivo Del Pie", 41L);
 
         String text = textOf(renderer.render(requestBuilder().build(), mark));
 
+        // La LÍNEA completa, no contains() sueltos sobre el documento entero: un
+        // contains("7") o un contains("Radicada") sobreviven a mutantes que cambian la
+        // revisión o el estado por una constante, porque esos valores ya aparecen en otro
+        // lugar del documento por otra razón. La línea entera con sus cuatro valores exactos
+        // no sobrevive — ver DoFr100Renderer:440-447 para el formato.
         assertThat(text)
                 .as("Quien recibe el papel impreso no tiene cuenta en el sistema: la marca "
                         + "legible es lo único que le permite contrastar el documento")
-                .contains("ABC123XYZ")
-                .contains("Radicada")
-                .contains("7");
+                .contains("Verificación: ABC123XYZ · Emitido: 18/09/2026 · "
+                        + "Estado: Estado Exclusivo Del Pie · Revisión: 41");
     }
 
     @Test

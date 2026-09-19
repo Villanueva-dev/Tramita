@@ -48,4 +48,37 @@ class VerificationCodeGeneratorTest {
                         + "el sello equivocado, y el índice único abortaría la segunda emisión")
                 .hasSize(10_000);
     }
+
+    @Test
+    @DisplayName("al menos un código de 10 000 usa los 13 caracteres — mata la reducción de bits SIEMPRE, no probabilísticamente (#34 A1)")
+    void atLeastOneCodeUsesTheFullThirteenCharacters() {
+        // 64 bits en base 36 llegan a 13 caracteres cuando el valor sorteado supera 36^12
+        // (~4,74 × 10¹⁸, ~25,7 % del espacio de 64 bits sin signo): con SecureRandom real,
+        // 10 000 muestras bastan para que aparezca al menos uno con certeza estadística
+        // total. Con 32 bits el máximo son 7 caracteres —36^7 ≈ 7,8 × 10¹⁰ > 2³²-1—: NINGÚN
+        // valor de 32 bits llega jamás a 13, así que este test mata esa reducción de forma
+        // determinística, no como una corrida con mala suerte.
+        boolean anyThirteenChars = IntStream.range(0, 10_000)
+                .mapToObj(i -> generator.generate())
+                .anyMatch(code -> code.length() == 13);
+
+        assertThat(anyThirteenChars)
+                .as("si esto falla, o el generador dejó de usar el espacio completo de 64 "
+                        + "bits, o algo redujo su entropía — ninguna de las dos es un defecto "
+                        + "intermitente que tolere reintentar la corrida")
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("dos generadores construidos por separado no comparten el primer código — mata una semilla fija (#34 A1)")
+    void twoIndependentlyConstructedGeneratorsDoNotShareTheFirstCode() {
+        String first = new VerificationCodeGenerator().generate();
+        String second = new VerificationCodeGenerator().generate();
+
+        assertThat(first)
+                .as("una fuente con semilla fija produciría la misma secuencia en cada "
+                        + "instancia nueva; SecureRandom() se autoinicializa con entropía real "
+                        + "del sistema operativo y no lo hace")
+                .isNotEqualTo(second);
+    }
 }

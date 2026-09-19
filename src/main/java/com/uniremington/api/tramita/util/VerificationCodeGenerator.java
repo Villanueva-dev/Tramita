@@ -2,6 +2,7 @@ package com.uniremington.api.tramita.util;
 
 import java.security.SecureRandom;
 import java.util.Locale;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -28,11 +29,35 @@ import org.springframework.stereotype.Component;
  * Devuelve MAYÚSCULAS, y eso es parte del dato y no de la presentación: el código se busca por
  * igualdad exacta contra la columna, así que imprimir en un caso y guardar en otro rompería la
  * consulta pública justo para quien copia del papel.
+ *
+ * ⚠️ «CRIPTOGRÁFICAMENTE SEGURO» NO SE PUEDE ASEVERAR POR COMPORTAMIENTO (#34 A1). Ningún test
+ * puede distinguir, mirando solo los códigos que produce, una fuente {@link SecureRandom} de
+ * una {@link java.util.Random} con semilla fija: las dos pasan igual de bien «no se repite
+ * entre 10 000» y «mide ≤13 caracteres». Medido: sustituir el campo por
+ * {@code new Random(42L)} sobrevivía la suite completa. La única barrera posible es de TIPO,
+ * no de comportamiento: la fuente es una dependencia de constructor tipada como
+ * {@code SecureRandom}, así que degradarla exige tocar esta firma —visible en cualquier
+ * revisión de código— y no un campo privado que se puede debilitar en silencio.
  */
 @Component
 public class VerificationCodeGenerator {
 
-    private final SecureRandom random = new SecureRandom();
+    private final SecureRandom random;
+
+    /** La forma que usa Spring en producción: una fuente criptográficamente segura nueva. */
+    @Autowired
+    public VerificationCodeGenerator() {
+        this(new SecureRandom());
+    }
+
+    /**
+     * La forma que usan los tests que necesitan una fuente controlada. Que exista este
+     * constructor —y no un método {@code setRandom} o reflexión— es lo que hace visible en la
+     * firma pública cualquier intento de debilitar la fuente por defecto.
+     */
+    public VerificationCodeGenerator(SecureRandom random) {
+        this.random = random;
+    }
 
     /** Un código nuevo, no adivinable, de 13 caracteres a lo sumo. */
     public String generate() {
