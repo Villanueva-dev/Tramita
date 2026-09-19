@@ -1,6 +1,7 @@
 # PRD — Trámita
 
-> **Estado**: versión `1.0.0`, línea base previa a la **entrevista N.º 3** con la Coordinación Académica de la Sede Cali. **Pendiente de validación** con tutor (no asignado todavía, ver memoria `project-tutor-status`) y con la coordinadora.
+> **Estado**: versión `1.0.0`, línea base previa a la **entrevista N.º 3** con la Coordinación Académica de la Sede Cali. **Pendiente de validación** con la tutora y con la coordinadora.
+> **Actualización del 2026-09-19**: la reunión del **2026-09-15** con la Coordinación cambió **quién diligencia el formato** de adición de créditos, y las secciones afectadas quedaron repuntadas. Lo que **no** cambió es el rechazo al portal de auto-consulta: el estudiante sigue sin poder ver el estado de su trámite.
 > **Fecha**: 2026-06-01.
 > **Política de no-duplicación**: este documento referencia `../01-planteamiento/arbol-de-problemas.md` y la constitución ratificada (`../../../.specify/memory/constitution.md`) en vez de reescribir lo que ya está ahí. Sus citas a principios usaban la numeración de `../02-constitucion/draft-principios.md`, anterior a la ratificación del 2026-07-02; quedaron repuntadas a la constitución vigente el 2026-09-13. Si una sección remite, esa es la fuente de verdad — el PRD no la suplanta. La trazabilidad explícita está al final del documento.
 
@@ -10,7 +11,7 @@
 
 **Trámita** es un motor de workflow configurable que orquesta los trámites académicos de la Coordinación de la Sede Cali de la Universidad Remington, reemplazando el ciclo manual de formato Word + correos + memoria humana por un flujo estructurado, validado y auditable.
 
-**Para quién**: la **Coordinadora Académica de la Sede Cali** (usuaria primaria, no técnica). El **estudiante** recibe un aviso al completarse su trámite; no accede al sistema.
+**Para quién**: la **Coordinadora Académica de la Sede Cali** (usuaria primaria, no técnica). El **estudiante** diligencia y firma el formato desde un **enlace público, sin cuenta** (decisión del 2026-09-15), y recibe un aviso al completarse su trámite; **no tiene sesión ni vista del estado**.
 
 **Qué resuelve**: hoy los trámites de **adición de créditos** y **novedad de notas** toman entre **una semana y dos meses**. La mezcla de formatos manuales sin validación, firmas escaneadas, bandejas dispersas y ausencia de timeline produce trámites perdidos, re-trabajo y opacidad para el estudiante. Trámita le da al ciclo un **cauce explícito**: captura validada en origen, trazabilidad inmutable y PDF formal generado al cierre, listo para asentar en QF.
 
@@ -20,7 +21,7 @@
 - **Re-trabajo** — devoluciones por solicitud.
 - **Opacidad** — capacidad de reconstruir el histórico de una solicitud en menos de un minuto.
 
-**Entregable del MVP**: demo presentable de los **dos trámites end-to-end con el mismo motor parametrizado**, validada por la coordinadora al cierre de cada sprint y defendida ante el tutor cuando sea asignado. Plazo: ~2 meses desde 2026-06-09 (ver constitución § Governance).
+**Entregable del MVP**: demo presentable de los **dos trámites end-to-end con el mismo motor parametrizado**, validada por la coordinadora al cierre de cada sprint y defendida ante la tutora. Plazo: ~2 meses desde 2026-06-09 (ver constitución § Governance).
 
 ---
 
@@ -58,7 +59,7 @@
 
 ### 2.2 Estudiante *(notificado)*
 
-**Contexto**: presenta solicitudes por el canal institucional actual (correo, mensaje a la coordinación). La coordinación captura la solicitud en Trámita en nombre del estudiante — **inferido de** E3-p2 (Q21–Q22): la coordinación rechazó un portal o login propio para el estudiante y el sistema es interno y administrativo, de modo que, sin acceso del estudiante, la captura recae necesariamente en la coordinación (la coordi no afirmó textualmente "yo capturo"; se deduce por eliminación).
+**Contexto**: **superado el 2026-09-15**. Este párrafo deducía por eliminación que la captura recaía en la coordinación: como la coordinación había rechazado un portal o login para el estudiante (E3-p2, Q21–Q22), y el sistema es interno, se concluyó que nadie más podía capturar. La reunión del 2026-09-15 mostró que la inferencia era demasiado ancha — **el estudiante diligencia y firma el formato desde un enlace público sin cuenta**, y lo que la coordinación había rechazado era otra cosa: que el estudiante pudiera **consultar el estado** de su trámite. Diligenciar el formato ya lo hacía; lo que cambia es el medio por el que lo entrega, no quién lo llena ni qué puede ver después.
 
 **Goals**:
 
@@ -68,7 +69,7 @@
 
 - Silencio. El trámite vive en la bandeja de correo de otra persona; el estudiante no sabe cuándo ni si se resuelve.
 
-**Permisos en el MVP**: **ninguno** — el estudiante no tiene login ni vista en el sistema. Sus consultas de estado se atienden de forma mediada (pregunta a la coordinación, la coordinación consulta el cockpit y responde). Al completarse el trámite, recibe un aviso institucional (correo automático + acción opcional de chat con plantilla desde el cockpit).
+**Permisos en el MVP**: **ninguna sesión** — el estudiante no tiene login ni vista del estado. Lo único que puede hacer sin cuenta es **entregar el formato diligenciado y firmado** por el enlace público, que no devuelve identificador ni abre consulta alguna. Sus consultas de estado se atienden de forma mediada (pregunta a la coordinación, la coordinación consulta el cockpit y responde). Al completarse el trámite, recibe un aviso institucional (correo automático + acción opcional de chat con plantilla desde el cockpit).
 
 **Frecuencia de uso esperada**: recibe el aviso de finalización una vez por trámite. No es usuario del sistema.
 
@@ -102,7 +103,7 @@ Cada journey describe el camino del trámite **desde la perspectiva del usuario*
 - El PDF formal es **obligatorio** para cerrar el trámite — sin PDF generado, el estado no puede llegar a Finalizado. Es un invariante de SP3 (issue #10), no un principio constitucional: la constitución no lo ratifica porque hoy el motor no lo impone.
 - Class y QF NO se integran con Trámita. La coord es el puente humano que asienta el PDF en QF (constitución, «Restricciones tecnológicas»).
 
-**Pendientes de validar**: validación de cupo de asignatura (pregunta #11), normativa aplicable al formato del PDF (pregunta #7), firma digital vs sello electrónico (pregunta #1). **Resuelto en E3-p2**: Q21 — la coordinación captura la solicitud; el estudiante no accede al sistema (Q22–Q23).
+**Pendientes de validar**: validación de cupo de asignatura (pregunta #11), normativa aplicable al formato del PDF (pregunta #7), firma digital vs sello electrónico (pregunta #1). **Resuelto**: Q21 — el estudiante diligencia y firma el formato por el enlace público (reunión del 2026-09-15, que superó la lectura de E3-p2); sigue sin acceder al estado de su trámite (Q22–Q23).
 
 ---
 
@@ -211,7 +212,7 @@ Mapeo de los sub-problemas SP1–SP7 del árbol §7 a épicas con su Definition 
 
 > **Nota de riesgo — adaptador email**: el chasis no incluye infraestructura de correo (sin `spring-boot-starter-mail`, sin `JavaMailSender`). El adaptador email es el canónico del puerto de notificación, pero depende de SMTP (dependencia externa; derivar a profe Diego, Q34). El camino crítico del MVP usa el **chat-template como fallback** si SMTP no está disponible a tiempo. Diseñar el puerto como interfaz swappable desde el inicio.
 
-**Demo final (a coord y, cuando esté, al tutor)**: correr **los dos trámites en el mismo sistema**, evidenciando que el código es el mismo y solo cambia configuración. Esto **cierra la pregunta de investigación** del árbol §6.
+**Demo final (a la coordinación y a la tutora)**: correr **los dos trámites en el mismo sistema**, evidenciando que el código es el mismo y solo cambia configuración. Esto **cierra la pregunta de investigación** del árbol §6.
 
 **Definition of Done del MVP**:
 
@@ -246,7 +247,7 @@ Las métricas viven en el árbol §9. Acá registramos **cómo se demuestran en 
 
 ## 8. Decisiones cerradas en planificación
 
-Registro auditable de decisiones tomadas **antes de implementar**. Cada bloque apunta a la fuente de verdad en memoria semántica para que el tutor o el jurado puedan auditarlas.
+Registro auditable de decisiones tomadas **antes de implementar**. Cada bloque apunta a la fuente de verdad en memoria semántica para que la tutora o el jurado puedan auditarlas.
 
 ### 8.1 Decisiones de scope (sesión 2026-05-19)
 
@@ -293,7 +294,7 @@ Trámita parte de hipótesis y decisiones internas del equipo. **17 bloqueantes 
 | #4 | Pénsum y códigos reales de asignaturas | Sin datos reales no se diseña la validación de S1. **URGENTE** — pedir antes del inicio de S1. |
 | #9 | SSO institucional | Define si la auth provisional con cookie-session se sostiene o se migra antes de la primera demo institucional. |
 | #7 | Normativa institucional aplicable | Sin marcos normativos confirmados, las reglas del motor se diseñan sobre supuestos del equipo. |
-| #21 | ~~Captura por el estudiante en el MVP~~ | **RESUELTA en E3-p2 (Q21–Q23)**: la coordinación captura la solicitud en nombre del estudiante. El estudiante no accede al sistema; la coordinación rechazó el portal/login de auto-consulta. Solo aviso de finalización al estudiante (correo automático al completarse). |
+| #21 | ~~Captura por el estudiante en el MVP~~ | **RESUELTA, y su primera respuesta fue revisada.** E3-p2 (Q21–Q23) se leyó como «la coordinación captura en nombre del estudiante»; la reunión del **2026-09-15** mostró que esa lectura confundía dos cosas. Hoy: **el estudiante diligencia y firma el formato desde un enlace público sin cuenta**, y la coordinación deja de transcribirlo. Lo que sigue rechazado es el **portal de auto-consulta**: el estudiante no ve el estado de su trámite y solo recibe el aviso de finalización. |
 
 **Regla operativa**: ningún diseño técnico que dependa de uno de los 17 bloqueantes se ejecuta antes de la entrevista 3. Lo que sí se puede avanzar en paralelo: motor de workflow genérico, schema de auditoría, formularios con campos genéricos (no específicos de asignaturas reales).
 
@@ -320,7 +321,7 @@ El catálogo principal vive en el árbol §10. Riesgo nuevo identificado durante
 
 - **PRD versión**: `1.0.0` — línea base previa a entrevista 3.
 - **Última modificación**: 2026-06-01.
-- **Validado con tutor**: pendiente (tutor no asignado, ver memoria `project-tutor-status`).
+- **Validado con la tutora**: pendiente.
 - **Validado con coordinadora**: pendiente (entrevista 3).
 
 **Fuentes de verdad referenciadas** (este PRD NO las suplanta):
@@ -333,5 +334,4 @@ El catálogo principal vive en el árbol §10. Riesgo nuevo identificado durante
 
 - `project-mvp-scope-decisions` — 9 decisiones de scope cerradas en sesión 2026-05-19.
 - `proyecto-grado/constitution-tech-decisions` (engram) — 9 decisiones técnicas cerradas en sesión 2026-06-01.
-- `project-tutor-status` — estado de asignación del tutor.
 - `project-pendientes-investigacion` — pendientes externos priorizados.
