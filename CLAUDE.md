@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> Trabajo de grado en curso — Ingeniería de Sistemas, Universidad Remington (modalidad Distancia, SNIES 53112, Resolución 015939 del 1 de septiembre de 2023). Equipo de dos personas, plazo ≈ 2,5 meses. **Estado**: el backend ya arrancó — el **Sprint 0 de autenticación (`001-auth-login`) y el motor de workflow (`002-workflow-engine`) están cerrados y mergeados a `main`** (panorama técnico y arranque en `README.md`). El estado vigente NO se lleva en un documento: vive en los **milestones e issues de GitHub**, donde cada sub-problema SP1–SP7 es un issue y cada sprint un milestone cuyo avance calcula GitHub. El chasis Spring Boot 4 / Java 21 se hereda de `../convenia/`.
+> Trabajo de grado en curso — Ingeniería de Sistemas, Universidad Remington (modalidad Distancia, SNIES 53112, Resolución 015939 del 1 de septiembre de 2023). Equipo de dos personas, plazo ≈ 2,5 meses. **Estado**: **seis features cerradas y mergeadas a `main`** (`001-auth-login` … `006-verifiable-document-seal`): autenticación, motor de workflow, formularios y reglas configurables, captura pública del formato, PDF formal y sello verificable (panorama técnico y arranque en `README.md`). El estado vigente NO se lleva en un documento: vive en los **milestones e issues de GitHub**, donde cada sub-problema SP1–SP7 es un issue y cada sprint un milestone cuyo avance calcula GitHub. El chasis Spring Boot 4 / Java 21 se hereda de `../convenia/`.
 
 ## Qué se está construyendo
 
@@ -92,13 +92,13 @@ issue por SP1–SP7), no en un archivo. Se cierra con `Closes #N` en el cuerpo d
 Al citar literatura o normativa institucional, **incluir la referencia exacta** en cada afirmación — alineado con la regla general #4 del CLAUDE.md global.
 
 <!-- SPECKIT START -->
-Feature **activa**: `006-verifiable-document-seal` — SP4 (issue `Tramita#11`, el último abierto del
-Sprint 2): sello verificable sobre los documentos que el sistema emite, y registro de emisiones.
-Completa el **objetivo específico 4** del documento de grado. Fase actual: **`/speckit-implement` en
-curso** — **US1, US2 y US3 IMPLEMENTADAS** (sellado al emitir; verificación por los dos canales;
-historial de emisiones); queda Phase 6 de `tasks.md` (T037–T043, transversales de cierre). Plan e
-insumos: `specs/006-verifiable-document-seal/plan.md` (+ `research.md` con D1–D11, `data-model.md`,
-`contracts/openapi.yaml`, `quickstart.md`, `checklists/requirements.md`).
+Última feature cerrada: `006-verifiable-document-seal` — SP4 (issue `Tramita#11`, **CERRADO**):
+sello verificable sobre los documentos que el sistema emite, y registro de emisiones. Completa el
+**objetivo específico 4** del documento de grado. **46/46 tareas, mergeada a `main` en la PR #41
+(`789faea`)**. ⛔ Nada de la 006 se re-agenda. **No hay feature activa**: lo siguiente es `#12`
+(SP5, bandeja de trabajo de la coordinación), que arranca por `/speckit-specify` como `specs/007-*`.
+Insumos de la 006: `specs/006-verifiable-document-seal/plan.md` (+ `research.md` con D1–D11,
+`data-model.md`, `contracts/openapi.yaml`, `quickstart.md`, `checklists/requirements.md`).
 🔑 **Medición que definió el render**: el PDF no era reproducible, y la causa **NO son los
 metadatos de fecha** — `CreationDate`, `ModDate` y `Producer` están AUSENTES (PDFBox 3 no los
 escribe). La única causa era el `/ID` aleatorio del trailer: de 52 348 bytes, los primeros 52 021
@@ -124,7 +124,7 @@ respuestas posibles ahí, eso es exclusivo del canal autenticado de arriba. Sin 
 **sin excluir nada de CSRF** (un GET no lo necesita) y **sin límite de tasa** (la protección es el
 tamaño del espacio, y a diferencia de la captura pública este canal solo lee). La verificación
 exacta recibe la **huella, no el archivo** — sin multipart, sin tope, y hace literal el «no
-almacenamos archivos». **Migración `V4.1.0`** (la última es `V4.0.0`, no `V3.3.0`).
+almacenamos archivos». **Migración `V4.1.0`**, hoy la última del repo.
 FR-012 **fail-closed**: sellar y entregar son atómicos; ⛔ **sin política de reintento** (reintentar
 es volver a pedir el documento), sin transacción aparte, sin contador propio — los tres se
 rechazaron como sobreingeniería. FR-013 **disuelve la deuda M2**: se valida un decimal en la entrada
@@ -134,9 +134,9 @@ cambiar el tipo de columna. ⚠️ El `MAX_GRADE = 100` que cita el issue #11 es
 siembra `5.0`.
 ⚠️ La traza de aprobaciones **YA EXISTE** desde SP6 (`request_transition_log` + `GET /requests/{id}/timeline`):
 no reimplementarla. Sin dependencias nuevas.
-Suite medida sobre `717f8e0` (cierre de la 006): **145 unitarios + 94 IT, sin fallos**. Como siempre en
+Suite medida sobre `789faea`: **145 unitarios + 94 IT, sin fallos**. Como siempre en
 este repo, se re-mide, no se cita de memoria.
-Última feature entregada: `005-formal-document` (SP3 — el PDF del DO-FR-100, PR #31). Antes:
+Antes de la 006: `005-formal-document` (SP3 — el PDF del DO-FR-100, PR #31),
 `004-public-request-capture` (captura pública del formato, sin sesión) y `003-request-form-rules`
 (SP2 — formularios validados + reglas configurables por trámite).
 Stack: Java 21 · Spring Boot 4.0.7 (Security 7, Data JPA, Validation, WebMVC) · PostgreSQL + Flyway
