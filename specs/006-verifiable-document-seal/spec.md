@@ -55,7 +55,7 @@ Alguien tiene en la mano un documento que dice venir de Trámita y necesita sabe
 2. **Given** un documento cuyo contenido fue modificado después de emitirse, **When** se verifica, **Then** el resultado es **alterado**.
 3. **Given** un documento emitido con una versión del formato que ya no es la vigente, **When** se verifica, **Then** el resultado es **no verificable**, acompañado del motivo, y **nunca** «alterado».
 4. **Given** un documento emitido sobre una revisión de los datos anterior a la actual de la solicitud, **When** se verifica, **Then** el resultado es **no verificable**, y **nunca** «alterado».
-5. **Given** un documento que el sistema nunca emitió, **When** se verifica, **Then** el resultado es **alterado** o «sin sello conocido», y en ningún caso «íntegro».
+5. **Given** un documento que el sistema nunca emitió, **When** se verifica, **Then** la respuesta es «sin sello conocido», y en ningún caso «íntegro» ni «alterado». Acusar de alteración a un papel que el sistema nunca produjo es la misma acusación insostenible que FR-007 prohíbe, y el contrato la resuelve con `404`, no con un veredicto.
 6. **Given** una persona sin cuenta en el sistema que tiene el documento impreso, **When** consulta el código que el documento lleva impreso, **Then** obtiene si el sello existe, su fecha de emisión, el estado del trámite y la revisión, **sin** ningún dato personal del solicitante.
 7. **Given** una persona que no tiene el documento, **When** intenta adivinar o derivar un código válido a partir del identificador de una solicitud o de otro código, **Then** no lo consigue.
 

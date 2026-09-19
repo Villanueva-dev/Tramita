@@ -102,7 +102,12 @@ re-mide, no se cita de memoria.
 
 **Prueba independiente**: emitir → verificar da **íntegro**; alterar un byte → **alterado**; cambiar el formato o la revisión → **no verificable**, jamás «alterado».
 
-- [ ] T023 [US2] (RED) Agregar a `DocumentSealServiceImplTest` los tres veredictos, **incluido el caso que distingue esta feature de una ingenua**: un documento legítimo emitido sobre una revisión anterior da `NOT_VERIFIABLE` con motivo, **no** `TAMPERED`
+- [ ] T023 [US2] (RED) Agregar a `DocumentSealServiceImplTest` los tres veredictos y **los dos motivos** de `NOT_VERIFIABLE` — son los casos que distinguen esta feature de una ingenua:
+  - `INTACT` — el documento tal como se emitió
+  - `TAMPERED` — la huella no coincide y el sistema **sí** podía comparar
+  - `NOT_VERIFIABLE` / `DATA_CHANGED` — emitido sobre una revisión anterior de la solicitud, **no** `TAMPERED`
+  - `NOT_VERIFIABLE` / `FORMAT_CHANGED` — emitido con una versión del formato que ya no es la vigente, **no** `TAMPERED`
+  - 🔑 El segundo motivo no es simetría de catálogo: es **SC-003** y el edge case de `spec.md:81`, el único que el spec describe como «a la vez y en silencio». `research.md` D6 (`:180-183`) enumera los dos motivos y el contrato los declara (`openapi.yaml:257`)
 - [ ] T024 [US2] (GREEN) Implementar la verificación en `DocumentSealServiceImpl` respetando **el orden de comprobaciones de research.md D6**: ¿existe el sello? → ¿el formato sigue vigente? → ¿la revisión coincide? → recién entonces comparar huellas
   - 🔑 **El orden ES el requisito.** Comparar huellas primero y deducir el motivo después produciría «alterado» en los dos casos donde el sistema no puede pronunciarse, que es la acusación falsa que FR-007 prohíbe
 - [ ] T025 [P] [US2] Crear los DTO `src/main/java/com/uniremington/api/tramita/dto/PublicSealResponse.java` y `src/main/java/com/uniremington/api/tramita/dto/VerdictResponse.java` según `contracts/openapi.yaml`. ⚠️ El público **no lleva ningún dato personal** (FR-014c, §III)
@@ -111,7 +116,7 @@ re-mide, no se cita de memoria.
 - [ ] T028 [US2] (GREEN) Crear `src/main/java/com/uniremington/api/tramita/controller/SealController.java` con `POST /api/seals/verify`, que recibe **la huella y no el archivo** (research.md D10)
 - [ ] T029 [US2] Agregar la ruta pública a `src/main/java/com/uniremington/api/tramita/shared/config/SecurityConfig.java` con `permitAll`. ⚠️ **No tocar la configuración de CSRF**: es un `GET` y Spring no protege métodos seguros, a diferencia de la captura pública, que sí necesitó exclusión por ser `POST`
 - [ ] T030 [P] [US2] (RED→GREEN) Crear `src/test/java/com/uniremington/api/tramita/controller/PublicSealControllerIT.java`: los tres veredictos sin sesión, el `404` de un código inexistente, y que la respuesta **no contiene nombre ni cédula**
-- [ ] T031 [P] [US2] (RED→GREEN) Crear `src/test/java/com/uniremington/api/tramita/controller/SealControllerIT.java`: `INTACT`, `TAMPERED` con un byte alterado, `401` sin sesión y **`400`** con cuerpo inválido
+- [ ] T031 [P] [US2] (RED→GREEN) Crear `src/test/java/com/uniremington/api/tramita/controller/SealControllerIT.java`: `INTACT`, `TAMPERED` con un byte alterado, **`404` con un código que no existe**, `401` sin sesión y **`400`** con cuerpo inválido
   - ⚠️ Es `400` y no `422`: el `422` pertenece al canal público de captura por un advice acotado con `assignableTypes`, no es la norma del sistema
 - [ ] T032 [US2] Verificar la historia: los pasos 3, 4 y **5** del quickstart ejecutados a mano. El paso 5 es el que el propio documento declara imprescindible
 
@@ -136,10 +141,22 @@ re-mide, no se cita de memoria.
 
 ## Phase 6: Cierre y transversales
 
-- [ ] T037 [P] (RED) Agregar a `src/test/java/com/uniremington/api/tramita/service/impl/RequestBusinessRulesImplTest.java` o al test del DTO el caso de que una calificación con más de un decimal se rechaza (FR-013a, SC-008)
+- [ ] T037 [P] (RED) Crear `src/test/java/com/uniremington/api/tramita/dto/SubjectRequestBodyTest.java` con el caso de que una calificación con más de un decimal se rechaza (FR-013a, SC-008)
+  - ⚠️ Va en `dto/`, no en `service/impl/` como lo ubicaba `plan.md:144`: es un test de un DTO y la validación es de Bean Validation, no una regla de negocio configurable. Es el **primer** test de esa capa —el paquete no existe todavía—, y eso es consecuencia de §II (package-by-layer), no un argumento en contra
 - [ ] T038 [P] (GREEN) Agregar la anotación de precisión de Bean Validation a `currentGrade` y `proposedGrade` en `src/main/java/com/uniremington/api/tramita/dto/SubjectRequestBody.java`. Responde **`400`**: las calificaciones entran solo por el formulario interno
 - [ ] T039 Ejecutar el **quickstart completo de punta a punta**, incluidos el paso 6 (inmutabilidad por acceso directo) y el paso 7 (precisión rechazada)
 - [ ] T040 Re-medir el conteo de tests y anotarlo con el commit en que se midió. ⛔ Ningún conteo es canónico fuera de su commit
+- [ ] T043 Corregir las afirmaciones que la implementación refutó y que ningún artefacto recogió. ⛔ No es cosmética: son los documentos que audita el jurado, y tres de ellos sostienen decisiones sobre mediciones que hoy dan distinto (§IV)
+  - `plan.md:21-24` — «el contenido del PDF ya es determinista hoy». Acotar la medición a su alcance real: valía entre dos renders seguidos, no entre emisiones. T022a la refutó
+  - `plan.md:82-83` y `plan.md:197` — la mitigación citada no existe. Lo que detecta un cambio de maquetación es `DoFr100LayoutCanaryTest` (T022c), no el test de determinismo
+  - `research.md:40` (D1) — la misma afirmación que `plan.md:21-24`
+  - `research.md:163-166` (D5) — describe un test que «compara contra una huella conocida». Ese test nunca existió y además **T003 lo prohíbe expresamente**: una huella dorada se rompería al imprimir el código en el pie. D5 describe una barrera que el propio plan vetó construir
+  - `research.md` D5 — no menciona que `formatVersion()` incluye hoy la versión de PDFBox (T022b)
+  - `spec.md:90` — alinear con la decisión tomada: lo que hace inviable recorrer el espacio es su tamaño (64 bits), no un límite de tasa (`research.md` D3 `:121` y D9 `:298`). El canal público de captura limita la tasa porque **cada envío escribe**; éste solo lee
+  - `spec.md:88` — reemplazar «hay que decidir qué hacer» por la decisión ya tomada: T008 redondea a un decimal antes de declarar la restricción; 1 fila medida
+  - `spec.md:103` (FR-006) — acotar los tres veredictos a la verificación exacta: el canal público expone dos (`openapi.yaml:251`)
+  - `plan.md:108-110` — la ruta lleva `/api`: no hay `context-path` y los controllers lo declaran en su `@RequestMapping` (`PublicRequestController.java:25`). `research.md:289` ya la escribe completa
+  - `plan.md:82` y `:197` — «bumpea/bumpear» → «subir el número de versión»
 - [ ] T041 Actualizar el bloque SPECKIT de `CLAUDE.md` al estado real de la feature
 - [ ] T042 Revisar que ningún mensaje de commit del ciclo afirme algo sin su línea `Verificado:` con el comando y su resultado
 
