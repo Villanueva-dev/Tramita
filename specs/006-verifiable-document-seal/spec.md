@@ -85,9 +85,9 @@ La Coordinación abre una solicitud y ve, junto al recorrido del trámite que ya
 - **Se verifica un documento de una solicitud que ya no existe**: el sistema responde sin exponer si la solicitud existió, y nunca «íntegro».
 - **Un documento emitido antes de esta feature**: no tiene sello. Verificarlo debe dar «sin sello conocido», no «alterado».
 - **Se registra una calificación con más precisión de la que la norma admite** (por ejemplo `3.456`): se rechaza al entrar, no se guarda redondeada. Si se guardara, el documento mostraría un valor y la solicitud tendría otro, y la huella dejaría de describir lo que el trámite registró.
-- **Ya existen calificaciones almacenadas con dos decimales** de antes de esta feature: hay que decidir qué hacer con ellas al ajustar la precisión, sin perder datos en silencio.
+- **Ya existían calificaciones almacenadas con más de un decimal** de antes de esta feature: la migración las redondea a un decimal antes de declarar la restricción —una sola fila lo tenía, medida antes de decidir el saneamiento— y lo hace de forma explícita y documentada, no en silencio.
 - **Alguien consulta un código de verificación que no existe**: se responde que no hay sello con ese código, sin revelar si alguna vez existió ni ningún dato de otra solicitud.
-- **Alguien intenta recorrer el espacio de códigos** para descubrir documentos emitidos: el canal debe resistirlo, igual que el canal público de captura resiste el envío masivo.
+- **Alguien intenta recorrer el espacio de códigos** para descubrir documentos emitidos: el canal resiste por el tamaño del espacio de códigos —64 bits, research.md D3 y D9—, no por un límite de tasa. A diferencia del canal público de captura, que sí necesita uno porque cada envío **escribe**, este canal solo **lee**.
 - **El documento se altera pero se le deja el pie intacto**: la consulta pública dirá que el sello existe. Es una limitación conocida y declarada de la cara legible, y por eso la comparación exacta del archivo existe además de ella. El formato no lleva datos autorizables —ni créditos, ni asignaturas, ni notas—, así que el margen de daño de una alteración parcial es acotado.
 
 ## Requirements *(mandatory)*

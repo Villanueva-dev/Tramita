@@ -37,10 +37,13 @@ corridas separadas.
 
 🔑 **La hipótesis previa era falsa y la medición la corrigió.** Se había anticipado que el
 problema serían las fechas de creación que PDFBox escribe; no las escribe. Los primeros
-52 021 bytes ya son idénticos: **el contenido del documento hoy es determinista**, y lo
-único que varía es el identificador aleatorio de 32 bytes que PDFBox genera en cada
-`save()`. La segunda sonda lo confirmó por contraste: con el `/ID` fijado, dos guardados
-dan el mismo SHA-256; sin fijarlo, dan distinto.
+52 021 bytes ya eran idénticos: **el contenido del documento era determinista entre dos
+renders seguidos de la misma solicitud** —no entre emisiones cualesquiera; T022a midió que
+compartir fuentes entre documentos, con el renderer como `@Service` singleton, cambiaba los
+bytes de documentos ya emitidos—, y entre esos dos renders lo único que variaba era el
+identificador aleatorio de 32 bytes que PDFBox genera en cada `save()`. La segunda sonda lo
+confirmó por contraste: con el `/ID` fijado, dos guardados dan el mismo SHA-256; sin
+fijarlo, dan distinto.
 
 **De qué se deriva**: el `/ID` de PDF es un arreglo de dos cadenas cuya semántica está
 definida por el formato — la primera identifica al documento de forma permanente, la
@@ -158,12 +161,21 @@ una reimpresión sea idéntica:
 
 El punto 2 se detecta solo: se calcula la huella del logo al construir el renderer. El punto
 3 **no puede detectarse automáticamente sin sobreingeniería**, así que lo declara una
-constante que el desarrollador bumpea al cambiar la maquetación.
+constante que el desarrollador sube al cambiar la maquetación.
 
-🔑 **Lo que evita que alguien olvide bumpearla no es un proceso, es el test de
-determinismo**: el test de FR-004 compara contra una huella conocida; cualquier cambio de
-maquetación lo pone en rojo y obliga a mirar. El recordatorio es mecánico y ya estaba en el
-alcance.
+⚠️ **Un cuarto factor se sumó durante la implementación**: `formatVersion()` incluye hoy la
+versión de PDFBox, leída en tiempo de ejecución (T022b). El `pom` la fija para poder
+actualizarla ante vulnerabilidades, y sin esto un parche de seguridad marcaría los sellos
+previos como alterados en vez de no verificables.
+
+🔑 **Lo que evita que alguien olvide subirla NO es el test de determinismo, es
+`DoFr100LayoutCanaryTest` (T022c).** Se midió que el test de FR-004 NO cumple ese papel:
+compara dos reconstrucciones **entre sí**, así que sobrevive a cualquier cambio de
+maquetación —dos documentos nuevos coinciden entre ellos aunque el papel haya cambiado—, y
+T003 prohíbe expresamente compararlo contra una huella conocida: esa huella se rompería al
+imprimir el código en el pie. `DoFr100LayoutCanaryTest` es el que sí compara contra una
+huella conocida y se pone en rojo ante un cambio de maquetación; el recordatorio mecánico
+vive ahí, no en la sonda de determinismo.
 
 **Riesgo residual declarado**: un cambio de formato deja «no verificables» los sellos
 anteriores, y no pueden repararse. Es el riesgo que el spec acepta explícitamente.

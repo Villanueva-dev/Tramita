@@ -141,12 +141,13 @@ re-mide, no se cita de memoria.
 
 ## Phase 6: Cierre y transversales
 
-- [ ] T037 [P] (RED) Crear `src/test/java/com/uniremington/api/tramita/dto/SubjectRequestBodyTest.java` con el caso de que una calificación con más de un decimal se rechaza (FR-013a, SC-008)
+- [x] T037 [P] (RED) Crear `src/test/java/com/uniremington/api/tramita/dto/SubjectRequestBodyTest.java` con el caso de que una calificación con más de un decimal se rechaza (FR-013a, SC-008)
   - ⚠️ Va en `dto/`, no en `service/impl/` como lo ubicaba `plan.md:144`: es un test de un DTO y la validación es de Bean Validation, no una regla de negocio configurable. Es el **primer** test de esa capa —el paquete no existe todavía—, y eso es consecuencia de §II (package-by-layer), no un argumento en contra
-- [ ] T038 [P] (GREEN) Agregar la anotación de precisión de Bean Validation a `currentGrade` y `proposedGrade` en `src/main/java/com/uniremington/api/tramita/dto/SubjectRequestBody.java`. Responde **`400`**: las calificaciones entran solo por el formulario interno
+- [x] T038 [P] (GREEN) Agregar la anotación de precisión de Bean Validation a `currentGrade` y `proposedGrade` en `src/main/java/com/uniremington/api/tramita/dto/SubjectRequestBody.java`. Responde **`400`**: las calificaciones entran solo por el formulario interno
+  - ⚠️ **No terminó siendo `@Digits(fraction = 1)`.** Esa anotación mide la ESCALA literal del `BigDecimal` que Jackson deserializó, y un JSON con `2.80` llega con escala 2: `@Digits` lo rechazaba y rompía dos IT ya existentes de `RequestControllerIT` que usan `2.80`/`3.50` como notas válidas (medido). Se implementó `@AtMostOneDecimal` propio (`shared/validation/`), que compara contra `BigDecimal#stripTrailingZeros()`
 - [ ] T039 Ejecutar el **quickstart completo de punta a punta**, incluidos el paso 6 (inmutabilidad por acceso directo) y el paso 7 (precisión rechazada)
 - [ ] T040 Re-medir el conteo de tests y anotarlo con el commit en que se midió. ⛔ Ningún conteo es canónico fuera de su commit
-- [ ] T043 Corregir las afirmaciones que la implementación refutó y que ningún artefacto recogió. ⛔ No es cosmética: son los documentos que audita el jurado, y tres de ellos sostienen decisiones sobre mediciones que hoy dan distinto (§IV)
+- [x] T043 Corregir las afirmaciones que la implementación refutó y que ningún artefacto recogió. ⛔ No es cosmética: son los documentos que audita el jurado, y tres de ellos sostienen decisiones sobre mediciones que hoy dan distinto (§IV)
   - `plan.md:21-24` — «el contenido del PDF ya es determinista hoy». Acotar la medición a su alcance real: valía entre dos renders seguidos, no entre emisiones. T022a la refutó
   - `plan.md:82-83` y `plan.md:197` — la mitigación citada no existe. Lo que detecta un cambio de maquetación es `DoFr100LayoutCanaryTest` (T022c), no el test de determinismo
   - `research.md:40` (D1) — la misma afirmación que `plan.md:21-24`
@@ -157,7 +158,7 @@ re-mide, no se cita de memoria.
   - `spec.md:103` (FR-006) — acotar los tres veredictos a la verificación exacta: el canal público expone uno (`ISSUED`, `openapi.yaml:255`)
   - `plan.md:108-110` — la ruta lleva `/api`: no hay `context-path` y los controllers lo declaran en su `@RequestMapping` (`PublicRequestController.java:25`). `research.md:339` ya la escribe completa
   - `plan.md:82` y `:197` — «bumpea/bumpear» → «subir el número de versión»
-- [ ] T041 Actualizar el bloque SPECKIT de `CLAUDE.md` al estado real de la feature
+- [x] T041 Actualizar el bloque SPECKIT de `CLAUDE.md` al estado real de la feature
 - [ ] T042 Revisar que ningún mensaje de commit del ciclo afirme algo sin su línea `Verificado:` con el comando y su resultado
 
 ---

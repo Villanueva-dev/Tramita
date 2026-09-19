@@ -94,33 +94,48 @@ Al citar literatura o normativa institucional, **incluir la referencia exacta** 
 <!-- SPECKIT START -->
 Feature **activa**: `006-verifiable-document-seal` — SP4 (issue `Tramita#11`, el último abierto del
 Sprint 2): sello verificable sobre los documentos que el sistema emite, y registro de emisiones.
-Completa el **objetivo específico 4** del documento de grado. Fase actual: **plan cerrado, pendiente
-`/speckit-tasks`**. Plan e insumos: `specs/006-verifiable-document-seal/plan.md` (+ `research.md`
-con D1–D11, `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`, `checklists/requirements.md`).
-🔑 **Medición que define el diseño**: el PDF NO es reproducible hoy, y la causa **NO son los
+Completa el **objetivo específico 4** del documento de grado. Fase actual: **`/speckit-implement` en
+curso** — **US1, US2 y US3 IMPLEMENTADAS** (sellado al emitir; verificación por los dos canales;
+historial de emisiones); queda Phase 6 de `tasks.md` (T037–T043, transversales de cierre). Plan e
+insumos: `specs/006-verifiable-document-seal/plan.md` (+ `research.md` con D1–D11, `data-model.md`,
+`contracts/openapi.yaml`, `quickstart.md`, `checklists/requirements.md`).
+🔑 **Medición que definió el render**: el PDF no era reproducible, y la causa **NO son los
 metadatos de fecha** — `CreationDate`, `ModDate` y `Producer` están AUSENTES (PDFBox 3 no los
-escribe). La única causa es el `/ID` aleatorio del trailer: de 52 348 bytes, los primeros 52 021
-son idénticos. **El contenido ya es determinista.** Fijar el `/ID` da bytes iguales, probado. Debe
-DERIVARSE del trámite, nunca una constante (todos los documentos compartirían identificador).
+escribe). La única causa era el `/ID` aleatorio del trailer: de 52 348 bytes, los primeros 52 021
+eran idénticos **entre dos renders seguidos de la misma solicitud, no entre emisiones
+cualesquiera** — T022a refutó esa generalización más amplia: fuentes compartidas entre documentos,
+con el renderer como `@Service` singleton, cambiaban los bytes de documentos ya emitidos. Fijar el
+`/ID` —derivado del trámite, nunca una constante (todos los documentos compartirían identificador)—
+da bytes iguales, probado.
 Diseño: sello en tabla append-only `request_document_seal` con trigger `BEFORE UPDATE OR DELETE`
 ⚠️ **que NUNCA debe cubrir INSERT** (con fail-closed, apagaría la emisión entera). El patrón **NO se
 cosecha de `router-ia`: ya está en `main`**, `trg_timeline_immutable` (`V2.0.0:80-88`), y el §VII lo
-nombra como mecanismo vigente. Verificación con **TRES** resultados —íntegro / alterado / **no
-verificable**— y el tercero cubre DOS causas: cambió el formato o cambió la revisión de los datos.
-🔑 **El orden de las comprobaciones ES el requisito**: comparar huellas primero produciría
-«alterado» donde el sistema no puede pronunciarse, que es la acusación falsa que FR-007 prohíbe.
-Canal público `GET /public/seals/{code}` autorizado **por posesión** de un código de 64 bits en
-base 36 (≤13 chars) impreso en el pie: sin datos personales, **sin excluir nada de CSRF** (un GET no
-lo necesita) y **sin límite de tasa** (la protección es el tamaño del espacio). La verificación
-exacta `POST /seals/verify` recibe la **huella, no el archivo** — sin multipart, sin tope, y hace
-literal el «no almacenamos archivos». **Migración `V4.1.0`** (la última es `V4.0.0`, no `V3.3.0`).
+nombra como mecanismo vigente.
+🔑 **La verificación exacta (`POST /seals/verify`, con sesión) compara la huella recibida CONTRA
+LA HUELLA GUARDADA al emitir, SIN REGENERAR el documento** — reemplazó al diseño original, que
+reconstruía y comparaba. Da **TRES** resultados —íntegro / alterado / no verificable— y el tercero
+cubre DOS causas: cambió el formato o cambió la revisión de los datos. Solo cuando la huella NO
+coincide el sistema busca esas explicaciones antes de decir «alterado», que es la acusación falsa
+que FR-007 prohíbe.
+Canal público `GET /public/seals/{code}`, autorizado **por posesión** de un código de 64 bits en
+base 36 (≤13 chars) impreso en el pie: **solo afirma que el sello existe (`ISSUED`)** — sin huella
+recibida no compara nada, y NO tiene veredicto de integridad: ni «alterado» ni «no verificable» son
+respuestas posibles ahí, eso es exclusivo del canal autenticado de arriba. Sin datos personales,
+**sin excluir nada de CSRF** (un GET no lo necesita) y **sin límite de tasa** (la protección es el
+tamaño del espacio, y a diferencia de la captura pública este canal solo lee). La verificación
+exacta recibe la **huella, no el archivo** — sin multipart, sin tope, y hace literal el «no
+almacenamos archivos». **Migración `V4.1.0`** (la última es `V4.0.0`, no `V3.3.0`).
 FR-012 **fail-closed**: sellar y entregar son atómicos; ⛔ **sin política de reintento** (reintentar
 es volver a pedir el documento), sin transacción aparte, sin contador propio — los tres se
 rechazaron como sobreingeniería. FR-013 **disuelve la deuda M2**: se valida un decimal en la entrada
-y en la base (Acuerdo n.º 13 de 2023, **art. 32**), sin cambiar el tipo de columna. ⚠️ El
-`MAX_GRADE = 100` que cita el issue #11 es **falso**: `V3.0.0:51` siembra `5.0`.
+—`@AtMostOneDecimal`, propio: `@Digits(fraction=1)` medía la escala literal del `BigDecimal` y
+rechazaba un JSON válido como `2.80`— y en la base (Acuerdo n.º 13 de 2023, **art. 32**), sin
+cambiar el tipo de columna. ⚠️ El `MAX_GRADE = 100` que cita el issue #11 es **falso**: `V3.0.0:51`
+siembra `5.0`.
 ⚠️ La traza de aprobaciones **YA EXISTE** desde SP6 (`request_transition_log` + `GET /requests/{id}/timeline`):
 no reimplementarla. Sin dependencias nuevas.
+Suite medida sobre el working tree tras `1fdcc3d` (US3, sin commitear al escribir esto): **139
+unitarios + 93 IT, BUILD SUCCESS**. Como siempre en este repo, se re-mide, no se cita de memoria.
 Última feature entregada: `005-formal-document` (SP3 — el PDF del DO-FR-100, PR #31). Antes:
 `004-public-request-capture` (captura pública del formato, sin sesión) y `003-request-form-rules`
 (SP2 — formularios validados + reglas configurables por trámite).

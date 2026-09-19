@@ -19,9 +19,12 @@ resultados en vez de dos para no acusar de falsificación a documentos legítimo
 otro formato u otra revisión de los datos.
 
 El hallazgo que hizo el problema mucho más chico de lo que parecía: **el contenido del PDF
-ya es determinista hoy**. De 52 348 bytes, dos renders difieren solo a partir del 52 022, y
-únicamente en el identificador aleatorio del trailer. No hace falta archivar el documento
-para poder verificarlo, lo que mantiene al sistema fuera del negocio de almacenar archivos.
+era determinista entre dos renders seguidos de la misma solicitud** —no entre emisiones
+cualesquiera: T022a midió que compartir fuentes entre documentos, con el renderer como
+`@Service` singleton, cambiaba los bytes de documentos ya emitidos—. De 52 348 bytes, esos
+dos renders consecutivos diferían solo a partir del 52 022, y únicamente en el identificador
+aleatorio del trailer. No hace falta archivar el documento para poder verificarlo, lo que
+mantiene al sistema fuera del negocio de almacenar archivos.
 
 ## Technical Context
 
@@ -79,8 +82,10 @@ Tras la fase 1 no aparecieron violaciones nuevas. Dos puntos merecen registro:
   aritmética. Queda registrado porque el propio §I advierte que el riesgo es la abstracción
   especulativa, y aquí se materializó.
 - **El §VI se respeta, pero con una carga humana**: la constante de versión del formato la
-  bumpea el desarrollador. Lo que impide olvidarla no es un proceso sino el test de
-  determinismo, que se pone en rojo ante cualquier cambio de maquetación (D5).
+  sube el desarrollador. Lo que impide olvidarla no es un proceso sino
+  `DoFr100LayoutCanaryTest` (T022c), que se pone en rojo ante cualquier cambio de
+  maquetación — el test de determinismo NO cumple ese papel, porque compara dos
+  reconstrucciones entre sí y sobrevive a cualquier cambio de trazado (D5).
 
 ## Project Structure
 
@@ -105,9 +110,9 @@ specs/006-verifiable-document-seal/
 ```text
 src/main/java/com/uniremington/api/tramita/
 ├── controller/
-│   ├── PublicSealController.java          # NUEVO — GET /public/seals/{code}
-│   ├── SealController.java                # NUEVO — POST /seals/verify
-│   └── RequestController.java             # TOCADO — GET /requests/{id}/seals
+│   ├── PublicSealController.java          # NUEVO — GET /api/public/seals/{code}
+│   ├── SealController.java                # NUEVO — POST /api/seals/verify
+│   └── RequestController.java             # TOCADO — GET /api/requests/{id}/seals
 ├── dto/
 │   ├── SubjectRequestBody.java            # TOCADO — precisión de un decimal (FR-013a)
 │   ├── PublicSealResponse.java            # NUEVO — sin datos personales
@@ -194,7 +199,7 @@ después.
 | Riesgo | Mitigación |
 |---|---|
 | Un cambio de formato deja «no verificables» todos los sellos anteriores, sin reparación posible | Aceptado explícitamente en el spec. Es el precio de no almacenar archivos |
-| Alguien cambia la maquetación y olvida bumpear la versión del formato | El test de determinismo se pone en rojo y obliga a mirar (D5). ⚠️ Solo funciona si ese test compara reconstrucciones a código fijo; ver la advertencia del tramo 1 |
+| Alguien cambia la maquetación y olvida subir la versión del formato | `DoFr100LayoutCanaryTest` se pone en rojo y obliga a mirar (T022c). ⚠️ El test de determinismo NO cumple este papel: compara dos reconstrucciones entre sí y sobrevive a cualquier cambio de trazado (D5) |
 | El trigger se escribe cubriendo también `INSERT` | Apagaría la emisión entera por fail-closed. Es el modo de fallo más caro que esta feature puede introducirse a sí misma; se vigila con un test que inserta |
 | Quitar `readOnly` reactiva el dirty checking | Hoy el renderer solo lee. Se anota en el código para quien venga después |
 | La migración falla por la fila con `proposed_grade = 3.46` | La migración la sanea antes de declarar la restricción (medido, no supuesto) |
