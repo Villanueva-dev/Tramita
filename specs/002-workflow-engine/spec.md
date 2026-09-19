@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-06
 
-**Status**: Draft
+**Status**: Implementada
 
 **Input**: Motor de workflow configurable para trámites académicos con timeline de auditoría inmutable (alcance SP1 + SP6 del árbol de problemas). El sistema orquesta los estados de dos trámites de la Sede Cali — adición de créditos y novedad de notas — que hoy transcurren por formato Word, firmas escaneadas y cadenas de correo. La Coordinación registra solicitudes y las avanza; el sistema valida qué transiciones son legales según la definición de cada trámite. La profundidad de automatización difiere por trámite y es cuestión de configuración, no de código. Cada solicitud acumula un timeline de auditoría inmutable (todas las transiciones, fechadas y por autor) con el que la Coordinación responde consultas del estudiante en menos de un minuto (visibilidad mediada).
 

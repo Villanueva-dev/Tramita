@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-03
 
-**Status**: Draft
+**Status**: Implementada
 
 **Input**: SP2 del árbol de problemas — captura estructurada del formulario de cada trámite y reglas de negocio configurables por definición, sin que el motor deje de ser genérico. Cierra el Sprint 1 (issue #9).
 
