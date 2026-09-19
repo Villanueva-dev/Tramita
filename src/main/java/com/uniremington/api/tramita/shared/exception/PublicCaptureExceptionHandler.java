@@ -2,7 +2,6 @@ package com.uniremington.api.tramita.shared.exception;
 
 import com.uniremington.api.tramita.controller.PublicRequestController;
 import java.util.List;
-import java.util.Set;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -45,35 +44,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class PublicCaptureExceptionHandler {
 
-    /**
-     * Códigos que significan «el campo no llegó diligenciado». Son los nombres simples de
-     * los constraints, medidos —no supuestos— contra el validador de este proyecto:
-     * {@code FieldError.getCode()} devuelve {@code NotBlank}, {@code Email} o {@code Size}.
-     */
-    private static final Set<String> ABSENCE_CODES = Set.of("NotBlank", "NotNull", "NotEmpty");
-
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ProblemDetail handleIncompleteForm(MethodArgumentNotValidException ex) {
         List<FieldError> fieldErrors = ex.getBindingResult().getFieldErrors();
-
-        List<String> missingFields = fieldErrors.stream()
-                .filter(PublicCaptureExceptionHandler::isAbsence)
-                .map(FieldError::getField)
-                .distinct()
-                .sorted()
-                .toList();
-
-        // LA AUSENCIA DOMINA. Un mismo campo puede violar las dos reglas a la vez: un
-        // valor de solo espacios en studentEmail dispara NotBlank Y Email (medido en la
-        // sonda del issue #27). Listarlo en los dos arreglos obligaría al cliente a
-        // decidir cuál mostrar, que es justamente la decisión que esto le quita de encima.
-        List<String> invalidFields = fieldErrors.stream()
-                .filter(error -> !isAbsence(error))
-                .map(FieldError::getField)
-                .filter(field -> !missingFields.contains(field))
-                .distinct()
-                .sorted()
-                .toList();
+        List<String> missingFields = ValidationFields.missing(fieldErrors);
+        List<String> invalidFields = ValidationFields.invalid(fieldErrors);
 
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.UNPROCESSABLE_CONTENT, detailFor(missingFields, invalidFields));
@@ -84,33 +59,22 @@ public class PublicCaptureExceptionHandler {
     }
 
     /**
-     * El {@code null} no es defensa decorativa: {@code Set.of(...).contains(null)} lanza
-     * NPE, y hacerlo DENTRO de un manejador de errores convertiría un 422 legítimo en un
-     * 500. Un código ausente se trata como «valor inválido», que es la lectura conservadora.
-     */
-    private static boolean isAbsence(FieldError error) {
-        return error.getCode() != null && ABSENCE_CODES.contains(error.getCode());
-    }
-
-    /**
      * Se nombran campos, NUNCA valores: los nombres son parte del contrato público y quien
      * diligencia necesita saber cuál casilla revisar, pero nada de lo que envió se refleja
      * de vuelta (§III de la constitución, minimización de datos personales).
      */
     private static String detailFor(List<String> missingFields, List<String> invalidFields) {
         if (invalidFields.isEmpty()) {
-            return "El formato está incompleto. Revise estos campos: " + join(missingFields);
+            return "El formato está incompleto. Revise estos campos: "
+                    + ValidationFields.join(missingFields);
         }
         if (missingFields.isEmpty()) {
             return "El formato tiene campos con un valor que no se puede procesar. "
-                    + "Revise estos campos: " + join(invalidFields);
+                    + "Revise estos campos: " + ValidationFields.join(invalidFields);
         }
         return "El formato está incompleto y además tiene campos con un valor que no se "
-                + "puede procesar. Faltan: " + join(missingFields)
-                + ". No se pueden procesar: " + join(invalidFields);
+                + "puede procesar. Faltan: " + ValidationFields.join(missingFields)
+                + ". No se pueden procesar: " + ValidationFields.join(invalidFields);
     }
 
-    private static String join(List<String> fields) {
-        return String.join(", ", fields);
-    }
 }

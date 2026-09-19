@@ -1,13 +1,18 @@
 package com.uniremington.api.tramita.shared.exception;
 
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.validation.FieldError;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
@@ -22,6 +27,61 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+
+    @Override
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException ex, HttpHeaders headers,
+            HttpStatusCode status, WebRequest request) {
+        return ResponseEntity.badRequest().body(invalidBody(ex));
+    }
+
+    /**
+     * El 400 de {@code @Valid} deja de ser una frase en inglés que no nombra nada.
+     *
+     * Heredado de {@code ResponseEntityExceptionHandler}, este caso respondía
+     * «Invalid request content.» para TRES causas distintas —campo ausente, campo en blanco y
+     * valor fuera de rango—, de modo que el cliente tenía que deducir el campo leyendo el
+     * código del servidor. Ocurrió: el formulario de novedad de notas enviaba {@code
+     * credits = 0} y el trámite era irradicable sin que el error dijera por qué.
+     *
+     * SIGUE SIENDO 400 Y NO 422. El 422 del canal público está justificado porque allí quien
+     * envía es el estudiante y el formato es sintácticamente impecable; acá el cliente es el
+     * formulario interno y un campo fuera de contrato sí es un defecto de la petición.
+     *
+     * Se sobrescribe el método heredado en lugar de declarar un {@code @ExceptionHandler}
+     * nuevo: así la resolución entre advices no cambia y {@link PublicCaptureExceptionHandler},
+     * que gana por {@code @Order}, sigue atendiendo primero a su controller.
+     */
+    ProblemDetail invalidBody(MethodArgumentNotValidException ex) {
+        List<FieldError> fieldErrors = ex.getBindingResult().getFieldErrors();
+        List<String> missing = ValidationFields.missing(fieldErrors);
+        List<String> invalid = ValidationFields.invalid(fieldErrors);
+
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST, detailFor(missing, invalid));
+        problem.setTitle(missing.isEmpty() ? "Petición inválida" : "Petición incompleta");
+        problem.setProperty("missingFields", missing);
+        problem.setProperty("invalidFields", invalid);
+        return problem;
+    }
+
+    /**
+     * Se nombran campos, NUNCA valores: el cuerpo rechazado puede traer datos personales y el
+     * problem+json viaja a la pantalla y a los registros de acceso (§III, minimización).
+     */
+    private static String detailFor(List<String> missing, List<String> invalid) {
+        if (invalid.isEmpty()) {
+            return "El cuerpo de la petición está incompleto. Campos ausentes: "
+                    + ValidationFields.join(missing);
+        }
+        if (missing.isEmpty()) {
+            return "El cuerpo de la petición tiene campos con un valor inválido. Campos: "
+                    + ValidationFields.join(invalid);
+        }
+        return "El cuerpo de la petición está incompleto y además tiene campos con un valor "
+                + "inválido. Ausentes: " + ValidationFields.join(missing)
+                + ". Inválidos: " + ValidationFields.join(invalid);
+    }
 
     /** Rechazo de negocio del body → 422; el detail distingue la causa (D10). */
     @ExceptionHandler(UnprocessableRequestException.class)

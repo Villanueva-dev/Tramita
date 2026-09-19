@@ -153,13 +153,28 @@ paths:
 components:
   responses:
     BadRequest:
-      description: >-
-        Cuerpo ausente, JSON malformado o violación de bean validation. Lo emite el
-        manejador heredado de ResponseEntityExceptionHandler, no código propio: por eso
-        el detail es genérico ("Invalid request content.") y no nombra el campo.
+      description: |
+        Cuerpo ausente, JSON malformado, tipo equivocado o violación de bean validation.
+
+        RECTIFICADO EL 2026-09-19. Esta respuesta declaraba que «el detail es genérico
+        ("Invalid request content.") y no nombra el campo», porque la emitía el manejador
+        heredado de ResponseEntityExceptionHandler. Era cierto y dejó de serlo: se midió que
+        TRES causas distintas —campo ausente, campo en blanco y valor fuera de rango—
+        colapsaban en esa misma frase en inglés, y que el cliente terminaba deduciendo el
+        campo leyendo el código del servidor. Ocurrió: el formulario de novedad de notas
+        enviaba `credits = 0` y el trámite era irradicable sin que el error dijera por qué.
+
+        Ahora la violación de bean validation responde en español y nombra los campos, con
+        los mismos dos miembros de extensión que el canal público (`missingFields`,
+        `invalidFields`). El código NO cambia: sigue siendo 400, porque el 422 del canal
+        público está justificado por quién envía allí, no por la clase de error.
+
+        Las demás causas —cuerpo ausente, JSON malformado, tipo equivocado— siguen saliendo
+        del manejador heredado con su detail genérico: no hay campo que nombrar cuando el
+        cuerpo no se pudo leer.
       content:
         application/problem+json:
-          schema: { $ref: '#/components/schemas/Problem' }
+          schema: { $ref: '#/components/schemas/ValidationProblem' }
     Unauthorized:
       description: Sin sesión autenticada de la Coordinación (FR-012)
       content:
@@ -172,6 +187,44 @@ components:
           schema: { $ref: '#/components/schemas/Problem' }
 
   schemas:
+    ValidationProblem:
+      description: |
+        `Problem` (RFC 9457) con los dos miembros de extensión que nombran los campos.
+
+        POR QUÉ EXISTEN. El cliente necesita atar el error a SU campo. Sin estos arreglos esa
+        información solo viaja dentro del `detail`, una frase en español, y extraerla obliga a
+        parsear texto: cualquier retoque de redacción rompería al cliente.
+
+        Los dos llegan SIEMPRE cuando la causa es bean validation, aunque vengan vacíos: una
+        forma estable es más barata de consumir que una que aparece y desaparece. Cuando la
+        causa es otra —JSON ilegible— la respuesta es un `Problem` sin ellos.
+
+        Se nombran campos, NUNCA valores: el cuerpo rechazado puede traer datos personales y
+        el problem+json viaja a la pantalla y a los registros de acceso (§III de la
+        constitución, minimización de datos personales).
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          required: [missingFields, invalidFields]
+          properties:
+            missingFields:
+              type: array
+              description: |
+                Campos que no llegaron diligenciados: ausentes, vacíos o de solo espacios.
+                Si hay al menos uno, el `title` es «Petición incompleta».
+              items:
+                type: string
+              example: [studentName]
+            invalidFields:
+              type: array
+              description: |
+                Campos que SÍ llegaron pero cuyo valor está fuera de contrato. Un campo que
+                incumple las dos cosas a la vez aparece SOLO en `missingFields`: la ausencia
+                domina, para no obligar al cliente a decidir cuál mostrar.
+              items:
+                type: string
+              example: ['subjects[0].credits']
+
     Problem:
       type: object
       description: >-

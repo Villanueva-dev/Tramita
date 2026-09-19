@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -1121,5 +1122,44 @@ class RequestControllerIT {
                     SELECT id FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2)""");
         jdbcTemplate.update(
                 "DELETE FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2");
+    }
+
+    @Test
+    @DisplayName("400 de validación: llega servido como problem+json, en español y nombrando el campo")
+    void validationFailureNamesTheOffendingField() throws Exception {
+        // Es el caso real que originó el cambio: el formulario de novedad de notas no pide
+        // créditos y enviaba el centinela 0, que viola @Min(1). La respuesta decía
+        // «Invalid request content.» y el trámite era irradicable sin pista de la causa.
+        //
+        // El unit test del handler fija la DECISIÓN; este fija que llega servida por MVC,
+        // que es donde se resolvería mal la precedencia entre advices si alguien la tocara.
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "NOVEDAD_NOTAS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0400",
+                          "subjects": [{"code":"IS-704","name":"Arquitectura","credits":0}]
+                        }""").session(login()))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.title").value("Petición inválida"))
+                .andExpect(jsonPath("$.detail").value(
+                        "El cuerpo de la petición tiene campos con un valor inválido. "
+                                + "Campos: subjects[0].credits"))
+                .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                .andExpect(jsonPath("$.invalidFields[0]").value("subjects[0].credits"))
+                .andExpect(jsonPath("$.missingFields.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("400 por JSON ilegible: sigue siendo genérico, porque no hay campo que nombrar")
+    void unreadableBodyStaysGeneric() throws Exception {
+        // La enmienda del contrato cubre solo la violación de bean validation. Un cuerpo que
+        // no se pudo leer lo sigue atendiendo el manejador heredado, y no tiene campos que
+        // listar: afirmar lo contrario sería inventarlos.
+        mockMvc.perform(createRequestWithForm("{\"definitionCode\":").session(login()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.missingFields").doesNotExist())
+                .andExpect(jsonPath("$.invalidFields").doesNotExist());
     }
 }
