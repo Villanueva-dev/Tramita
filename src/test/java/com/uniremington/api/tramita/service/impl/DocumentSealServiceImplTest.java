@@ -1,8 +1,10 @@
 package com.uniremington.api.tramita.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -11,7 +13,17 @@ import com.uniremington.api.tramita.model.RequestDocumentSeal;
 import com.uniremington.api.tramita.model.User;
 import com.uniremington.api.tramita.model.WorkflowState;
 import com.uniremington.api.tramita.repo.IRequestDocumentSealRepo;
+import com.uniremington.api.tramita.service.DocumentSealMark;
+import com.uniremington.api.tramita.service.IDocumentRenderer;
+import com.uniremington.api.tramita.service.SealVerdict;
+import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,7 +40,9 @@ import org.mockito.ArgumentCaptor;
 class DocumentSealServiceImplTest {
 
     private final IRequestDocumentSealRepo sealRepo = mock(IRequestDocumentSealRepo.class);
-    private final DocumentSealServiceImpl service = new DocumentSealServiceImpl(sealRepo);
+    private final IDocumentRenderer renderer = mock(IDocumentRenderer.class);
+    private final DocumentSealServiceImpl service =
+            new DocumentSealServiceImpl(sealRepo, List.of(renderer));
 
     @Test
     @DisplayName("la emisión registra huella, código, versión del formato, revisión, estado y actor")
@@ -73,6 +87,138 @@ class DocumentSealServiceImplTest {
                 .isEqualTo("En facultad");
     }
 
+    // ---------------------------------------------------------------------------------------
+    // FR-006 y FR-007: los tres veredictos, y los DOS motivos por los que el sistema no puede
+    // pronunciarse.
+    //
+    // 🔑 SE COMPARA CONTRA LA HUELLA GUARDADA, NO CONTRA UN DOCUMENTO REGENERADO. Si coincide,
+    // ese archivo ES el emitido, con certeza criptográfica y sin importar cuánto haya avanzado
+    // el trámite. Recién cuando NO coincide se buscan las explicaciones legítimas, y solo si
+    // ninguna aplica se dice ALTERADO: eso es lo que el FR-007 exige.
+    // ---------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("el documento tal como se emitió da ÍNTEGRO")
+    void anUntouchedDocumentIsIntact() {
+        byte[] document = "el documento emitido".getBytes(StandardCharsets.UTF_8);
+        RequestDocumentSeal seal = seal("v1", 4L, request(4L), sha256(document));
+        when(sealRepo.findByVerificationCode("ABC123")).thenReturn(Optional.of(seal));
+        when(renderer.formatVersion()).thenReturn("v1");
+
+        SealVerdict verdict = service.verify("ABC123", sha256(document));
+
+        assertThat(verdict.status()).isEqualTo(SealVerdict.Status.INTACT);
+        assertThat(verdict.reason())
+                .as("Con INTACT la comparación SÍ ocurrió: no hay nada que explicar")
+                .isNull();
+    }
+
+    @Test
+    @DisplayName("un documento modificado da ALTERADO, porque acá el sistema SÍ podía comparar")
+    void aModifiedDocumentIsTampered() {
+        byte[] emitido = "el documento emitido".getBytes(StandardCharsets.UTF_8);
+        RequestDocumentSeal seal = seal("v1", 4L, request(4L), sha256(emitido));
+        when(sealRepo.findByVerificationCode("ABC123")).thenReturn(Optional.of(seal));
+        when(renderer.formatVersion()).thenReturn("v1");
+
+        SealVerdict verdict = service.verify(
+                "ABC123", sha256("el documento ALTERADO".getBytes(StandardCharsets.UTF_8)));
+
+        assertThat(verdict.status()).isEqualTo(SealVerdict.Status.TAMPERED);
+    }
+
+    @Test
+    @DisplayName("emitido con un formato que ya no rige: NO VERIFICABLE por formato, nunca ALTERADO")
+    void aDocumentFromAnObsoleteFormatIsNotVerifiable() {
+        RequestDocumentSeal seal = seal("v1", 4L, request(4L), "la-huella-de-entonces");
+        when(sealRepo.findByVerificationCode("ABC123")).thenReturn(Optional.of(seal));
+        // El papel cambió: logo, maquetación o tipografías
+        when(renderer.formatVersion()).thenReturn("v2");
+
+        SealVerdict verdict = service.verify("ABC123", "cualquier-huella");
+
+        assertThat(verdict.status())
+                .as("Un cambio de formato tumba TODOS los sellos anteriores a la vez y en "
+                        + "silencio. Llamarlos alterados sería acusar al sistema entero de "
+                        + "falsificar sus propios documentos (SC-003)")
+                .isEqualTo(SealVerdict.Status.NOT_VERIFIABLE);
+        assertThat(verdict.reason()).isEqualTo(SealVerdict.Reason.FORMAT_CHANGED);
+    }
+
+    @Test
+    @DisplayName("emitido sobre una revisión anterior: NO VERIFICABLE por datos, nunca ALTERADO")
+    void aDocumentFromAnEarlierRevisionIsNotVerifiable() {
+        RequestDocumentSeal seal = seal("v1", 4L, request(5L), "la-huella-de-entonces");
+        when(sealRepo.findByVerificationCode("ABC123")).thenReturn(Optional.of(seal));
+        when(renderer.formatVersion()).thenReturn("v1");
+
+        SealVerdict verdict = service.verify("ABC123", "cualquier-huella");
+
+        assertThat(verdict.status())
+                .as("La huella no coincide Y el trámite avanzó: el papel pudo cambiar por eso, "
+                        + "así que el sistema no puede sostener una acusación (FR-007)")
+                .isEqualTo(SealVerdict.Status.NOT_VERIFIABLE);
+        assertThat(verdict.reason()).isEqualTo(SealVerdict.Reason.DATA_CHANGED);
+    }
+
+    @Test
+    @DisplayName("el trámite avanzó y el documento SIGUE dando ÍNTEGRO: el sello no caduca")
+    void anIssuedDocumentStaysIntactAfterTheRequestMovesOn() {
+        byte[] document = "el documento emitido".getBytes(StandardCharsets.UTF_8);
+        // Sellado sobre la revisión 4; la solicitud ya va por la 9 — el trámite siguió su curso.
+        RequestDocumentSeal seal = seal("v1", 4L, request(9L), sha256(document));
+        when(sealRepo.findByVerificationCode("ABC123")).thenReturn(Optional.of(seal));
+        when(renderer.formatVersion()).thenReturn("v1");
+
+        SealVerdict verdict = service.verify("ABC123", sha256(document));
+
+        assertThat(verdict.status())
+                .as("ESTE ES EL CASO QUE JUSTIFICA COMPARAR CONTRA LA HUELLA GUARDADA. Que el "
+                        + "trámite avance es lo normal, no la excepción: si eso bastara para "
+                        + "dejar de poder verificar, el sello caducaría el mismo día que se "
+                        + "emite y no serviría para nada. La huella coincide, así que ese "
+                        + "archivo ES el que salió del sistema, con certeza criptográfica")
+                .isEqualTo(SealVerdict.Status.INTACT);
+        assertThat(verdict.reason()).isNull();
+    }
+
+    @Test
+    @DisplayName("un código que el sistema nunca emitió es 404, no un cuarto veredicto")
+    void anUnknownCodeIsNotAVerdictAtAll() {
+        when(sealRepo.findByVerificationCode("NOEXISTE")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.verify("NOEXISTE", "cualquier-huella"))
+                .as("Acusar de alteración a un papel que el sistema nunca produjo es la misma "
+                        + "acusación insostenible que FR-007 prohíbe: sin sello no hay nada "
+                        + "contra qué comparar, y el contrato lo resuelve con 404 (edge case 5)")
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    private static RequestDocumentSeal seal(
+            String formatVersion, long sealedRevision, Request request, String documentSha256) {
+        return RequestDocumentSeal.builder()
+                .request(request)
+                .actor(actor())
+                .verificationCode("ABC123")
+                .documentSha256(documentSha256)
+                .formatVersion(formatVersion)
+                .requestVersion(sealedRevision)
+                .stateCode("EN_FACULTAD")
+                .stateName("En facultad")
+                .issuedAt(LocalDateTime.of(2026, 9, 18, 15, 30))
+                .build();
+    }
+
+    /** La misma huella que calcula {@code DocumentServiceImpl} al emitir (research.md D2). */
+    private static String sha256(byte[] document) {
+        try {
+            return HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(document));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 es parte de la plataforma", impossible);
+        }
+    }
+
     private static User actor() {
         User user = new User();
         user.setId(UUID.randomUUID());
@@ -81,11 +227,16 @@ class DocumentSealServiceImplTest {
     }
 
     private static Request request() {
+        return request(4L);
+    }
+
+    /** @param currentRevision la revisión VIGENTE de la solicitud, que el sello puede no compartir */
+    private static Request request(long currentRevision) {
         WorkflowState state = WorkflowState.builder()
                 .code("EN_FACULTAD").name("En facultad").build();
         return Request.builder()
                 .id(UUID.randomUUID())
-                .version(4L)
+                .version(currentRevision)
                 .currentState(state)
                 .studentName("Ana Prueba")
                 .build();

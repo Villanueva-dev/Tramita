@@ -36,23 +36,28 @@ foránea diría *en qué estado está hoy aquella transición*, y lo que el sell
 registrar es **en qué estado estaba el trámite cuando el documento se emitió**. Un sello es
 una fotografía.
 
-🔑 **Guardar solo el código no alcanza, y esto es lo que hace falta entender.** El pie
-impreso muestra el **nombre** legible del estado, no su código —`workflow_state` tiene las
-dos columnas (`V2.0.0:24-25`)—. Si el sello guardara únicamente el código, reconstruir el
-documento obligaría a resolver el nombre contra `workflow_state` **en tiempo de
-verificación**, y entonces:
+🔑 **Guardar solo el código no alcanza para mostrar el documento, aunque ya no evite un falso
+positivo.** El pie impreso muestra el **nombre** legible del estado, no su código —
+`workflow_state` tiene las dos columnas (`V2.0.0:24-25`)—.
 
-1. Se emite un documento en `EN_FACULTAD`; el pie imprime «En facultad» y la huella lo cubre.
-2. Alguien renombra ese estado a «En decanatura». Es un cambio de **pura configuración**, que
-   es justamente lo que el §VI habilita, y **no toca nada de lo que el sello vigila**: ni la
-   revisión de la solicitud —renombrar un estado no incrementa el `@Version` de `Request`— ni
-   la versión del formato, que depende del renderer y del logo.
-3. Las dos guardas del FR-007 pasan, el sistema compara huellas, el pie regenerado dice «En
-   decanatura» y el original decía «En facultad» → **`TAMPERED`**.
+**Por qué era una guarda contra un falso positivo, bajo el diseño de verificación anterior**:
+si el sello guardara únicamente el código, reconstruir el documento habría obligado a
+resolver el nombre contra `workflow_state` **en tiempo de verificación**. Un renombre de
+estado —cambio de **pura configuración**, que es justamente lo que el §VI habilita— no toca
+nada de lo que las guardas del FR-007 vigilan: ni la revisión de la solicitud —renombrar un
+estado no incrementa el `@Version` de `Request`— ni la versión del formato, que depende del
+renderer y del logo. Con esas dos guardas pasando, la verificación anterior regeneraba el
+documento, y el pie regenerado habría dicho «En decanatura» donde el original decía «En
+facultad» → un falso **`TAMPERED`** sobre un documento legítimo.
 
-Es decir: una acusación de falsificación contra un documento legítimo, disparada por un
-renombre. Exactamente el modo de fallo que esta feature existe para impedir. Congelar
-`state_name` lo cierra, y cuesta una columna.
+**Por qué ya no es esa guarda**: la verificación vigente (`research.md` D6) no regenera nada;
+compara la huella recibida contra la huella que el sello **guardó** al emitir. Un renombre
+posterior no toca esa comparación, así que ese modo de fallo desapareció.
+
+**Por qué la columna se conserva de todos modos**: sigue siendo la única fuente para
+**mostrar** en qué estado estaba el trámite al emitir, sin depender de que el nombre en
+`workflow_state` no haya cambiado desde entonces. Es información de contexto del sello, y
+cuesta una columna.
 
 **`request_version` es `BIGINT`** para coincidir con el `long` del `@Version`
 (`Request.java:129-131`).

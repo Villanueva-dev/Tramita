@@ -13,10 +13,10 @@ reimplementa— y aplicar un sello verificable sobre los documentos que el siste
 es lo que esta feature construye.
 
 **El enfoque técnico en una frase**: se hace reproducible el PDF fijando el `/ID` de su
-trailer, se registra cada emisión en una tabla de solo anexado con el código impreso en el
-documento, y se verifica **regenerando**, con tres resultados en vez de dos para no acusar
-de falsificación a documentos legítimos emitidos con otro formato u otra revisión de los
-datos.
+trailer, se registra cada emisión en una tabla de solo anexado con el código impreso y su
+huella, y se verifica **comparando esa huella guardada contra la recibida**, con tres
+resultados en vez de dos para no acusar de falsificación a documentos legítimos emitidos con
+otro formato u otra revisión de los datos.
 
 El hallazgo que hizo el problema mucho más chico de lo que parecía: **el contenido del PDF
 ya es determinista hoy**. De 52 348 bytes, dos renders difieren solo a partir del 52 022, y
@@ -40,8 +40,8 @@ rojo observado antes de implementar.
 **Project Type**: servicio web (backend del trabajo de grado).
 
 **Performance Goals**: no hay objetivo de rendimiento propio. La emisión gana un `INSERT` y
-la verificación regenera un PDF de dos páginas, en el orden de magnitud de la emisión que ya
-existe.
+la verificación exacta compara dos cadenas de 64 caracteres, sin regenerar el PDF: más barata
+que la emisión, que sigue siendo la única operación que lo genera.
 
 **Constraints**: errores en `application/problem+json` (RFC 9457) · sin almacenamiento de
 archivos · sin datos personales en el canal público · identificadores en inglés y

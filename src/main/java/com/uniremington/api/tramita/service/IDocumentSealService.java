@@ -23,4 +23,24 @@ public interface IDocumentSealService {
             String documentSha256,
             String formatVersion,
             LocalDateTime issuedAt);
+
+    /**
+     * Dice si un documento es el que el sistema emitió (FR-006, FR-007).
+     *
+     * 🔑 SE COMPARA CONTRA LA HUELLA GUARDADA, NO CONTRA UN DOCUMENTO REGENERADO. El sello ya
+     * registró la huella del archivo que salió del sistema, así que esa comparación es
+     * definitiva: si coincide, ese archivo ES el emitido, con certeza criptográfica, sin
+     * importar cuánto haya avanzado el trámite desde entonces.
+     *
+     * Cuando NO coincide, recién ahí se buscan las explicaciones legítimas antes de acusar:
+     * el formato del papel cambió, o los datos avanzaron. Solo si ninguna aplica se dice
+     * «alterado» — que es lo que el FR-007 exige: no acusar sin poder sostenerlo.
+     *
+     * @param documentSha256 la huella del archivo, no el archivo (D10). El sistema nunca lo
+     *     recibe, así que no puede almacenarlo ni por accidente (FR-010)
+     * @throws com.uniremington.api.tramita.shared.exception.ResourceNotFoundException si no hay
+     *     ningún sello con ese código. NO es un cuarto veredicto: un papel que el sistema nunca
+     *     emitió no se declara «alterado», porque no hay nada contra qué compararlo
+     */
+    SealVerdict verify(String verificationCode, String documentSha256);
 }

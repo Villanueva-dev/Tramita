@@ -58,35 +58,27 @@ paths:
       responses:
         '200':
           description: |
-            El veredicto. **Son tres resultados, no dos**, y el tercero es el requisito
-            central (FR-007): si el formato con que se emitió ya no está vigente, o si los
-            datos de la solicitud cambiaron desde la emisión, el sistema **no puede
-            pronunciarse** y lo dice. Reportar «alterado» en esos casos sería acusar de
-            falsificación a un documento legítimo.
+            Existe un sello con ese código: su fecha de emisión, el estado del trámite y la
+            revisión de los datos al emitir (FR-014b). Este canal no recibe huella (D10), así
+            que no compara nada y no puede pronunciarse sobre integridad — ni «íntegro» ni «no
+            verificable» son respuestas posibles aquí, esos dos son exclusivos de la
+            verificación exacta.
 
-            Por este canal el veredicto se emite sin comparar el archivo, así que confirma
-            que el documento **fue emitido por el sistema** y con qué datos de emisión.
-            Detectar la alteración de un campo requiere la huella exacta: `POST /seals/verify`.
+            Confirma que el documento **fue emitido por el sistema** y con qué datos de
+            emisión. Detectar la alteración de un campo, o distinguir un formato vencido de
+            una alteración real, requiere la huella exacta: `POST /seals/verify`.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PublicSealResponse'
               examples:
                 emitido:
-                  summary: El sello existe y el formato sigue vigente
+                  summary: El sello existe
                   value:
                     status: ISSUED
                     issuedAt: '2026-09-17T10:30:00'
                     stateName: En revisión de Coordinación
                     revision: 3
-                formatoVencido:
-                  summary: Emitido con un formato que ya no está vigente
-                  value:
-                    status: NOT_VERIFIABLE
-                    reason: FORMAT_CHANGED
-                    issuedAt: '2026-08-02T09:15:00'
-                    stateName: En revisión de Coordinación
-                    revision: 1
         '404':
           description: |
             No hay ningún sello con ese código. Se responde lo mismo para un código con
@@ -121,7 +113,11 @@ paths:
               $ref: '#/components/schemas/VerifyBody'
       responses:
         '200':
-          description: El veredicto, con los tres resultados posibles.
+          description: |
+            El veredicto, con los tres resultados posibles. `INTACT` es definitivo: sale de
+            que la huella recibida coincida con la que el sello guardó al emitir, sin más
+            comprobaciones. Solo cuando no coincide el sistema busca una explicación legítima
+            —formato vencido, revisión distinta (FR-007)— antes de concluir `TAMPERED`.
           content:
             application/json:
               schema:
@@ -243,19 +239,18 @@ components:
       type: object
       description: |
         Lo que ve quien verifica SIN cuenta. Contiene únicamente datos de emisión: ningún
-        nombre, ninguna cédula, ningún correo, ningún dato académico (FR-014c).
+        nombre, ninguna cédula, ningún correo, ningún dato académico (FR-014c). Este canal no
+        recibe huella (D10), así que no compara nada y no puede decir ni «íntegro» ni «no
+        verificable»: solo afirma que existe un sello y con qué datos se emitió (FR-014b). El
+        veredicto de integridad es exclusivo de `POST /seals/verify` (`VerdictResponse`).
       required: [status]
       properties:
         status:
           type: string
-          enum: [ISSUED, NOT_VERIFIABLE]
+          enum: [ISSUED]
           description: |
-            `ISSUED` — existe un sello con ese código y el formato sigue vigente.
-            `NOT_VERIFIABLE` — existe, pero el sistema no puede sostener una comparación.
-        reason:
-          type: string
-          enum: [FORMAT_CHANGED, DATA_CHANGED]
-          description: Presente solo con `NOT_VERIFIABLE`. Por qué el sistema no puede pronunciarse.
+            Único valor posible: existe un sello con ese código. Se conserva como campo — en
+            vez de responder solo los datos — para que el JSON sea autoexplicativo.
         issuedAt:
           type: string
           format: date-time
@@ -278,6 +273,15 @@ components:
         status:
           type: string
           enum: [INTACT, TAMPERED, NOT_VERIFIABLE]
+          description: |
+            `INTACT` — la huella recibida coincide con la que el sello guardó al emitir.
+            Definitivo: no depende de que el formato o la revisión actuales coincidan con
+            los de la emisión.
+            `TAMPERED` — la huella no coincide y ninguna de las dos guardas de FR-007 explica
+            por qué.
+            `NOT_VERIFIABLE` — la huella no coincide, pero el formato con que se emitió ya no
+            está vigente o la revisión registrada ya no es la actual: el sistema no acusa lo
+            que no puede sostener.
         reason:
           type: string
           enum: [FORMAT_CHANGED, DATA_CHANGED]

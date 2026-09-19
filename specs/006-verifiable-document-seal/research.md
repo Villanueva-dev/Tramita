@@ -170,25 +170,65 @@ anteriores, y no pueden repararse. Es el riesgo que el spec acepta explícitamen
 
 ---
 
-## D6 — Cómo se distingue «alterado» de «no verificable»
+## D6 — Cómo se distingue «íntegro» de «alterado» y de «no verificable»
 
-**Decisión**: la verificación regenera el documento y compara, pero **solo después de
-comprobar que puede reconstruirlo**.
+**Decisión**: comparar la huella recibida contra la **huella guardada** en el sello
+(`documentSha256`, D2) y, solo si no coinciden, preguntar por qué antes de acusar.
 
 ```
-¿existe un sello con ese código?            no  → «sin sello conocido»
-¿la versión del formato del sello es la     no  → «no verificable» (motivo: formato)
-  vigente?
-¿la revisión de la solicitud es la que el   no  → «no verificable» (motivo: datos)
-  sello registró?
-regenerar y comparar huellas                 ≠  → «alterado»
-                                             =  → «íntegro»
+¿existe un sello con ese código?              no → 404
+¿la huella recibida == la huella GUARDADA?    sí → ÍNTEGRO  (definitivo)
+no coincide → ¿el formato del sello sigue vigente?   no → NO VERIFICABLE (motivo: formato)
+              ¿la revisión coincide con la actual?   no → NO VERIFICABLE (motivo: datos)
+              ninguna explicación legítima              → ALTERADO
 ```
 
-🔑 **El orden de las comprobaciones ES el requisito.** Comparar huellas primero y deducir el
-motivo después produciría «alterado» en los dos casos en que el sistema no puede
-pronunciarse, que es la acusación falsa que el FR-007 prohíbe. La distinción no sale de
-comparar: sale de **no comparar cuando la comparación no significa nada**.
+Reemplaza al diseño anterior, que regeneraba el documento completo antes de comparar y solo
+llegaba a comparar huellas si el sello sobrevivía dos guardas previas. Las razones del
+cambio:
+
+1. **Regenerar no aportaba nada a la comparación que importa.** El sello ya guarda
+   `documentSha256`, la huella del documento *tal como se emitió* (D2). Y `POST
+   /api/seals/verify` recibe la huella, no el archivo (D10): el veredicto sale de comparar
+   dos cadenas que el sistema ya tiene, una guardada y otra recibida. Reconstruir el
+   documento para producir una tercera cadena y compararla contra la primera era trabajo que
+   no cambiaba el resultado de esa comparación.
+
+2. **El argumento que descartaba «comparar primero» atacaba un diseño distinto.** El D6
+   original rechazaba *comparar y concluir*: comparás huellas, no coinciden, decís
+   «alterado» — eso sí produce la acusación falsa que FR-007 prohíbe, porque un formato
+   vencido o una revisión vieja hacen que la comparación falle sin que el papel esté
+   falsificado. Pero el diseño nuevo no es «comparar y concluir»: es **comparar, y si falla,
+   explicar**. Solo dice ALTERADO cuando la comparación falla y ninguna de las dos guardas de
+   FR-007 explica por qué. FR-007 queda intacto: sigue siendo imposible acusar de alteración
+   a un documento que dejó de coincidir por una causa legítima.
+
+3. **El propio caso decisivo de `quickstart.md` refutaba al diseño viejo.** Su paso 5 emite
+   un documento, hace avanzar el trámite un paso, y verifica **el mismo documento legítimo**
+   recién emitido. Con el diseño viejo eso daba «no verificable / datos» —el `@Version` ya
+   había cambiado— aunque el papel fuera perfecto. Con el diseño nuevo da **ÍNTEGRO**, porque
+   la huella guardada en el sello es la del documento emitido, no la de una reconstrucción
+   contra el estado actual de la solicitud. Es un resultado más verdadero (el papel es el que
+   salió del sistema) y más fuerte (no depende de que nada haya avanzado desde entonces).
+
+4. **La debilidad que el diseño viejo no declaraba**: bajo D6 original, apenas el trámite
+   avanzaba un paso —lo normal, no la excepción— ningún documento volvía a poder verificarse
+   como íntegro nunca más, aunque nadie lo hubiera tocado. La cláusula final de SC-001
+   («mientras los datos y el formato no hayan cambiado») era la admisión de ese problema, no
+   una acotación cosmética.
+
+5. **Deja de depender del determinismo del render a lo largo del tiempo**, que es frágil:
+   T022a y T022b fueron dos defectos de reproducibilidad encontrados en una sola sesión
+   (fuentes compartidas entre documentos; una versión de PDFBox que cambiaba el resultado).
+   Una huella guardada en una tabla de solo anexado (D4) no depende de que el render siga
+   produciendo los mismos bytes meses después — depende de que la tabla no se pueda
+   modificar, que es una garantía más fuerte y ya construida.
+
+🔑 **Lo que no cambia**: los tres veredictos (ÍNTEGRO / ALTERADO / NO VERIFICABLE) y los dos
+motivos («formato», «datos») siguen siendo los mismos. Fijar el `/ID` del trailer (D1) sigue
+siendo correcto y la reproducibilidad del render sigue siendo una propiedad real — pero deja
+de ser el cimiento de la verificación: pasa a sostener la reconstrucción del documento para
+mostrarlo, no el veredicto de integridad.
 
 ---
 
@@ -211,17 +251,27 @@ decisiones abiertas. Queda fuera del MVP.
 
 **Decisión**: el sello guarda el **código y el nombre** del estado, no solo el código.
 
-El pie impreso muestra el nombre legible —«En facultad»—, no el código interno. Si el sello
-guardara únicamente el código, reconstruir el documento obligaría a resolver el nombre contra
-`workflow_state` en tiempo de verificación, y un **renombre** —cambio de pura configuración,
-que es lo que el §VI habilita— haría que el pie regenerado difiriera del impreso. Ninguna de
-las dos guardas del FR-007 lo detectaría: renombrar un estado no incrementa el `@Version` de
-la solicitud ni cambia la versión del formato. El resultado sería un **`TAMPERED` sobre un
-documento legítimo**, que es precisamente el modo de fallo que esta feature existe para
-impedir.
+El pie impreso muestra el nombre legible —«En facultad»—, no el código interno.
 
-**Costo**: una columna. **Alternativa rechazada**: resolver el nombre al verificar, que es lo
-que produce el defecto.
+**Por qué ya no es un mecanismo de defensa.** Con el D6 original —que regeneraba el
+documento y comparaba—, guardar solo el código habría obligado a resolver el nombre contra
+`workflow_state` **en tiempo de verificación**, y un **renombre** —cambio de pura
+configuración, que es lo que el §VI habilita— habría hecho que el pie regenerado difiriera
+del impreso. Ninguna de las dos guardas del FR-007 lo detectaría: renombrar un estado no
+incrementa el `@Version` de la solicitud ni cambia la versión del formato. El resultado
+habría sido un **`TAMPERED` sobre un documento legítimo**. Con el D6 vigente, el veredicto ya
+no sale de regenerar y comparar, sino de comparar la huella recibida contra la huella
+guardada: un renombre posterior no toca esa comparación, así que el riesgo que motivó la
+columna desapareció.
+
+**Por qué la columna se conserva de todos modos**: sigue siendo la única fuente para mostrar
+en qué estado estaba el trámite al emitir, sin depender de que `workflow_state` no haya
+cambiado el nombre desde entonces. Es información de contexto del sello, no una guarda contra
+un falso positivo que ya no puede ocurrir por esta vía.
+
+**Costo**: una columna. **Alternativa rechazada**: resolver el nombre al verificar — seguiría
+siendo incorrecta para quien quiera reconstruir el documento y mostrarlo tal como era, aunque
+ya no afecte al veredicto de integridad.
 
 ---
 
@@ -298,6 +348,9 @@ propio**.
 - **Sin límite de tasa**: ver D3. Con 64 bits de espacio, recorrerlo no es viable.
 - **Sin datos personales**: devuelve existencia, fecha de emisión, estado del trámite y
   revisión. Nada que identifique al solicitante (FR-014c, §III).
+- **Sin veredicto de integridad**: no recibe huella (D10), así que no compara nada y no puede
+  decir ni «íntegro» ni «no verificable»; afirma emisión (FR-014b). El veredicto es exclusivo
+  de `POST /api/seals/verify` (D6).
 
 ---
 

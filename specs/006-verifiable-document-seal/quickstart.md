@@ -75,9 +75,10 @@ papeles distinguibles, cada uno con su sello. Comparar dos descargas y esperar h
 iguales mide la propiedad equivocada.
 
 Lo que hay que comprobar es **FR-004: que reconstruir una emisión dé exactamente sus bytes**.
-Eso es lo que hace la verificación, y se ejercita en el paso 4: si la huella del archivo
-descargado coincide con la que el sistema recalcula al regenerar, el render es reproducible.
-Un `INTACT` sobre un archivo recién emitido **es** la comprobación del determinismo.
+Ya no es lo que hace la verificación: el paso 4 compara la huella recibida contra la huella
+que el sello **guardó** al emitir (`research.md` D2/D6), sin regenerar nada. Un `INTACT`
+confirma que el archivo descargado es, bit a bit, el que el sistema entregó — pero no
+ejercita el determinismo del render.
 
 Para verlo aislado, sin pasar por la API, está el test de determinismo (tramo 1), que
 reconstruye dos veces con el mismo código fijo y compara los bytes:
@@ -143,11 +144,15 @@ curl -b cookies.txt -H 'Content-Type: application/json' -H "X-XSRF-TOKEN: $XSRF"
      http://localhost:8080/api/seals/verify
 ```
 
-→ **`NOT_VERIFIABLE` con `reason: DATA_CHANGED`**, nunca `TAMPERED`.
+→ **`INTACT`**, no `NOT_VERIFIABLE` y nunca `TAMPERED`.
 
-🔑 Ese documento es legítimo: simplemente es viejo. Si el sistema respondiera «alterado»
-estaría acusando de falsificación a un papel perfecto, que es exactamente lo que el FR-007
-prohíbe. **Si hay una sola comprobación manual que hacer en esta feature, es esta.**
+🔑 Ese documento es legítimo, y la verificación lo dice sin rodeos: su huella sigue siendo la
+que el sello guardó al emitir, y esa comparación no depende de la revisión actual de la
+solicitud. Con el diseño anterior —que regeneraba el documento con los datos de hoy antes de
+comparar— este mismo caso daba `NOT_VERIFIABLE / DATA_CHANGED`: un papel perfecto quedaba sin
+poder verificarse íntegro solo porque el trámite había avanzado, lo cual es un motivo
+distinto pero igual de injusto que el `TAMPERED` que el FR-007 prohíbe. **Si hay una sola
+comprobación manual que hacer en esta feature, es esta.**
 
 ### 6. Comprobar que el sello no se puede tocar
 
