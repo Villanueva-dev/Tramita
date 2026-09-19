@@ -4,7 +4,8 @@
 > servidor + cookie `HttpOnly; Secure; SameSite=Strict`, en lugar de guardar el
 > token en almacenamiento accesible por JavaScript (localStorage / JWT en el front).
 >
-> Verificadas el **2 de julio de 2026**. Formateadas en **APA 7**.
+> Verificadas el **2 de julio de 2026**; la referencia 3 se re-verificó el **19 de septiembre de 2026**,
+> cuando el borrador que citaba pasó a ser el RFC 10017. Formateadas en **APA 7**.
 > Revisá los puntos marcados con ⚠️ antes de pegarlas (ver "Notas de precisión" abajo).
 
 ---
@@ -15,7 +16,7 @@ Spring. (2025). *Spring Security reference documentation* (Versión 7.0) [Docume
 
 OWASP Foundation. (s. f.). *Session management cheat sheet*. OWASP Cheat Sheet Series. Recuperado el 2 de julio de 2026, de https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html
 
-Internet Engineering Task Force. (2025). *OAuth 2.0 for browser-based applications* (Internet-Draft N.º draft-ietf-oauth-browser-based-apps-26). https://datatracker.ietf.org/doc/html/draft-ietf-oauth-browser-based-apps
+Parecki, A., De Ryck, P., & Waite, D. (2026). *OAuth 2.0 for browser-based applications* (RFC N.º 10017; BCP N.º 212). Internet Engineering Task Force. https://www.rfc-editor.org/rfc/rfc10017.html
 
 ---
 
@@ -41,17 +42,19 @@ Internet Engineering Task Force. (2025). *OAuth 2.0 for browser-based applicatio
   - Web Storage: "Do not store authentication tokens, session IDs, JWTs, refresh tokens, or any credential in localStorage or sessionStorage. These APIs are accessible to any JavaScript executing in the origin, so a single XSS vulnerability discloses every token".
 
 ### 3. IETF — OAuth 2.0 for Browser-Based Applications
-- **Autor/editor**: Internet Engineering Task Force (IETF). ⚠️ El borrador tiene autores individuales listados en su cabecera (p. ej. editores del grupo de trabajo OAuth) — si tu norma exige autores personales, tomalos del encabezado del draft.
+- **Autores**: A. Parecki (Okta), P. De Ryck (Pragmatic Web Security) y D. Waite (Ping Identity). Van como autores personales: el RFC publicado los lista en su encabezado, así que ya no hace falta recurrir a la IETF como autor institucional.
 - **Título**: OAuth 2.0 for Browser-Based Applications.
-- **Identificador / versión**: draft-ietf-oauth-browser-based-apps-26.
-- **Estado**: Internet-Draft, en vía a Best Current Practice. Publicado 4-dic-2025, expira 7-jun-2026.
-- **Secciones citadas**: §6.1.3.2 (el backend "MUST enable the HttpOnly flag for its cookies") y §6.1.4.2 (el patrón BFF "counters ... by not exposing any tokens to the browser-based application").
+- **Identificador**: RFC 10017, que además integra el BCP 212.
+- **Estado**: **Best Current Practice publicada**, agosto de 2026. Ya no es un borrador: el trabajo se publicó como RFC tras la revisión -27 del draft `draft-ietf-oauth-browser-based-apps`, que fue la última.
+- **Secciones citadas** (la numeración del borrador se conservó en el RFC):
+  - §6.1.3.2 «Cookie Security»: "The BFF MUST enable the `HttpOnly` flag for its cookies". La obligación recae sobre el **BFF**, no sobre un backend cualquiera.
+  - §6.1.4.2 «Mitigated Attack Scenarios»: "The BFF counters the first two attack scenarios by not exposing any tokens to the browser-based application".
 
 ---
 
 ## Notas de precisión (leer antes de citar)
 
 - ⚠️ **Edición APA**: el ejemplo de la plantilla oficial ("Borges, J.L. (2013). *Ficciones*. Buenos Aires, Argentina: Debolsillo.") incluye el lugar de publicación, lo que corresponde a **APA 6.ª edición**. Las de arriba están en **APA 7.ª** (sin lugar). Confirmá con la tutora / la norma de la universidad qué edición usar y ajustá.
-- ⚠️ **Autores del draft IETF**: usé la IETF como autor institucional porque no verifiqué los nombres personales. Si tu norma los exige, sacalos del encabezado del documento.
+- ✅ **Autores del RFC 10017 — resuelto**: son Parecki, De Ryck y Waite, verificados en el encabezado del RFC publicado. La versión anterior de este archivo usaba la IETF como autor institucional porque no se habían comprobado los nombres.
 - ⚠️ **Año de Spring Security 7**: 2025 es la fecha aproximada de la versión 7.0 (acompaña a Spring Boot 4). La doc es viva y no lleva una fecha de publicación única; por eso corresponde la fecha de recuperación si tu norma la pide.
-- El **IETF draft es un borrador**, no un RFC finalizado. Es legítimo citarlo, pero identificalo como *Internet-Draft* / *Best Current Practice en desarrollo*, no como estándar cerrado. Honestidad ante el jurado.
+- ✅ **Ya no hay que advertir que es un borrador.** Hasta la revisión del 2026-09-19 esta lista citaba `draft-ietf-oauth-browser-based-apps-26`, un Internet-Draft **que expiró el 7 de junio de 2026**, y esta nota aconsejaba identificarlo como estándar en desarrollo. El trabajo se publicó entretanto como **RFC 10017 / BCP 212** (agosto de 2026), de modo que ahora se cita una Best Current Practice cerrada. Conviene decirlo ante el jurado como lo que es: la fuente se fortaleció, no se reemplazó por otra.
