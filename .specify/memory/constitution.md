@@ -1,9 +1,53 @@
 <!--
 Sync Impact Report — Constitución de Trámita
 ============================================
-Cambio de versión: 2.2.2 → 2.3.0
-Ratificada: 2026-07-02 | Última enmienda: 2026-09-13
-Bump: MINOR (dos principios nuevos: §VI y §VII)
+Cambio de versión: 2.3.0 → 2.3.1
+Ratificada: 2026-07-02 | Última enmienda: 2026-09-19
+Bump: PATCH (rectificación de evidencia y aclaración de un mecanismo; ningún principio
+      se crea, se elimina ni se redefine)
+
+Enmienda 2026-09-19 — v2.3.1
+----------------------------
+Dos cambios, ninguno de fondo.
+
+1. ERRATA DE LA EVIDENCIA DE LA v2.3.0 — no de su decisión
+---------------------------------------------------------
+La entrada de la v2.3.0, más abajo, explica por qué NO se ratificó el invariante «sin PDF
+no hay trámite cerrado» y lo sustenta con dos pruebas. Ninguna de las dos se re-ejecuta hoy
+con el resultado que allí se consigna:
+
+- Dice «Hoy `grep -ric pdf src/main/java` → 0». Hoy ese comando devuelve **46**
+  coincidencias: PDFBox y el renderer del DO-FR-100 entraron con las features
+  `005-formal-document` y `006-verifiable-document-seal`, posteriores a aquella enmienda.
+- Dice «RequestServiceImpl:144 solo impide avanzar DESDE uno». Esa línea hoy es la
+  persistencia de asignaturas. La validación vive en **RequestServiceImpl:260**
+  (`if (current.isFinalState())`).
+
+**La decisión de la v2.3.0 se mantiene, y por la misma razón.** Medido el 2026-09-19 sobre
+`789faea`: el motor sigue impidiendo únicamente avanzar DESDE un estado final, y sigue sin
+impedir llegar a uno sin PDF —`DocumentServiceImpl.generateFor` ni siquiera consulta el
+estado de la solicitud—. Ratificar aquel invariante seguiría poniendo aquí una regla que el
+código no cumple.
+
+Lo que caduca, entonces, es la evidencia, no la conclusión. Se rectifica porque el §IV
+exige que una afirmación se verifique contra la fuente vigente, y porque la v2.2.2 ya fijó
+la lección de que **un comando citado como prueba debe poder re-ejecutarse y dar el mismo
+resultado**. Una prueba cuyo resultado cambió deja de sostener nada, aunque lo que afirmaba
+siga siendo cierto por otras razones.
+
+Siguiendo el precedente de aquella v2.2.2, la rectificación se registra acá y **el texto de
+la enmienda v2.3.0 no se reescribe**: un registro documenta lo que se midió entonces.
+
+2. ACLARACIÓN DEL «Estado» DEL §VII
+-----------------------------------
+El §VII declaraba como mecanismo vigente un solo trigger, `trg_timeline_immutable`. Desde
+la feature 006 el mismo patrón protege también el registro de emisiones del documento, con
+`trg_document_seal_immutable` sobre `request_document_seal`
+(`V4.1.0__Register_document_seals.sql`). Se nombran los dos.
+
+No cambia lo que el principio exige: la garantía sigue siendo de la base de datos y el §VII
+sigue sin atarse a una implementación. Por eso es PATCH y no MINOR — se describe con más
+precisión un estado, no se amplía la guía.
 
 Enmienda 2026-09-13 — v2.3.0
 ----------------------------
@@ -295,10 +339,14 @@ motor de datos.
 inmutable el sistema pierde su justificación frente al proceso manual, cuyo problema central
 es precisamente que el estado vive en correos y en la memoria de una persona.
 
-**Estado**: implementado en la feature `002-workflow-engine`. El mecanismo vigente es el
-trigger `trg_timeline_immutable` (`BEFORE UPDATE OR DELETE` sobre `request_transition_log`,
-`V2.0.0__Create_workflow_tables.sql`). El principio exige la **garantía** a nivel de base de
-datos; no fija el mecanismo, que puede cambiar mientras la garantía se conserve.
+**Estado**: implementado en la feature `002-workflow-engine` y extendido en la
+`006-verifiable-document-seal`. Hoy la garantía la sostienen dos triggers, ambos
+`BEFORE UPDATE OR DELETE` y ninguno sobre `INSERT`: `trg_timeline_immutable` sobre
+`request_transition_log` (`V2.0.0__Create_workflow_tables.sql`), que protege el histórico de
+transiciones, y `trg_document_seal_immutable` sobre `request_document_seal`
+(`V4.1.0__Register_document_seals.sql`), que protege el registro de emisiones del documento
+formal. El principio exige la **garantía** a nivel de base de datos; no fija el mecanismo,
+que puede cambiar mientras la garantía se conserve.
 
 ## Restricciones tecnológicas
 
@@ -334,4 +382,4 @@ especificación y plan verifica su alineación con estos principios; toda comple
 introducida debe justificarse explícitamente. La guía operativa del día a día vive en
 `CLAUDE.md`.
 
-**Versión**: 2.3.0 | **Ratificada**: 2026-07-02 | **Última enmienda**: 2026-09-13
+**Versión**: 2.3.1 | **Ratificada**: 2026-07-02 | **Última enmienda**: 2026-09-19

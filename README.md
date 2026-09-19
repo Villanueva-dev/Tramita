@@ -409,7 +409,7 @@ medibles), `plan.md`, `research.md` (las decisiones `D1…Dn` con sus fuentes), 
 | [`specs/005-formal-document/spec.md`](specs/005-formal-document/spec.md) | El DO-FR-100 como salida del sistema |
 | [`specs/006-verifiable-document-seal/research.md`](specs/006-verifiable-document-seal/research.md) | Las decisiones D1–D11 del sello, incluida la reproducibilidad del PDF |
 | [`specs/001-auth-login/integracion-frontend.md`](specs/001-auth-login/integracion-frontend.md) | Guía de integración para el SPA |
-| [`.specify/memory/constitution.md`](.specify/memory/constitution.md) | La constitución del proyecto: **7 principios, v2.3.0** |
+| [`.specify/memory/constitution.md`](.specify/memory/constitution.md) | La constitución del proyecto: **7 principios, v2.3.1** |
 | [`docs/nuevo-proyecto/01-planteamiento/arbol-de-problemas.md`](docs/nuevo-proyecto/01-planteamiento/arbol-de-problemas.md) | Planteamiento (Marco Lógico), alcance y supuestos |
 
 Flujo SDD con **Spec Kit v0.8.12**: `specify → plan → tasks → implement`. Los commits de fase
