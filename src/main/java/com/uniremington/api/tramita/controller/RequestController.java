@@ -6,6 +6,7 @@ import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
 import com.uniremington.api.tramita.dto.TimelineEntryResponse;
+import com.uniremington.api.tramita.dto.UpdateRequestBody;
 import com.uniremington.api.tramita.service.IDocumentService;
 import com.uniremington.api.tramita.service.IRequestService;
 import jakarta.validation.Valid;
@@ -22,6 +23,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -92,6 +94,15 @@ public class RequestController {
     @GetMapping("/{id}")
     public RequestResponse getById(@PathVariable UUID id) {
         return requestService.getById(id);
+    }
+
+    /** Corrige los datos del formulario únicamente tras una devolución o rechazo. */
+    @PutMapping("/{id}")
+    public RequestResponse update(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateRequestBody body,
+            Authentication authentication) {
+        return requestService.update(id, body, authentication.getName());
     }
 
     /** US3/FR-008: el timeline completo, en orden cronológico. */

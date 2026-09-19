@@ -52,11 +52,11 @@ public class Request {
     @JoinColumn(name = "current_state_id")
     private WorkflowState currentState;
 
-    @Column(name = "student_name", nullable = false, updatable = false)
+    @Column(name = "student_name", nullable = false)
     private String studentName;
 
     /** Conserva el dato de solicitudes históricas; no se escribe ni expone en solicitudes nuevas. */
-    @Column(name = "student_document", updatable = false)
+    @Column(name = "student_document")
     private String studentDocument;
 
     /**
@@ -68,16 +68,16 @@ public class Request {
      * (SP3) debe reproducir el formato oficial, que pide correo, teléfono, sede,
      * facultad y modalidad. Ver los campos de captura pública más abajo.
      */
-    @Column(name = "student_code", updatable = false, length = 30)
+    @Column(name = "student_code", length = 30)
     private String studentCode;
 
-    @Column(updatable = false, length = 120)
+    @Column(length = 120)
     private String program;
 
-    @Column(updatable = false, length = 50)
+    @Column(length = 50)
     private String semester;
 
-    @Column(updatable = false, length = 2000)
+    @Column(length = 2000)
     private String reason;
 
     /**
@@ -141,6 +141,18 @@ public class Request {
      */
     public void moveTo(WorkflowState target) {
         this.currentState = target;
+    }
+
+    public void updateForm(String studentName, String studentDocument, String studentCode,
+            String program, String semester, String reason, List<RequestSubject> updatedSubjects) {
+        this.studentName = studentName;
+        this.studentDocument = studentDocument;
+        this.studentCode = studentCode;
+        this.program = program;
+        this.semester = semester;
+        this.reason = reason;
+        this.subjects.clear();
+        this.subjects.addAll(updatedSubjects);
     }
 
     // UTC explícito, convención del chasis (001, JD3-012).

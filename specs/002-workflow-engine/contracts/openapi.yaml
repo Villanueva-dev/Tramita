@@ -92,6 +92,38 @@ paths:
               schema: { $ref: '#/components/schemas/Request' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      summary: Corrige una solicitud devuelta o rechazada
+      description: |
+        Actualiza los datos del formulario sin alterar el timeline. Solo está permitido
+        cuando el estado de la solicitud representa una devolución o rechazo; el backend
+        vuelve a ejecutar las reglas de negocio configuradas antes de persistir.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateRequestBody' }
+      responses:
+        '200':
+          description: Solicitud corregida
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Request' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: La solicitud no está devuelta ni rechazada
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422':
+          description: Los datos corregidos incumplen una regla del trámite
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
 
   /requests/{id}/transitions:
     post:
@@ -396,6 +428,20 @@ components:
         semester: { type: string, maxLength: 50, example: Semestre 7 }
         reason: { type: string }
         priority: { type: string, enum: [normal, urgente] }
+        subjects:
+          type: array
+          items: { $ref: '#/components/schemas/SubjectRequest' }
+
+    UpdateRequestBody:
+      type: object
+      required: [studentName, studentDocument]
+      properties:
+        studentName: { type: string, maxLength: 120 }
+        studentDocument: { type: string, maxLength: 20 }
+        studentCode: { type: string, maxLength: 30 }
+        program: { type: string, maxLength: 120 }
+        semester: { type: string, maxLength: 50 }
+        reason: { type: string, maxLength: 2000 }
         subjects:
           type: array
           items: { $ref: '#/components/schemas/SubjectRequest' }

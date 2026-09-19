@@ -10,6 +10,7 @@ import com.uniremington.api.tramita.dto.RequestSummaryResponse;
 import com.uniremington.api.tramita.dto.StateResponse;
 import com.uniremington.api.tramita.dto.SubjectResponse;
 import com.uniremington.api.tramita.dto.TimelineEntryResponse;
+import com.uniremington.api.tramita.dto.UpdateRequestBody;
 import com.uniremington.api.tramita.dto.WorkflowDefinitionResponse;
 import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.model.RequestSubject;
@@ -335,6 +336,37 @@ public class RequestServiceImpl implements IRequestService {
     @Transactional(readOnly = true)
     public RequestResponse getById(UUID requestId) {
         return toResponse(loadRequest(requestId));
+    }
+
+    @Override
+    @Transactional
+    public RequestResponse update(UUID requestId, UpdateRequestBody body, String actorEmail) {
+        Request request = loadRequest(requestId);
+        String stateCode = request.getCurrentState().getCode();
+        if (!stateCode.contains("DEVUELTA") && !stateCode.contains("RECHAZADA")) {
+            throw new IllegalTransitionException(
+                    "El trámite solo puede editarse cuando está devuelto o rechazado");
+        }
+
+        CreateRequestBody validationBody = new CreateRequestBody(
+                request.getDefinition().getCode(), body.studentName(), body.studentDocument(),
+                body.studentCode(), body.program(), body.semester(), body.reason(), body.subjects());
+        businessRules.validate(request.getDefinition(), validationBody);
+
+        List<RequestSubject> subjects = body.subjects().stream()
+                .map(subject -> RequestSubject.builder()
+                        .request(request)
+                        .code(subject.code())
+                        .name(subject.name())
+                        .credits(subject.credits())
+                        .group(subject.group())
+                        .currentGrade(subject.currentGrade())
+                        .proposedGrade(subject.proposedGrade())
+                        .build())
+                .toList();
+        request.updateForm(body.studentName(), body.studentDocument(), body.studentCode(),
+                body.program(), body.semester(), body.reason(), subjects);
+        return toResponse(requestRepo.save(request));
     }
 
     @Override

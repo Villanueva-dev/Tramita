@@ -7,6 +7,7 @@ import com.uniremington.api.tramita.dto.PublicRequestBody;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
 import com.uniremington.api.tramita.dto.TimelineEntryResponse;
+import com.uniremington.api.tramita.dto.UpdateRequestBody;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,6 +44,8 @@ public interface IRequestService {
 
     /** Detalle de una solicitud con sus transiciones disponibles (US3). */
     RequestResponse getById(UUID requestId);
+
+    RequestResponse update(UUID requestId, UpdateRequestBody body, String actorEmail);
 
     /**
      * Localiza solicitudes por cédula (igualdad exacta) o fragmento del nombre

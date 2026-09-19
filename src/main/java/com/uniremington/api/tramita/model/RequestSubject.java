@@ -21,9 +21,8 @@ import lombok.NoArgsConstructor;
  * Una asignatura involucrada en una solicitud (FR-002). Pertenece a una única
  * solicitud y no existe fuera de ella.
  *
- * Todo el estado es {@code updatable = false}: los datos de captura son inmutables
- * (FR-005), coherente con el diseño de la 002 — corregir un dato capturado es
- * registrar una devolución, no editar el registro.
+ * La captura queda editable únicamente cuando el trámite fue devuelto o rechazado;
+ * la operación se autoriza en el servicio y no modifica el timeline de transiciones.
  *
  * Las notas son BigDecimal contra columnas NUMERIC(3,2) (research.md D3): una nota
  * es un número, y con VARCHAR la base aceptaría 'abc'.
@@ -44,23 +43,23 @@ public class RequestSubject {
     @JoinColumn(name = "request_id", nullable = false, updatable = false)
     private Request request;
 
-    @Column(nullable = false, updatable = false, length = 30)
+    @Column(nullable = false, length = 30)
     private String code;
 
-    @Column(nullable = false, updatable = false, length = 150)
+    @Column(nullable = false, length = 150)
     private String name;
 
     /** Nulo en novedad de notas, que no captura créditos. La base exige que, si viene, sea positivo. */
-    @Column(updatable = false)
+    @Column
     private Integer credits;
 
     /** group es palabra reservada en SQL; la columna se llama subject_group. */
-    @Column(name = "subject_group", updatable = false, length = 30)
+    @Column(name = "subject_group", length = 30)
     private String group;
 
-    @Column(name = "current_grade", updatable = false, precision = 3, scale = 2)
+    @Column(name = "current_grade", precision = 3, scale = 2)
     private BigDecimal currentGrade;
 
-    @Column(name = "proposed_grade", updatable = false, precision = 3, scale = 2)
+    @Column(name = "proposed_grade", precision = 3, scale = 2)
     private BigDecimal proposedGrade;
 }
