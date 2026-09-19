@@ -351,19 +351,19 @@ Trámita es una solución orientada a transformar los procesos académicos manua
 ## Módulos principales
 
 ### 1. Módulo de captura de solicitudes
-El sistema permite registrar solicitudes de adición de créditos y novedad de notas mediante formularios con validaciones de negocio. Esto evita que los datos se ingresen de forma inconsistente o incompleta.
+El sistema permite registrar solicitudes de adición de créditos y novedad de notas mediante formularios con validaciones de negocio, lo que evita que los datos entren de forma inconsistente o incompleta. La captura ocurre por dos vías: la coordinación registra la solicitud desde su sesión, o bien **el propio estudiante diligencia y firma el formato desde un enlace público, sin necesidad de cuenta**, con lo que desaparece el paso de transcripción manual en el que hoy se originan los errores que obligan a devolver la solicitud. Ese enlace no le da al estudiante ninguna vista del estado de su trámite.
 
 ### 2. Motor de workflow
-El sistema implementa una máquina de estados que permite mover la solicitud entre diferentes estados del trámite, como borrador, enviado, aprobado, finalizado o devuelto para corrección.
+El sistema no implementa una máquina de estados codificada, sino un motor que lee la configuración del trámite desde la base de datos: los estados, las transiciones permitidas, el responsable de cada paso y las reglas que condicionan el avance son filas versionadas, no constantes en el código. El motor, por tanto, no conoce ningún trámite en particular; valida cada movimiento contra la definición con la que nació la solicitud. De ahí que incorporar un trámite cuyo caso el sistema ya contempla no requiera recompilar ni desplegar.
 
 ### 3. Auditoría inmutable
 Cada transición del trámite queda registrada con fecha, actor y comentario. Esta trazabilidad permite reconstruir el historial completo de una solicitud.
 
 ### 4. Generación automática de documentos
-Al completar el proceso, el sistema genera un PDF formal que puede ser utilizado como evidencia o soporte documental del trámite.
+El sistema genera el formato oficial del trámite en PDF, diligenciado con los datos ya validados, **en cualquier momento de la vida de la solicitud y no solo al cerrarla**: el documento existe para circular y ser firmado, de modo que emitirlo únicamente al final lo dejaría sin uso. Cada emisión queda sellada con un código de verificación impreso en el documento y con la huella criptográfica del archivo, de manera que después se puede comprobar si un papel es el que el sistema produjo o una versión alterada por el camino. El archivo no se almacena.
 
 ### 5. Vista operativa para la coordinación
-La coordinación cuenta con una vista centralizada donde puede revisar solicitudes pendientes, filtrar por estado, consultar historial y tomar decisiones con mayor rapidez.
+La coordinación dispone hoy de una bandeja con las solicitudes recientes y del historial completo de cada una. La capa operativa prevista —pendientes por rol, filtrado por estado y seguimiento de los tiempos de respuesta— corresponde al quinto objetivo específico y **está planificada, no construida** al momento de redactar este apartado.
 
 ## Valor de la propuesta
 

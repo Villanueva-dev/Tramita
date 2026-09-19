@@ -66,7 +66,7 @@ un principio. Ese hallazgo es tan válido como una contradicción con el verbati
 
 | Fuente | Ruta | Cómo leerla |
 |--------|------|-------------|
-| Constitución del proyecto | `.specify/memory/constitution.md` | **7 principios.** ⚠️ La versión vigente se lee de una línea, nunca de memoria ni de este archivo: `grep -n '^\*\*Versión\*\*' .specify/memory/constitution.md`. Al 2026-09-18 es la **v2.3.0** (enmienda del 2026-09-13), pero eso es una medición con fecha. |
+| Constitución del proyecto | `.specify/memory/constitution.md` | **7 principios.** ⚠️ La versión vigente se lee de una línea, nunca de memoria ni de este archivo: `grep -n '^\*\*Versión\*\*' .specify/memory/constitution.md`. Al 2026-09-19 es la **v2.3.1** (enmienda del 2026-09-19), pero eso es una medición con fecha. |
 
 Los principios, con la línea donde empieza cada uno, para citar con precisión:
 

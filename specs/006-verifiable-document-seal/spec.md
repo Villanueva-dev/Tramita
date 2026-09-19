@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-17
 
-**Status**: Draft
+**Status**: Implementada
 
 **Input**: SP4 — issue [Tramita#11](https://github.com/Villanueva-dev/Tramita/issues/11), último issue abierto del milestone «Sprint 2 — Salida formal del trámite». Ataca las causas **C3 y C5** del árbol de problemas (`docs/nuevo-proyecto/01-planteamiento/arbol-de-problemas.md:131`) y completa el **objetivo específico 4** del documento de grado.
 
