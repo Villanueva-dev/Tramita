@@ -4,7 +4,7 @@
 
 **Created**: 2026-07-02
 
-**Status**: Draft
+**Status**: Implementada
 
 **Input**: Autenticación de la Coordinación Académica para Trámita — login con email y contraseña, cambio de contraseña por la propia Coordinación, y validación de contraseña en tiempo real en el frontend. Único actor: la Coordinación. La cuenta se provisiona por fuera (semilla/migración).
 

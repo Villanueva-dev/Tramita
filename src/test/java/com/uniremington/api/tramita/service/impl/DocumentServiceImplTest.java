@@ -5,6 +5,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.uniremington.api.tramita.model.User;
+import com.uniremington.api.tramita.repo.IUserRepo;
+import com.uniremington.api.tramita.service.DocumentSealMark;
+import com.uniremington.api.tramita.service.IDocumentSealService;
+import com.uniremington.api.tramita.util.VerificationCodeGenerator;
+import org.springframework.dao.DataIntegrityViolationException;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.model.WorkflowDefinition;
 import com.uniremington.api.tramita.model.WorkflowParameter;
@@ -38,8 +47,12 @@ class DocumentServiceImplTest {
     private static final UUID REQUEST_ID = UUID.randomUUID();
     private static final UUID DEFINITION_ID = UUID.randomUUID();
 
+    private static final String ACTOR_EMAIL = "coordinacion@test";
+
     private final IRequestRepo requestRepo = mock(IRequestRepo.class);
     private final IWorkflowParameterRepo parameterRepo = mock(IWorkflowParameterRepo.class);
+    private final IDocumentSealService sealService = mock(IDocumentSealService.class);
+    private final IUserRepo userRepo = mock(IUserRepo.class);
 
     @Test
     @DisplayName("dos formatos con la misma clave impiden arrancar, en vez de que gane uno en silencio")
@@ -47,7 +60,7 @@ class DocumentServiceImplTest {
         IDocumentRenderer one = renderer("DO_FR_100");
         IDocumentRenderer other = renderer("DO_FR_100");
 
-        assertThatThrownBy(() -> new DocumentServiceImpl(requestRepo, parameterRepo, List.of(one, other)))
+        assertThatThrownBy(() -> new DocumentServiceImpl(requestRepo, parameterRepo, List.of(one, other), new VerificationCodeGenerator(), sealService, userRepo))
                 .as("con dos implementaciones ganaría la primera de la lista inyectada, "
                         + "y cuál es la primera depende del orden de escaneo de Spring")
                 .isInstanceOf(IncompleteConfigurationException.class)
@@ -60,7 +73,7 @@ class DocumentServiceImplTest {
         IDocumentRenderer doFr100 = renderer("DO_FR_100");
         IDocumentRenderer another = renderer("OTRO_FORMATO");
 
-        assertThat(new DocumentServiceImpl(requestRepo, parameterRepo, List.of(doFr100, another)))
+        assertThat(new DocumentServiceImpl(requestRepo, parameterRepo, List.of(doFr100, another), new VerificationCodeGenerator(), sealService, userRepo))
                 .isNotNull();
     }
 
@@ -76,7 +89,7 @@ class DocumentServiceImplTest {
         // documento formal—, no una configuración a medio cargar. Misma lectura que
         // PUBLIC_CAPTURE_ENABLED en el canal público: ausente significa «no», y «no»
         // no es un error del servidor.
-        assertThatThrownBy(() -> service.generateFor(REQUEST_ID))
+        assertThatThrownBy(() -> service.generateFor(REQUEST_ID, ACTOR_EMAIL))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -90,7 +103,7 @@ class DocumentServiceImplTest {
 
         // Acá sí es 500: alguien declaró un formato que el código no sabe dibujar. Leerlo
         // como «no tiene documento» escondería el error de configuración detrás de un 404.
-        assertThatThrownBy(() -> service.generateFor(REQUEST_ID))
+        assertThatThrownBy(() -> service.generateFor(REQUEST_ID, ACTOR_EMAIL))
                 .isInstanceOf(IncompleteConfigurationException.class)
                 .hasMessageContaining("FORMATO_QUE_NO_EXISTE");
     }
@@ -101,7 +114,7 @@ class DocumentServiceImplTest {
         DocumentServiceImpl service = serviceWith(renderer("DO_FR_100"));
         when(requestRepo.findById(REQUEST_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.generateFor(REQUEST_ID))
+        assertThatThrownBy(() -> service.generateFor(REQUEST_ID, ACTOR_EMAIL))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -111,22 +124,70 @@ class DocumentServiceImplTest {
         IDocumentRenderer doFr100 = renderer("DO_FR_100");
         IDocumentRenderer another = renderer("OTRO_FORMATO");
         DocumentServiceImpl service = new DocumentServiceImpl(
-                requestRepo, parameterRepo, List.of(another, doFr100));
+                requestRepo, parameterRepo, List.of(another, doFr100),
+                new VerificationCodeGenerator(), sealService, userRepo);
         when(requestRepo.findById(REQUEST_ID)).thenReturn(Optional.of(request()));
         when(parameterRepo.findByDefinitionIdAndKey(DEFINITION_ID, "DOCUMENT_TEMPLATE"))
                 .thenReturn(Optional.of(parameter("DO_FR_100")));
+        when(userRepo.findByEmail(ACTOR_EMAIL)).thenReturn(Optional.of(new User()));
 
-        byte[] document = service.generateFor(REQUEST_ID);
+        byte[] document = service.generateFor(REQUEST_ID, ACTOR_EMAIL);
 
         assertThat(new String(document))
                 .as("tiene que dibujar el formato DECLARADO, no el primero de la lista")
                 .isEqualTo("DO_FR_100");
     }
 
+    @Test
+    @DisplayName("FR-012 fail-closed: si el sello no se puede registrar, no se entrega documento")
+    void aFailingSealMeansNoDocumentAtAll() {
+        DocumentServiceImpl service = serviceWith(renderer("DO_FR_100"));
+        when(requestRepo.findById(REQUEST_ID)).thenReturn(Optional.of(request()));
+        when(parameterRepo.findByDefinitionIdAndKey(DEFINITION_ID, "DOCUMENT_TEMPLATE"))
+                .thenReturn(Optional.of(parameter("DO_FR_100")));
+        when(userRepo.findByEmail(ACTOR_EMAIL)).thenReturn(Optional.of(new User()));
+        when(sealService.record(any(), any(), any(), any(), any(), any()))
+                .thenThrow(new DataIntegrityViolationException("la base dijo que no"));
+
+        // Entregar un documento sin registrarlo es peor que no entregarlo: quedaría
+        // circulando un papel con apariencia oficial que el sistema no puede verificar
+        // después. Por eso la excepción se propaga y Spring deshace la transacción, en vez
+        // de que acá haya un try que devuelva el documento igual.
+        assertThatThrownBy(() -> service.generateFor(REQUEST_ID, ACTOR_EMAIL))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("la emisión registra el sello con la huella del documento entregado")
+    void issuingRecordsTheSealWithTheDeliveredDigest() {
+        DocumentServiceImpl service = serviceWith(renderer("DO_FR_100"));
+        when(requestRepo.findById(REQUEST_ID)).thenReturn(Optional.of(request()));
+        when(parameterRepo.findByDefinitionIdAndKey(DEFINITION_ID, "DOCUMENT_TEMPLATE"))
+                .thenReturn(Optional.of(parameter("DO_FR_100")));
+        when(userRepo.findByEmail(ACTOR_EMAIL)).thenReturn(Optional.of(new User()));
+
+        service.generateFor(REQUEST_ID, ACTOR_EMAIL);
+
+        // SHA-256 de los bytes "DO_FR_100", que es lo que devuelve el renderer de prueba:
+        // la huella describe el ARCHIVO ENTREGADO, no los datos con que se dibujó.
+        verify(sealService).record(any(), any(), any(),
+                eq(sha256Of("DO_FR_100")), eq("DO_FR_100/v1"), any());
+    }
+
+    private static String sha256Of(String content) {
+        try {
+            return java.util.HexFormat.of().formatHex(
+                    java.security.MessageDigest.getInstance("SHA-256").digest(content.getBytes()));
+        } catch (Exception impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
     // --- helpers -------------------------------------------------------------------------
 
     private DocumentServiceImpl serviceWith(IDocumentRenderer... renderers) {
-        return new DocumentServiceImpl(requestRepo, parameterRepo, List.of(renderers));
+        return new DocumentServiceImpl(requestRepo, parameterRepo, List.of(renderers),
+                new VerificationCodeGenerator(), sealService, userRepo);
     }
 
     /** Un renderer que devuelve su propia clave como contenido: así el test ve cuál corrió. */
@@ -138,7 +199,12 @@ class DocumentServiceImplTest {
             }
 
             @Override
-            public byte[] render(Request request) {
+            public String formatVersion() {
+                return key + "/v1";
+            }
+
+            @Override
+            public byte[] render(Request request, DocumentSealMark mark) {
                 return key.getBytes();
             }
         };

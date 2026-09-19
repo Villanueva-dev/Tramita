@@ -60,6 +60,20 @@ public class SecurityConfig {
                     .matcher(HttpMethod.POST, "/api/public/requests/*");
 
     /**
+     * La consulta pública del sello, declarada UNA vez por la misma razón que
+     * {@link #PUBLIC_CAPTURE}: el {@code permitAll} y esta ruta deben referirse a exactamente
+     * lo mismo (006, FR-014, research.md D9).
+     *
+     * A DIFERENCIA DE {@code PUBLIC_CAPTURE}, esta ruta NO necesita exclusión de CSRF. CSRF
+     * protege operaciones que cambian estado usando la sesión del navegante; un {@code GET} no
+     * cambia estado y Spring Security no lo protege por diseño, así que no hace falta tocar la
+     * configuración de CSRF para que este canal quede abierto.
+     */
+    private static final PathPatternRequestMatcher PUBLIC_SEAL_LOOKUP =
+            PathPatternRequestMatcher.withDefaults()
+                    .matcher(HttpMethod.GET, "/api/public/seals/*");
+
+    /**
      * DelegatingPasswordEncoder con BCrypt por defecto (research.md D6): el hash se
      * persiste con prefijo {bcrypt}, desacoplando los datos de un futuro cambio de
      * algoritmo (una migración a {argon2} no invalidaría los hashes existentes).
@@ -135,8 +149,11 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                        // Segundo y último endpoint abierto del sistema (004, FR-001)
+                        // Segundo endpoint abierto del sistema (004, FR-001)
                         .requestMatchers(PUBLIC_CAPTURE).permitAll()
+                        // Tercer y último endpoint abierto: verificación por posesión del
+                        // código impreso (006, FR-014, research.md D9)
+                        .requestMatchers(PUBLIC_SEAL_LOOKUP).permitAll()
                         .anyRequest().authenticated())
                 // sin sesión → 401 problem+json (RFC 9457, D10)
                 .exceptionHandling(ex -> ex

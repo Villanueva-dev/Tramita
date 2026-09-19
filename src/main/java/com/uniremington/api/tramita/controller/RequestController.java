@@ -5,7 +5,9 @@ import com.uniremington.api.tramita.dto.CreateRequestBody;
 import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
+import com.uniremington.api.tramita.dto.SealEntryResponse;
 import com.uniremington.api.tramita.dto.TimelineEntryResponse;
+import com.uniremington.api.tramita.service.IDocumentSealService;
 import com.uniremington.api.tramita.service.IDocumentService;
 import com.uniremington.api.tramita.service.IRequestService;
 import jakarta.validation.Valid;
@@ -40,6 +42,7 @@ public class RequestController {
 
     private final IRequestService requestService;
     private final IDocumentService documentService;
+    private final IDocumentSealService sealService;
 
     /** US1: 201 + Location del recurso creado (semántica REST de creación). */
     @PostMapping
@@ -101,6 +104,19 @@ public class RequestController {
     }
 
     /**
+     * US3 de la 006/FR-008: el historial de EMISIONES del documento, de la más antigua a la
+     * más reciente — no el recorrido del trámite, que ya existe en {@link #getTimeline}.
+     *
+     * Una solicitud sin emisiones devuelve lista vacía, no 404: existe, simplemente nadie
+     * pidió el documento todavía. Solo si la solicitud misma no existe la respuesta es 404,
+     * y ese criterio lo resuelve {@code DocumentSealServiceImpl#history}.
+     */
+    @GetMapping("/{id}/seals")
+    public List<SealEntryResponse> getSeals(@PathVariable UUID id) {
+        return sealService.history(id);
+    }
+
+    /**
      * SP3: el formato oficial del trámite, diligenciado con los datos de la solicitud.
      *
      * SE GENERA BAJO DEMANDA Y NO SE GUARDA. El DO-FR-100 es el documento que circula PARA
@@ -117,8 +133,9 @@ public class RequestController {
      * con qué construir esta URL.
      */
     @GetMapping("/{id}/document")
-    public ResponseEntity<byte[]> getDocument(@PathVariable UUID id) {
-        byte[] document = documentService.generateFor(id);
+    public ResponseEntity<byte[]> getDocument(
+            @PathVariable UUID id, Authentication authentication) {
+        byte[] document = documentService.generateFor(id, authentication.getName());
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 // El nombre lleva el id de la solicitud y NUNCA la cédula ni el nombre del

@@ -1,0 +1,170 @@
+package com.uniremington.api.tramita.service.impl;
+
+import com.uniremington.api.tramita.dto.PublicSealResponse;
+import com.uniremington.api.tramita.dto.SealEntryResponse;
+import com.uniremington.api.tramita.dto.VerdictResponse;
+import com.uniremington.api.tramita.model.Request;
+import com.uniremington.api.tramita.model.RequestDocumentSeal;
+import com.uniremington.api.tramita.model.User;
+import com.uniremington.api.tramita.repo.IRequestDocumentSealRepo;
+import com.uniremington.api.tramita.repo.IRequestRepo;
+import com.uniremington.api.tramita.service.IDocumentRenderer;
+import com.uniremington.api.tramita.service.IDocumentSealService;
+import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
+import com.uniremington.api.tramita.util.CampusTime;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Registro de emisiones (FR-001).
+ *
+ * NO ABRE TRANSACCIÓN PROPIA, a propósito: se ejecuta dentro de la que emite el documento, para
+ * que sellar y entregar sean atómicos (FR-012, fail-closed). Anotarlo con {@code REQUIRES_NEW}
+ * rompería esa garantía — quedaría el sello de un documento que nunca se entregó, o peor, un
+ * documento entregado sin sello.
+ */
+@Service
+@RequiredArgsConstructor
+public class DocumentSealServiceImpl implements IDocumentSealService {
+
+    private final IRequestDocumentSealRepo sealRepo;
+
+    /**
+     * Solo para saber QUÉ VERSIONES DE FORMATO siguen vigentes, no para renderizar. No se
+     * resuelve cuál renderer le toca a la solicitud: eso duplicaría el §VI. Inyectar la lista
+     * NO crea ciclo — ningún renderer depende de este servicio.
+     */
+    private final List<IDocumentRenderer> renderers;
+
+    /**
+     * Solo para distinguir 404 (la solicitud no existe) de lista vacía (existe, sin
+     * emisiones) en {@link #history}, mismo criterio que
+     * {@code RequestServiceImpl#getTimeline}. No se usa {@code findById}: no hace falta la
+     * entidad completa, solo saber si la fila está.
+     */
+    private final IRequestRepo requestRepo;
+
+    @Override
+    public RequestDocumentSeal record(
+            Request request,
+            User actor,
+            String verificationCode,
+            String documentSha256,
+            String formatVersion,
+            LocalDateTime issuedAt) {
+
+        return sealRepo.save(RequestDocumentSeal.builder()
+                .request(request)
+                .actor(actor)
+                .verificationCode(verificationCode)
+                .documentSha256(documentSha256)
+                .formatVersion(formatVersion)
+                .requestVersion(request.getVersion())
+                // Las dos columnas del estado, no solo el código: el pie imprime el nombre.
+                .stateCode(request.getCurrentState().getCode())
+                .stateName(request.getCurrentState().getName())
+                .issuedAt(issuedAt)
+                .build());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public VerdictResponse verify(String verificationCode, String documentSha256) {
+        RequestDocumentSeal seal = findSealOrThrow(verificationCode);
+
+        // La comparación que SÍ significa algo: contra la huella del documento EMITIDO.
+        // Es definitiva y no caduca: no depende de poder reconstruir nada.
+        if (seal.getDocumentSha256().equals(documentSha256)) {
+            return verdict(VerdictResponse.Status.INTACT, null, seal);
+        }
+
+        // No coincide. Antes de acusar, buscar una explicación legítima (FR-007).
+        boolean formatoVigente = renderers.stream()
+                .anyMatch(renderer -> renderer.formatVersion().equals(seal.getFormatVersion()));
+        if (!formatoVigente) {
+            return verdict(VerdictResponse.Status.NOT_VERIFIABLE,
+                    VerdictResponse.Reason.FORMAT_CHANGED, seal);
+        }
+        if (seal.getRequestVersion() != seal.getRequest().getVersion()) {
+            return verdict(VerdictResponse.Status.NOT_VERIFIABLE,
+                    VerdictResponse.Reason.DATA_CHANGED, seal);
+        }
+
+        // Ninguna explicación legítima: acá la acusación se sostiene.
+        return verdict(VerdictResponse.Status.TAMPERED, null, seal);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PublicSealResponse lookup(String verificationCode) {
+        RequestDocumentSeal seal = findSealOrThrow(verificationCode);
+
+        // Sin huella recibida no hay nada que comparar: el único resultado posible con sello
+        // existente es ISSUED (D9). Ni TAMPERED ni NOT_VERIFIABLE tienen sentido acá.
+        return new PublicSealResponse(
+                PublicSealResponse.Status.ISSUED, CampusTime.toCampus(seal.getIssuedAt()),
+                seal.getStateName(), seal.getRequestVersion());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SealEntryResponse> history(UUID requestId) {
+        // Distingue «solicitud sin emisiones» (lista vacía, correcto) de «solicitud
+        // inexistente» (404): sin este chequeo las dos darían lo mismo, y la segunda
+        // no puede ser un 200 silencioso.
+        if (!requestRepo.existsById(requestId)) {
+            throw new ResourceNotFoundException(
+                    "La solicitud %s no existe".formatted(requestId));
+        }
+
+        return sealRepo.findByRequestIdOrderByIssuedAtAscIdAsc(requestId).stream()
+                .map(this::toEntry)
+                .toList();
+    }
+
+    /** Resuelve {@code seal.getActor()} DENTRO de la transacción, igual que {@link #verdict}. */
+    private SealEntryResponse toEntry(RequestDocumentSeal seal) {
+        return new SealEntryResponse(
+                seal.getVerificationCode(), CampusTime.toCampus(seal.getIssuedAt()),
+                seal.getActor().getEmail(), seal.getRequestVersion(), seal.getFormatVersion(),
+                seal.getStateName());
+    }
+
+    /**
+     * Resuelve {@code seal.getActor()} DENTRO de la transacción {@code readOnly} de
+     * {@link #verify}, porque es {@code LAZY}: devolver la entidad tal cual y resolverlo
+     * después —en el controller, ya cerrada la transacción— sería
+     * {@code LazyInitializationException}. Devolver un DTO en vez de la entidad es además el
+     * patrón del repo y evita exponer JPA fuera de la capa de servicio.
+     */
+    private VerdictResponse verdict(
+            VerdictResponse.Status status, VerdictResponse.Reason reason, RequestDocumentSeal seal) {
+        return new VerdictResponse(
+                status, reason, CampusTime.toCampus(seal.getIssuedAt()),
+                seal.getActor().getEmail(), seal.getRequestVersion());
+    }
+
+    /**
+     * ÚNICO LUGAR donde se busca un sello por código (#34 M2, B3): los dos canales —público y
+     * autenticado— pasan por acá.
+     *
+     * NORMALIZA A MAYÚSCULAS (M2): el generador solo emite mayúsculas
+     * ({@code VerificationCodeGenerator}), pero nada en el papel impreso obliga a transcribir
+     * el código así — buscar por igualdad exacta sin normalizar respondía «no existe» a quien
+     * copiaba en minúsculas, un falso «este documento no lo emitió el sistema».
+     *
+     * MENSAJE FIJO, NO EL CÓDIGO RECIBIDO (B3): concatenar la entrada en el mensaje de error
+     * no aporta nada a quien lo lee —ya lo tiene en la mano, en el papel— y es una superficie
+     * de reflexión innecesaria.
+     */
+    private RequestDocumentSeal findSealOrThrow(String verificationCode) {
+        return sealRepo.findByVerificationCode(verificationCode.toUpperCase(Locale.ROOT))
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "No existe un sello con ese código"));
+    }
+}
