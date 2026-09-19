@@ -28,7 +28,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 class RequestNotificationServiceTest {
 
     private final IRequestNotificationRepo notificationRepo = mock(IRequestNotificationRepo.class);
-    private final ObjectProvider<JavaMailSender> senderProvider = mock(ObjectProvider.class);
+        @SuppressWarnings("unchecked")
+        private final ObjectProvider<JavaMailSender> senderProvider = mock(ObjectProvider.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-08-26T20:30:00Z"), ZoneOffset.UTC);
 
     @Test

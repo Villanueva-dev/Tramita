@@ -1,7 +1,6 @@
 package com.uniremington.api.tramita.service;
 
 import com.uniremington.api.tramita.dto.ChangePasswordRequest;
-import org.springframework.stereotype.Service;
 
 /**
  * Casos de uso de autenticación que viven fuera del filter chain (US2+).

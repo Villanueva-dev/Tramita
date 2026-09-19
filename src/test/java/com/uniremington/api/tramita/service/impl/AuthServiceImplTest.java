@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 
 import com.uniremington.api.tramita.dto.ChangePasswordRequest;
 import com.uniremington.api.tramita.model.User;
-import com.uniremington.api.tramita.service.impl.AuthServiceImpl;
 import com.uniremington.api.tramita.repo.IUserRepo;
 import com.uniremington.api.tramita.shared.exception.TooManyAttemptsException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;

@@ -8,7 +8,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import com.uniremington.api.tramita.model.KnowledgeChunk;
 import com.uniremington.api.tramita.repo.IKnowledgeChunkRepo;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
 import java.util.List;

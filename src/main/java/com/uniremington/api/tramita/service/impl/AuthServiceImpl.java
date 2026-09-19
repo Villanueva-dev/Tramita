@@ -2,8 +2,6 @@ package com.uniremington.api.tramita.service.impl;
 
 import com.uniremington.api.tramita.service.IAuthService;
 import com.uniremington.api.tramita.util.EmailNormalizer;
-import com.uniremington.api.tramita.service.impl.LoginAttemptService;
-import com.uniremington.api.tramita.service.impl.PasswordPolicy;
 import com.uniremington.api.tramita.dto.ChangePasswordRequest;
 import com.uniremington.api.tramita.model.User;
 import com.uniremington.api.tramita.repo.IUserRepo;

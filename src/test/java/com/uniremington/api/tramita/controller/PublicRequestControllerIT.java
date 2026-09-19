@@ -301,7 +301,7 @@ class PublicRequestControllerIT {
         body.put("signature", "data:image/png;base64," + "A".repeat(300 * 1024));
 
         mockMvc.perform(publicSubmission("203.0.113.40", PUBLIC_TRADE, body))
-                .andExpect(status().isPayloadTooLarge())
+                .andExpect(status().is(413))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
 
         assertThat(requestRepo.count())
