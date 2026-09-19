@@ -5,7 +5,9 @@ import com.uniremington.api.tramita.dto.CreateRequestBody;
 import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
+import com.uniremington.api.tramita.dto.SealEntryResponse;
 import com.uniremington.api.tramita.dto.TimelineEntryResponse;
+import com.uniremington.api.tramita.service.IDocumentSealService;
 import com.uniremington.api.tramita.service.IDocumentService;
 import com.uniremington.api.tramita.service.IRequestService;
 import jakarta.validation.Valid;
@@ -40,6 +42,7 @@ public class RequestController {
 
     private final IRequestService requestService;
     private final IDocumentService documentService;
+    private final IDocumentSealService sealService;
 
     /** US1: 201 + Location del recurso creado (semántica REST de creación). */
     @PostMapping
@@ -98,6 +101,19 @@ public class RequestController {
     @GetMapping("/{id}/timeline")
     public List<TimelineEntryResponse> getTimeline(@PathVariable UUID id) {
         return requestService.getTimeline(id);
+    }
+
+    /**
+     * US3 de la 006/FR-008: el historial de EMISIONES del documento, de la más antigua a la
+     * más reciente — no el recorrido del trámite, que ya existe en {@link #getTimeline}.
+     *
+     * Una solicitud sin emisiones devuelve lista vacía, no 404: existe, simplemente nadie
+     * pidió el documento todavía. Solo si la solicitud misma no existe la respuesta es 404,
+     * y ese criterio lo resuelve {@code DocumentSealServiceImpl#history}.
+     */
+    @GetMapping("/{id}/seals")
+    public List<SealEntryResponse> getSeals(@PathVariable UUID id) {
+        return sealService.history(id);
     }
 
     /**

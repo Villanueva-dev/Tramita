@@ -932,6 +932,58 @@ class RequestControllerIT {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
     }
 
+    // --- 006/US3, T035: historial de emisiones del documento --------------------------------
+
+    @Test
+    @DisplayName("dos emisiones del documento: el historial devuelve dos entradas en orden")
+    void sealsHistoryListsTwoEmissionsInOrder() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Ana Con Historial", "SEAL-HIST-001");
+
+        mockMvc.perform(get("/api/requests/" + id + "/document").session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/requests/" + id + "/document").session(session))
+                .andExpect(status().isOk());
+
+        String body = mockMvc.perform(get("/api/requests/" + id + "/seals").session(session))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].issuedBy").value(AuthControllerIT.SEED_EMAIL))
+                .andExpect(jsonPath("$[0].formatVersion").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+
+        List<String> codes = com.jayway.jsonpath.JsonPath.read(body, "$[*].verificationCode");
+        List<String> issuedAts = com.jayway.jsonpath.JsonPath.read(body, "$[*].issuedAt");
+        assertThat(codes.get(0))
+                .as("cada emisión tiene SU propio código, no se deduplican")
+                .isNotEqualTo(codes.get(1));
+        assertThat(issuedAts.get(0).compareTo(issuedAts.get(1)))
+                .as("de la más antigua a la más reciente")
+                .isLessThanOrEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("solicitud sin emisiones del documento: historial vacío, no 404")
+    void sealsHistoryOfARequestWithoutEmissionsIsEmpty() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Ana Sin Emisiones", "SEAL-HIST-002");
+
+        // La solicitud EXISTE; simplemente nadie pidió el documento todavía.
+        mockMvc.perform(get("/api/requests/" + id + "/seals").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("historial de sellos con un {id} que no es UUID: 400")
+    void sealsHistoryWithNonUuidIdIsBadRequest() throws Exception {
+        MockHttpSession session = login();
+
+        mockMvc.perform(get("/api/requests/no-es-un-uuid/seals").session(session))
+                .andExpect(status().isBadRequest());
+    }
+
     // --- helpers -------------------------------------------------------------------------
 
     private String registerAndGetId(MockHttpSession session, String definitionCode,

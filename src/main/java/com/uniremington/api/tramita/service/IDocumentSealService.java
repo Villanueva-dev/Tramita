@@ -1,11 +1,14 @@
 package com.uniremington.api.tramita.service;
 
 import com.uniremington.api.tramita.dto.PublicSealResponse;
+import com.uniremington.api.tramita.dto.SealEntryResponse;
 import com.uniremington.api.tramita.dto.VerdictResponse;
 import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.model.RequestDocumentSeal;
 import com.uniremington.api.tramita.model.User;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
 
 /** Registro de las emisiones del documento formal (FR-001, FR-002). */
 public interface IDocumentSealService {
@@ -58,4 +61,18 @@ public interface IDocumentSealService {
      *     ningún sello con ese código
      */
     PublicSealResponse lookup(String verificationCode);
+
+    /**
+     * El historial de emisiones de una solicitud, de la más antigua a la más reciente
+     * (FR-008, US3).
+     *
+     * UNA SOLICITUD SIN EMISIONES DEVUELVE LISTA VACÍA, NO UN ERROR: existe y la respuesta
+     * correcta es que no tiene emisiones — mismo criterio que
+     * {@code RequestServiceImpl#getTimeline}. Solo cuando la SOLICITUD MISMA no existe la
+     * respuesta es 404: ahí sí no hay nada de qué listar el historial.
+     *
+     * @throws com.uniremington.api.tramita.shared.exception.ResourceNotFoundException si la
+     *     solicitud no existe
+     */
+    List<SealEntryResponse> history(UUID requestId);
 }

@@ -9,12 +9,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.uniremington.api.tramita.dto.PublicSealResponse;
+import com.uniremington.api.tramita.dto.SealEntryResponse;
 import com.uniremington.api.tramita.dto.VerdictResponse;
 import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.model.RequestDocumentSeal;
 import com.uniremington.api.tramita.model.User;
 import com.uniremington.api.tramita.model.WorkflowState;
 import com.uniremington.api.tramita.repo.IRequestDocumentSealRepo;
+import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.service.DocumentSealMark;
 import com.uniremington.api.tramita.service.IDocumentRenderer;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
@@ -42,8 +44,9 @@ class DocumentSealServiceImplTest {
 
     private final IRequestDocumentSealRepo sealRepo = mock(IRequestDocumentSealRepo.class);
     private final IDocumentRenderer renderer = mock(IDocumentRenderer.class);
+    private final IRequestRepo requestRepo = mock(IRequestRepo.class);
     private final DocumentSealServiceImpl service =
-            new DocumentSealServiceImpl(sealRepo, List.of(renderer));
+            new DocumentSealServiceImpl(sealRepo, List.of(renderer), requestRepo);
 
     @Test
     @DisplayName("la emisión registra huella, código, versión del formato, revisión, estado y actor")
@@ -223,18 +226,78 @@ class DocumentSealServiceImplTest {
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
+    // ---------------------------------------------------------------------------------------
+    // FR-008, US3: el historial de emisiones de una solicitud — visibilidad sobre datos que
+    // la US1 ya deja escritos, no una capacidad nueva (no reimplementa el timeline de SP6).
+    // ---------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("history: dos emisiones se listan en orden, con issuedBy resuelto")
+    void historyListsEmissionsInOrder() {
+        Request request = request(4L);
+        UUID requestId = request.getId();
+        RequestDocumentSeal first = seal("PRIMERO1", "v1", 4L, request, "huella-1",
+                LocalDateTime.of(2026, 9, 18, 15, 0));
+        RequestDocumentSeal second = seal("SEGUNDO2", "v1", 4L, request, "huella-2",
+                LocalDateTime.of(2026, 9, 18, 16, 0));
+        when(requestRepo.existsById(requestId)).thenReturn(true);
+        when(sealRepo.findByRequestIdOrderByIssuedAtAscIdAsc(requestId))
+                .thenReturn(List.of(first, second));
+
+        List<SealEntryResponse> history = service.history(requestId);
+
+        assertThat(history).hasSize(2);
+        assertThat(history.get(0).verificationCode()).isEqualTo("PRIMERO1");
+        assertThat(history.get(0).issuedBy())
+                .as("igual que verdict(...): el correo del actor se resuelve DENTRO del servicio")
+                .isEqualTo("coordinacion@test");
+        assertThat(history.get(0).formatVersion()).isEqualTo("v1");
+        assertThat(history.get(0).stateName()).isEqualTo("En facultad");
+        assertThat(history.get(0).revision()).isEqualTo(4L);
+        assertThat(history.get(1).verificationCode()).isEqualTo("SEGUNDO2");
+    }
+
+    @Test
+    @DisplayName("history: solicitud existente sin emisiones da lista vacía, no error")
+    void historyOfARequestWithoutEmissionsIsEmpty() {
+        UUID requestId = UUID.randomUUID();
+        when(requestRepo.existsById(requestId)).thenReturn(true);
+        when(sealRepo.findByRequestIdOrderByIssuedAtAscIdAsc(requestId)).thenReturn(List.of());
+
+        assertThat(service.history(requestId)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("history: solicitud inexistente es 404, no lista vacía")
+    void historyOfAnUnknownRequestIsNotFound() {
+        UUID requestId = UUID.randomUUID();
+        when(requestRepo.existsById(requestId)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.history(requestId))
+                .as("distinto de «sin emisiones»: acá la solicitud misma no existe, mismo "
+                        + "criterio que RequestServiceImpl#getTimeline")
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
     private static RequestDocumentSeal seal(
             String formatVersion, long sealedRevision, Request request, String documentSha256) {
+        return seal("ABC123", formatVersion, sealedRevision, request, documentSha256,
+                LocalDateTime.of(2026, 9, 18, 15, 30));
+    }
+
+    private static RequestDocumentSeal seal(
+            String verificationCode, String formatVersion, long sealedRevision, Request request,
+            String documentSha256, LocalDateTime issuedAt) {
         return RequestDocumentSeal.builder()
                 .request(request)
                 .actor(actor())
-                .verificationCode("ABC123")
+                .verificationCode(verificationCode)
                 .documentSha256(documentSha256)
                 .formatVersion(formatVersion)
                 .requestVersion(sealedRevision)
                 .stateCode("EN_FACULTAD")
                 .stateName("En facultad")
-                .issuedAt(LocalDateTime.of(2026, 9, 18, 15, 30))
+                .issuedAt(issuedAt)
                 .build();
     }
 

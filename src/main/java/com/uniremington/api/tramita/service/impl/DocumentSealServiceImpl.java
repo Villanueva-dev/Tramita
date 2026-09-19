@@ -1,16 +1,19 @@
 package com.uniremington.api.tramita.service.impl;
 
 import com.uniremington.api.tramita.dto.PublicSealResponse;
+import com.uniremington.api.tramita.dto.SealEntryResponse;
 import com.uniremington.api.tramita.dto.VerdictResponse;
 import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.model.RequestDocumentSeal;
 import com.uniremington.api.tramita.model.User;
 import com.uniremington.api.tramita.repo.IRequestDocumentSealRepo;
+import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.service.IDocumentRenderer;
 import com.uniremington.api.tramita.service.IDocumentSealService;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +38,14 @@ public class DocumentSealServiceImpl implements IDocumentSealService {
      * NO crea ciclo — ningún renderer depende de este servicio.
      */
     private final List<IDocumentRenderer> renderers;
+
+    /**
+     * Solo para distinguir 404 (la solicitud no existe) de lista vacía (existe, sin
+     * emisiones) en {@link #history}, mismo criterio que
+     * {@code RequestServiceImpl#getTimeline}. No se usa {@code findById}: no hace falta la
+     * entidad completa, solo saber si la fila está.
+     */
+    private final IRequestRepo requestRepo;
 
     @Override
     public RequestDocumentSeal record(
@@ -100,6 +111,29 @@ public class DocumentSealServiceImpl implements IDocumentSealService {
         return new PublicSealResponse(
                 PublicSealResponse.Status.ISSUED, seal.getIssuedAt(), seal.getStateName(),
                 seal.getRequestVersion());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SealEntryResponse> history(UUID requestId) {
+        // Distingue «solicitud sin emisiones» (lista vacía, correcto) de «solicitud
+        // inexistente» (404): sin este chequeo las dos darían lo mismo, y la segunda
+        // no puede ser un 200 silencioso.
+        if (!requestRepo.existsById(requestId)) {
+            throw new ResourceNotFoundException(
+                    "La solicitud %s no existe".formatted(requestId));
+        }
+
+        return sealRepo.findByRequestIdOrderByIssuedAtAscIdAsc(requestId).stream()
+                .map(this::toEntry)
+                .toList();
+    }
+
+    /** Resuelve {@code seal.getActor()} DENTRO de la transacción, igual que {@link #verdict}. */
+    private SealEntryResponse toEntry(RequestDocumentSeal seal) {
+        return new SealEntryResponse(
+                seal.getVerificationCode(), seal.getIssuedAt(), seal.getActor().getEmail(),
+                seal.getRequestVersion(), seal.getFormatVersion(), seal.getStateName());
     }
 
     /**

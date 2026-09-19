@@ -132,10 +132,10 @@ re-mide, no se cita de memoria.
 
 ⚠️ **Es la de menor prioridad: si hay que recortar alcance, esta es la primera que cae.**
 
-- [ ] T033 [P] [US3] Crear `src/main/java/com/uniremington/api/tramita/dto/SealEntryResponse.java` según el contrato
-- [ ] T034 [US3] (RED→GREEN) Agregar `GET /requests/{id}/seals` a `src/main/java/com/uniremington/api/tramita/controller/RequestController.java` y su método en el servicio de sellos
-- [ ] T035 [US3] (RED→GREEN) Agregar a `src/test/java/com/uniremington/api/tramita/controller/RequestControllerIT.java` los casos: dos emisiones devuelven dos entradas en orden, una solicitud sin emisiones devuelve **lista vacía y no 404**, y un `{id}` que no es UUID devuelve `400`
-- [ ] T036 [US3] Verificar la historia: `./mvnw clean verify` y el paso 1 del quickstart con tres emisiones seguidas
+- [x] T033 [P] [US3] Crear `src/main/java/com/uniremington/api/tramita/dto/SealEntryResponse.java` según el contrato
+- [x] T034 [US3] (RED→GREEN) Agregar `GET /requests/{id}/seals` a `src/main/java/com/uniremington/api/tramita/controller/RequestController.java` y su método en el servicio de sellos
+- [x] T035 [US3] (RED→GREEN) Agregar a `src/test/java/com/uniremington/api/tramita/controller/RequestControllerIT.java` los casos: dos emisiones devuelven dos entradas en orden, una solicitud sin emisiones devuelve **lista vacía y no 404**, y un `{id}` que no es UUID devuelve `400`
+- [x] T036 [US3] Verificar la historia: `./mvnw clean verify` y el paso 1 del quickstart con tres emisiones seguidas
 
 ---
 
