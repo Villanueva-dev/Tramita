@@ -133,7 +133,7 @@ La Coordinación abre una solicitud y ve, junto al recorrido del trámite que ya
 - **SC-003**: Un cambio en el formato del documento produce **cero** reportes de «alterado» sobre documentos legítimos emitidos antes del cambio.
 - **SC-004**: Una persona que recibe el documento impreso puede contrastar su marca legible contra el sistema en **menos de un minuto**, sin cuenta y sin transcribir códigos largos.
 - **SC-005**: **Ningún** sello registrado puede modificarse ni borrarse: el **100 %** de los intentos falla, incluidos los que no pasan por la aplicación.
-- **SC-006**: Un documento modificado en un solo carácter se detecta como **alterado** el **100 %** de las veces.
+- **SC-006**: Un documento modificado en un solo carácter **nunca** se reporta como íntegro. Se reporta **alterado** siempre que el sistema pueda sostener la acusación —el formato con que se emitió sigue vigente y la revisión de los datos no cambió—, y **no verificable**, con su motivo, en los demás casos (FR-007): medido en `SealControllerIT`, un documento alterado sobre una solicitud que avanzó da **no verificable**, no «alterado» — decirlo de otro modo acusaría de falsificación a un papel legítimo.
 - **SC-007**: Se puede responder «cuántas veces se emitió el documento de este trámite y quién lo pidió» para **cualquier** solicitud, cosa hoy imposible.
 - **SC-008**: **Cero** calificaciones se almacenan con un valor distinto del que se envió: toda calificación que no quepa exactamente en la escala oficial se rechaza al entrar en vez de guardarse redondeada.
 
