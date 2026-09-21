@@ -184,14 +184,18 @@ HTTP/1.1 413
 {"status":413,"title":"El envío excede el tamaño admitido"}
 ```
 
-El envío rechazado por tamaño **no consume cupo** del límite del paso 5: se corta antes de que
-el envío llegue a existir.
+El envío rechazado por tamaño **sí consume cupo** del límite del paso 5 (research.md D7-bis):
+ocupó el canal aunque no se procesara. Con `Content-Length` declarado —como en el `curl` de
+arriba— el servidor corta sin abrir el stream; sin él, lo lee hasta el tope para poder medirlo.
+Cobra en los dos casos. Y si un origen ya agotó su cupo, el corte ocurre antes todavía: recibe el
+`429` del paso 5, no este `413`.
 
 ## 5. Límite de envíos
 
 El umbral es **20 envíos por origen cada 15 minutos** (`app.public-capture` en
-`application.yml`, research.md D3-bis). Cuentan todos los envíos que pasan el tope de tamaño,
-incluidos los que terminan en `422`: el recurso que se protege es el procesamiento.
+`application.yml`, research.md D3-bis). Cuentan TODOS los envíos: los que terminan en `422` y
+también los que el tope de tamaño rechaza con `413`. El recurso que se protege es el
+procesamiento, y quien manda basura o envíos desmesurados lo consume igual.
 
 ```bash
 for i in $(seq 1 25); do

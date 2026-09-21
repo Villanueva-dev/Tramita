@@ -305,7 +305,7 @@ class PublicRequestControllerIT {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
 
         assertThat(requestRepo.count())
-                .as("el corte ocurre antes de materializar el envío")
+                .as("el envío se corta antes de que nadie lo procese")
                 .isEqualTo(registeredBefore);
     }
 

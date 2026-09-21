@@ -174,10 +174,11 @@ public class SecurityConfig {
                         new LoginThrottlingFilter(loginAttemptService, jsonMapper, problemJsonWriter),
                         UsernamePasswordAuthenticationFilter.class)
                 // Protección del canal público (004, US3). Va ANTES de que la petición se
-                // resuelva: el 413 debe cortar sin materializar el envío en memoria, que es
-                // todo el punto del tope. Su contador es propio y no el del login — cuentan
-                // cosas distintas (envíos vs. fallos de autenticación) con umbrales
-                // distintos, y compartirlo mezclaría los dos presupuestos.
+                // resuelva: el 413 corta el envío antes de que nadie lo procese, y ese corte
+                // consume cupo porque el envío ocupó el canal igual (research.md D7-bis). Su
+                // contador es propio y no el del login — cuentan cosas distintas (envíos vs.
+                // fallos de autenticación) con umbrales distintos, y compartirlo mezclaría los
+                // dos presupuestos.
                 .addFilterBefore(
                         new PublicSubmissionThrottlingFilter(publicSubmissionCounter,
                                 publicCaptureProperties, problemJsonWriter),

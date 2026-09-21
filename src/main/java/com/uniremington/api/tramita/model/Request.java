@@ -27,9 +27,24 @@ import lombok.NoArgsConstructor;
 /**
  * Solicitud de un trámite para un estudiante concreto (data-model.md). Queda
  * atada a la VERSIÓN de la definición con la que nació (FR-009): los cambios de
- * configuración posteriores no la afectan. Datos personales minimizados a
- * nombre + cédula (Ley 1581 de 2012, supuesto de la spec). Esta entity nunca se
- * expone en la API: los DTOs mapean a mano solo los campos permitidos.
+ * configuración posteriores no la afectan.
+ *
+ * DATOS PERSONALES (Ley 1581 de 2012, Principio III): desde la 004 —que persiste el
+ * formato DO-FR-100 completo, V3.3.0— son los once campos que pide la tabla del
+ * solicitante (nombre, cédula, correo, teléfono, programa, sede, facultad, modalidad,
+ * semestre, compromisos y firma), más {@code studentCode}, que el formato NO pide y que
+ * el canal interno acepta como opcional —ver el javadoc de {@code PublicRequestBody},
+ * que es donde se enumeran y se justifican—. La minimización no consiste en guardar
+ * menos campos de los que el formato pide, sino en no ampliar el conjunto sin motivo: el
+ * sistema tampoco recibe archivos adjuntos, de modo que no hay nada que almacenar de
+ * ellos (006, FR-010).
+ *
+ * ⚠️ Este javadoc decía «minimizados a nombre + cédula» y quedó falso con V3.3.0, que
+ * agregó seis columnas. Si se agrega otra, se actualiza acá: es el texto que sostiene la
+ * afirmación de minimización del Principio III.
+ *
+ * Esta entity nunca se expone en la API: los DTOs mapean a mano solo los campos
+ * permitidos.
  */
 @Entity
 @Table(name = "request")
