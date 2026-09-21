@@ -79,7 +79,12 @@ paths:
         '413':
           description: |
             El cuerpo excede el tope admitido (research.md D7). Se corta antes de
-            procesarlo: nada se materializa en memoria.
+            procesarlo, y **consume cupo** del límite de tasa (research.md D7-bis):
+            el envío ocupa capacidad del canal —conexión, filtro, ciclo de petición—
+            aunque no se procese. Lo que el tope garantiza es un LÍMITE a lo que se
+            lee, no la ausencia de lectura: con Content-Length declarado se corta sin
+            abrir el stream, y sin él el cuerpo se lee hasta el tope para medirlo.
+            Un origen que ya agotó su cupo recibe `429`, no este `413`.
           content:
             application/problem+json:
               schema:

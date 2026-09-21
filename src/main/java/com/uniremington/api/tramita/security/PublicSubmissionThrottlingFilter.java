@@ -68,16 +68,18 @@ public class PublicSubmissionThrottlingFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
-        // El tamaño se juzga primero: cortar por tope no debe consumir cupo del origen,
-        // porque el envío ni siquiera llegó a materializarse.
-        byte[] body = readBodyWithinLimit(request);
-        if (body == null) {
-            ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONTENT_TOO_LARGE);
-            problem.setTitle("El envío excede el tamaño admitido");
-            problemJsonWriter.write(response, problem);
-            return;
-        }
-
+        // EL CUPO SE JUZGA PRIMERO, Y EL 413 LO CONSUME. Revierte la decisión anterior, que
+        // cortaba por tamaño antes de contar «porque el envío ni siquiera llegó a
+        // materializarse». Lo que la hacía insostenible no es cuánto se lee —con
+        // Content-Length declarado no se lee nada— sino que un envío consume capacidad del
+        // canal se lea o no: conexión, filtro y ciclo de petición. No cobrarlo dejaba una
+        // ruta que esquiva la ÚNICA defensa de tasa de un canal sin sesión, y un mismo
+        // origen podía repetir envíos desmesurados sin límite alguno (research.md D7-bis).
+        //
+        // Y el orden importa tanto como el cobro: consultado DESPUÉS de leer, el contador
+        // frenaría los envíos válidos pero no las relecturas —cada intento desmesurado
+        // volvería a pedirle al servidor que mida—. Consultarlo antes corta sin abrir
+        // siquiera el stream. Un test lo fija: quien agotó su cupo recibe 429, no 413.
         String origin = request.getRemoteAddr();
         if (counter.isAtLimit(origin)) {
             long retryAfter = counter.retryAfterSeconds(origin);
@@ -92,6 +94,24 @@ public class PublicSubmissionThrottlingFilter extends OncePerRequestFilter {
             ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.TOO_MANY_REQUESTS);
             problem.setTitle("Demasiados envíos desde este origen");
             response.setHeader("Retry-After", String.valueOf(retryAfter));
+            problemJsonWriter.write(response, problem);
+            return;
+        }
+
+        byte[] body = readBodyWithinLimit(request);
+        if (body == null) {
+            counter.record(origin);
+            // Sin este WARN, un origen que satura el canal con envíos desmesurados no deja
+            // rastro: el 413 no se registra en ningún lado y el 429 que vendrá después
+            // parecería un estudiante bloqueado sin causa.
+            //
+            // ⚠️ No afirma que el cuerpo se haya leído: con Content-Length declarado se corta
+            // sin abrir el stream, y solo sin él se lee hasta el tope para poder medirlo.
+            log.warn("Envío público rechazado por tamaño. Origen contado: {}. El corte "
+                    + "consume cupo: el envío ocupó el canal aunque no se procesara.", origin);
+
+            ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONTENT_TOO_LARGE);
+            problem.setTitle("El envío excede el tamaño admitido");
             problemJsonWriter.write(response, problem);
             return;
         }
@@ -113,7 +133,11 @@ public class PublicSubmissionThrottlingFilter extends OncePerRequestFilter {
         if (request.getContentLengthLong() > maxBytes) {
             return null;
         }
-        byte[] body = request.getInputStream().readNBytes((int) maxBytes + 1);
+        // toIntExact y no un cast: si alguien elevara el tope por encima de un int, esto
+        // falla ruidosamente en vez de desbordar a negativo y hacer estallar readNBytes en
+        // CADA petición. Hoy no puede pasar —PublicCaptureProperties topa en 1 MB—, y esta
+        // línea es lo que permite que ese techo sea una decisión de producto y no una muleta.
+        byte[] body = request.getInputStream().readNBytes(Math.toIntExact(maxBytes + 1));
         return body.length > maxBytes ? null : body;
     }
 }

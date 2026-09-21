@@ -334,6 +334,47 @@ longitud que declara el cliente.
 
 ---
 
+## D7-bis — El corte por tamaño consume cupo del límite de tasa
+
+**Decisión** (2026-09-21, issue #25): un envío rechazado con `413` **consume cupo** del límite
+por origen de D3-bis, y el cupo se evalúa **antes** que el tamaño: quien ya lo agotó recibe
+`429` aunque su envío además exceda el tope.
+
+**Rationale**: revierte lo que D7 dejó implícito y el código afirmaba —que el corte por tamaño
+no debía contar «porque el envío ni siquiera llegó a materializarse»—. Esa razón no se sostiene:
+un envío ocupa capacidad del canal (conexión, filtro, ciclo de petición) se lea o no su cuerpo, y
+sin `Content-Length` declarado además se lee hasta el tope para poder medirlo. Sin cobrarlo, el
+tope de tamaño era una ruta que esquivaba la única defensa de tasa de un canal sin sesión: un
+mismo origen podía repetir envíos desmesurados sin límite alguno.
+
+⚠️ **La afirmación que motivó esta reversión también hay que enunciarla bien**: NO es que el
+servidor siempre lea. Con `Content-Length` declarado —la ruta mayoritaria— corta sin abrir el
+stream. El cobro no se justifica en cuánto se lee, sino en que el envío ocupó el canal.
+
+**Trade-off explícito (Principio IV)**: se eligió proteger la disponibilidad frente al abuso
+**sabiendo que el costo lo paga un estudiante legítimo con una firma pesada**. Antes podía
+reintentar sin límite hasta acertar con un trazo más liviano; ahora cada intento fallido le
+cuesta un cupo, y a los 20 recibe un `429` de 15 minutos que no puede resolver recortando la
+firma. El costo se acepta porque el tope (256 KB) deja margen amplio para una firma densa y el
+cliente puede topar el trazo antes de enviar, pero **queda registrado como el modo de fallo a
+vigilar** si aparecen `429` sin abuso detrás.
+
+⚠️ Y se agrava con la precondición de despliegue que D3-bis ya documenta: detrás de un proxy sin
+`server.forward-headers-strategy`, `getRemoteAddr()` colapsa a una sola clave para toda la sede,
+así que ahora también los envíos desmesurados de cualquiera consumen ese cupo compartido.
+
+**Alternativas consideradas**:
+- *No cobrar el `413`* (statu quo): rechazada. Es el defecto que el issue #25 documenta con su
+  reproducción: 500 envíos de 1 MB dejan el contador del origen intacto.
+- *Cobrar solo cuando el cuerpo se leyó de verdad* (sin `Content-Length`): rechazada por el
+  Principio I. Son dos ramas para una sola regla, y la distinción no le importa a nadie:
+  el canal se ocupa igual en los dos casos.
+- *Evaluar el cupo después del tamaño*: rechazada. El contador subiría sin frenar las
+  relecturas —cada intento desmesurado volvería a pedirle al servidor que mida—, con lo que el
+  cupo sería una estadística y no una defensa.
+
+---
+
 ## D8 — La vista de recientes es un contrato distinto, no la búsqueda relajada
 
 **Decisión**: se agrega una consulta propia con su propio DTO, sin documento de identidad,
