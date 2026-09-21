@@ -11,6 +11,8 @@ import com.uniremington.api.tramita.service.IDocumentSealService;
 import com.uniremington.api.tramita.service.IDocumentService;
 import com.uniremington.api.tramita.service.IRequestService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.net.URI;
@@ -74,7 +76,21 @@ public class RequestController {
     }
 
     /**
-     * US2 de la 004/FR-012: las solicitudes recientes, sin criterio de búsqueda.
+     * 007 / SP5: la bandeja de trabajo — las solicitudes que esperan la acción del
+     * responsable pedido (FR-001). Enmienda NO aditiva del contrato de la 004, que
+     * listaba «las más recientes, sin criterio» (research.md D7).
+     *
+     * El responsable viaja como PARÁMETRO: el servidor no conoce ningún rótulo de
+     * área (D2, §VI). NO es control de acceso (FR-003a): cualquier sesión consulta
+     * cualquier bandeja; filtra, no impide. Una etiqueta que no exista responde 200
+     * con lista vacía, porque un 404 filtraría qué etiquetas existen.
+     *
+     * La cota es explícita y de quien llama (D8); el valor por defecto y el tope son
+     * los del contrato. Las anotaciones de validación en los parámetros activan la
+     * validación por método de ESTE handler —igual que en {@code search}—: sin
+     * responsable llega MissingServletRequestParameterException y con la cota fuera
+     * de rango HandlerMethodValidationException, y ResponseEntityExceptionHandler
+     * sirve ambas como 400 problem+json sin exponer mensajes internos.
      *
      * DECLARADO ANTES de {@code @GetMapping("/{id}")} a propósito. Spring resuelve
      * por especificidad del patrón —un segmento literal gana sobre una variable—, de
@@ -84,11 +100,13 @@ public class RequestController {
      * «inbox» a UUID y devolvía 400. Dejarlo contiguo es lo que hace evidente al
      * siguiente lector que estas dos rutas compiten.
      *
-     * Devuelve InboxEntryResponse, SIN documento de identidad (FR-014).
+     * Devuelve InboxEntryResponse, SIN documento de identidad (FR-014 de la 004, §III).
      */
     @GetMapping("/inbox")
-    public List<InboxEntryResponse> getInbox() {
-        return requestService.getInbox();
+    public List<InboxEntryResponse> getInbox(
+            @RequestParam @NotBlank @Size(max = 50) String responsible,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(200) int limit) {
+        return requestService.getInbox(responsible, limit);
     }
 
     /** US3: detalle con las transiciones disponibles desde el estado actual. */

@@ -33,9 +33,11 @@ import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationExce
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
 import java.util.List;
-import org.springframework.data.domain.Limit;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import org.springframework.data.domain.Limit;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -65,16 +67,6 @@ public class RequestServiceImpl implements IRequestService {
      * pública». La distinción no le sirve a quien envía legítimamente y sí a quien
      * sondea qué trámites existen (FR-002).
      */
-    /**
-     * Cuántas solicitudes trae la bandeja de recientes. Con las 30-40 solicitudes por
-     * semestre que reporta la Coordinación
-     * (material-coord/2026-06-04-entrevista3-sintesis-analitica.md:213), 50 cubre más de
-     * un semestre completo: en la práctica la Coordinación ve todo lo que llegó, sin
-     * paginar. El tope existe como cota de sanidad —para que la consulta no pueda
-     * volverse un volcado si el volumen cambia—, no como paginación.
-     */
-    private static final int INBOX_SIZE = 50;
-
     private static final String NO_PUBLIC_CHANNEL =
             "No hay captura pública disponible para ese trámite";
 
@@ -345,12 +337,41 @@ public class RequestServiceImpl implements IRequestService {
                 .toList();
     }
 
+    /**
+     * La bandeja (007, US1). El criterio vive en la consulta —quién espera a quién es
+     * un hecho de la configuración, research.md D1— y el responsable llega por
+     * parámetro: este método no conoce ningún rótulo de área (D2). La cota la trae
+     * quien llama (D8).
+     */
     @Override
     @Transactional(readOnly = true)
-    public List<InboxEntryResponse> getInbox() {
-        return requestRepo.findAllByOrderByCreatedAtDesc(Limit.of(INBOX_SIZE)).stream()
-                .map(this::toInboxEntry)
+    public List<InboxEntryResponse> getInbox(String responsible, int limit) {
+        List<Request> pending = requestRepo.findPendingFor(responsible, Limit.of(limit));
+        Map<UUID, InboxEntryResponse.Origin> origins = originsOf(pending);
+        return pending.stream()
+                .map(request -> toInboxEntry(request, responsible, origins.get(request.getId())))
                 .toList();
+    }
+
+    /**
+     * El origen sale del actor de la entrada de nacimiento (FR-007): el portal público
+     * escribe con su propia cuenta desde la 004, así que no hay nada nuevo que
+     * persistir. Un lote, una consulta —no una por solicitud—. Hay exactamente una
+     * entrada de nacimiento por solicitud (la escribe {@code register}); la función de
+     * mezcla existe solo para que una anomalía de datos no tumbe la bandeja entera.
+     */
+    private Map<UUID, InboxEntryResponse.Origin> originsOf(List<Request> requests) {
+        if (requests.isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> ids = requests.stream().map(Request::getId).toList();
+        return logRepo.findBirthEntries(ids).stream()
+                .collect(Collectors.toMap(
+                        entry -> entry.getRequest().getId(),
+                        entry -> PORTAL_ACTOR_EMAIL.equals(entry.getActor().getEmail())
+                                ? InboxEntryResponse.Origin.PUBLIC_LINK
+                                : InboxEntryResponse.Origin.COORDINATION,
+                        (first, second) -> first));
     }
 
     /**
@@ -402,7 +423,8 @@ public class RequestServiceImpl implements IRequestService {
      * una línea para el documento de identidad es la garantía de FR-014, y conviene
      * que se vea al leerlo.
      */
-    private InboxEntryResponse toInboxEntry(Request request) {
+    private InboxEntryResponse toInboxEntry(Request request, String pendingResponsible,
+            InboxEntryResponse.Origin origin) {
         WorkflowDefinition definition = request.getDefinition();
         return new InboxEntryResponse(
                 request.getId(),
@@ -410,7 +432,9 @@ public class RequestServiceImpl implements IRequestService {
                         definition.getCode(), definition.getName(), definition.getVersion()),
                 request.getStudentName(),
                 toStateResponse(request.getCurrentState()),
-                request.getCreatedAt());
+                request.getCreatedAt(),
+                pendingResponsible,
+                origin);
     }
 
     private TimelineEntryResponse toTimelineEntry(

@@ -1,5 +1,6 @@
 package com.uniremington.api.tramita.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -8,6 +9,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.uniremington.api.tramita.TramitaIntegrationTest;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -152,6 +156,44 @@ class WorkflowGenericityIT {
                 .andExpect(jsonPath("$.currentState.isFinal").value(true));
     }
 
+    /**
+     * Invariante de configuración (007, T018 / FR-014). NO es un RED: el seed lo cumple.
+     * Existe porque la base no lo garantiza —V2.2.0 solo impide dos iniciales por
+     * definición y las transiciones a sí mismo— y porque de él dependen dos cosas de la
+     * bandeja: que un trámite cerrado salga «por construcción» (de un estado final no
+     * hay transiciones) y que ninguna solicitud quede detenida sin responsable posible
+     * (todo estado no final tiene una salida). Recorre TODA definición presente en la
+     * base al correr, incluida la DEMO cargada por SQL: si mañana entra un área o un
+     * trámite nuevo por configuración, el invariante lo cubre sin tocar este test.
+     */
+    @Test
+    @Order(3)
+    @DisplayName("invariante de configuración: ningún estado final tiene salidas y todo estado no final tiene al menos una (FR-014)")
+    void everyDefinitionHasNoExitFromFinalStatesAndAnExitFromEveryOtherState() {
+        insertDemoV1();
+        insertDemoV2();
+
+        List<String> finalStatesWithExits = jdbcTemplate.queryForList("""
+                SELECT d.code || ' v' || d.version || ': ' || s.code
+                FROM workflow_state s JOIN workflow_definition d ON d.id = s.definition_id
+                WHERE s.is_final
+                  AND EXISTS (SELECT 1 FROM workflow_transition t WHERE t.from_state_id = s.id)
+                """, String.class);
+        List<String> deadEnds = jdbcTemplate.queryForList("""
+                SELECT d.code || ' v' || d.version || ': ' || s.code
+                FROM workflow_state s JOIN workflow_definition d ON d.id = s.definition_id
+                WHERE NOT s.is_final
+                  AND NOT EXISTS (SELECT 1 FROM workflow_transition t WHERE t.from_state_id = s.id)
+                """, String.class);
+
+        assertThat(finalStatesWithExits)
+                .as("un estado final con salidas rompe «cerrado = fuera de toda bandeja»")
+                .isEmpty();
+        assertThat(deadEnds)
+                .as("un estado no final sin salida deja solicitudes detenidas sin responsable posible (FR-014)")
+                .isEmpty();
+    }
+
     // --- helpers -------------------------------------------------------------------------
 
     /** DEMO v1: ABIERTO → CERRADO directo. Idempotente para no chocar entre tests. */
@@ -175,7 +217,16 @@ class WorkflowGenericityIT {
                 INSERT INTO workflow_definition (id, code, version, name, created_at)
                 VALUES (gen_random_uuid(), 'DEMO', ?, 'Trámite de demostración', now())
                 """, version);
-        for (String state : new String[] {"ABIERTO", "REVISION", "CERRADO"}) {
+        // Solo los estados que las transiciones conectan: la v1 declaraba REVISION sin
+        // usarlo, y un estado no final sin salida es justo lo que el invariante de
+        // configuración (FR-014) señala — con razón. Un fixture no puede ser la
+        // excepción de la regla que el sistema afirma.
+        Set<String> states = new LinkedHashSet<>();
+        for (String[] t : transitions) {
+            states.add(t[0]);
+            states.add(t[1]);
+        }
+        for (String state : states) {
             jdbcTemplate.update("""
                     INSERT INTO workflow_state (id, definition_id, code, name, is_initial, is_final)
                     SELECT gen_random_uuid(), d.id, ?, initcap(?), ?, ?

@@ -251,6 +251,32 @@ class PublicRequestControllerIT {
                 .andExpect(jsonPath("$[0].actorEmail").value(PORTAL_EMAIL));
     }
 
+    // --- 007 / FR-007: la bandeja distingue de dónde vino cada solicitud -----------------
+
+    @Test
+    @DisplayName("en la bandeja, una solicitud nacida por el enlace público lleva origin PUBLIC_LINK (007, FR-007)")
+    void publicSubmissionShowsUpInTheInboxWithPublicLinkOrigin() throws Exception {
+        String studentName = "Estudiante Origen Publico";
+
+        mockMvc.perform(publicSubmission("203.0.113.112", PUBLIC_TRADE,
+                        filledForm(studentName, "SIN-DATO-REAL-112")))
+                .andExpect(status().isCreated());
+
+        MockHttpSession session = login();
+        String requestId = findIdByName(session, studentName);
+
+        // El origen se deriva del actor de la entrada de nacimiento —el portal—, no de
+        // un campo nuevo: lo que el test anterior afirma sobre el histórico es lo que
+        // la bandeja lee. `limit=200` porque la base es compartida entre ITs y el corte
+        // bajo la cota es por radicación (007, research.md D8).
+        mockMvc.perform(get("/api/requests/inbox")
+                        .param("responsible", "COORDINACION").param("limit", "200")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '%s')].origin".formatted(requestId))
+                        .value("PUBLIC_LINK"));
+    }
+
     @Test
     @DisplayName("los seis campos del formato llegan a la fila, no solo al 201 (FR-004, FR-005, FR-005a)")
     void publicSubmissionPersistsEveryFieldOfTheFormat() throws Exception {
