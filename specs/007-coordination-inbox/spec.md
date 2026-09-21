@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-21
 
-**Status**: Draft
+**Status**: Aprobada — gate `review-spec` superado y auditada contra las fuentes el 2026-09-21
 
 **Input**: SP5 — issue [#12](https://github.com/Villanueva-dev/Tramita/issues/12), milestone «Sprint 3 — Operación diaria». Decisión acoplada: issue [#22](https://github.com/Villanueva-dev/Tramita/issues/22).
 
@@ -27,6 +27,7 @@ La Coordinación abre el sistema y ve, en una sola vista, las solicitudes que es
 3. **Given** una solicitud finalizada o rechazada, **When** la Coordinación abre su bandeja, **Then** no aparece: un trámite cerrado no espera acción de nadie.
 4. **Given** una solicitud que nació por el enlace público y otra registrada por la propia Coordinación, **When** ambas esperan su acción, **Then** las dos aparecen en la lista y se distingue de dónde vino cada una.
 5. **Given** un trámite nuevo incorporado por configuración, sin desplegar código, **When** alguna de sus solicitudes espera acción de la Coordinación, **Then** aparece en la bandeja igual que las demás.
+6. **Given** una solicitud devuelta para corrección, cuyo reingreso registra la Coordinación cuando el estudiante la corrige, **When** la Coordinación abre su bandeja, **Then** aparece —aunque el formato esté en manos del estudiante—, porque la siguiente acción en el sistema es de ella, y su espera se cuenta desde la devolución. Es el retraso que la entrevista describe como el peor: *«me he demorado y medio dos meses, pero es porque el estudiante lo mandó mal. Yo le dije que lo arreglara, se le olvidó»* (Sesión 1 parte A).
 
 ---
 
@@ -36,7 +37,7 @@ Sobre esa misma lista, la Coordinación ve **cuánto tiempo lleva esperando** ca
 
 **Why this priority**: es la mitad del criterio de cierre del issue y lo que convierte una lista en una herramienta de priorización. Depende de la P1 —no hay dónde mostrarlo sin la lista— pero la lista sirve sin esto.
 
-**Independent Test**: con la bandeja ya funcionando, se registran solicitudes con distintas antigüedades y se comprueba que el indicador las clasifica de forma consistente y que el orden de atención propuesto refleja la urgencia.
+**Independent Test**: con la bandeja ya funcionando, se registran solicitudes con distintas antigüedades de espera y se comprueba que el instante expuesto permite distinguirlas y que el orden devuelto pone primero la que más lleva esperando.
 
 **Acceptance Scenarios**:
 
@@ -65,7 +66,7 @@ Cuando un estudiante pregunta por su trámite —por correo, por teléfono o en 
 ### Edge Cases
 
 - **Una solicitud cuya siguiente acción no corresponde a nadie**: si por configuración un estado no ofrece ninguna transición y no es final, la solicitud queda detenida sin dueño. No debe desaparecer sin rastro: es un defecto de configuración que alguien tiene que ver.
-- **Una solicitud que espera acción de la Coordinación y de otra área a la vez**: si desde un estado salen transiciones con responsables distintos, hay que decidir si aparece en la bandeja de la Coordinación, en la de la otra área, o en ambas.
+- **Una solicitud que espera acción de la Coordinación y de otra área a la vez**: si desde un estado salen transiciones con responsables distintos, aparece en la bandeja de **cada uno**, y el responsable que la respuesta declara es el de la bandeja consultada. Ninguna configuración sembrada tiene hoy ese caso; el criterio lo resuelve así sin código adicional.
 - **Volumen**: 30–40 solicitudes de adición de créditos por semestre, concentradas al inicio. La bandeja tiene que ser útil el día pico, no en promedio.
 - **Antigüedad sin cierre**: una solicitud que lleva meses esperando —los peores casos registrados llegan a dos meses— no debe romper el indicador ni ordenarse como si acabara de llegar.
 - **Reloj**: los plazos se cuentan en la zona horaria de la sede, no en la del servidor, y el resultado no puede cambiar según dónde se despliegue.
@@ -81,7 +82,7 @@ Cuando un estudiante pregunta por su trámite —por correo, por teléfono o en 
 - **FR-003a**: El sistema MUST NOT presentar la bandeja como un control de acceso. Filtra lo que le toca a la Coordinación; no impide que la cuenta existente avance un trámite de otra área. Esa restricción es trabajo futuro y no la cubre esta feature.
 - **FR-003b**: El sistema MUST registrar como actor de cada movimiento a **quien lo ejecutó en el sistema**, sin atribuirle la aprobación de un tercero. Cuando la Coordinación registre que la facultad aprobó, el historial debe poder distinguir «lo registró la Coordinación» de «el decano firmó»: la firma ocurre en el papel, fuera del sistema, igual que con los sistemas externos que el MVP no integra.
 - **FR-004**: El sistema MUST exponer, por cada solicitud de la bandeja, cuánto tiempo lleva esperando.
-- **FR-005**: El sistema MUST exponer la antigüedad de cada solicitud como un **hecho medible**, y MUST NOT calificarla de vencida, urgente o equivalente. No existe plazo institucional confirmado: el árbol de problemas registra el documento como «pendiente de obtener», y el §IV exige verificar la normativa institucional contra la fuente antes de invocarla.
+- **FR-005**: El sistema MUST exponer la antigüedad de cada solicitud como un **hecho medible**, y MUST NOT calificarla de vencida, urgente o equivalente. No existe plazo institucional para estos dos trámites: el Reglamento Estudiantil de Pregrado (Acuerdo n.º 13 de 2023) solo fija plazo para la **corrección** de una nota ya reportada (art. 35 §3, quince días hábiles), trámite que el árbol excluye del alcance (§8). El árbol lo registraba como «documento pendiente de obtener» antes de obtenerse; obtenido, lo que hay es un vacío normativo, y el §IV prohíbe invocar un plazo que ninguna fuente respalda.
 - **FR-005a**: El sistema MUST quedar preparado para incorporar un umbral **cuando la norma se obtenga**, sin rehacer lo construido: la antigüedad que esta feature calcula es el insumo que ese umbral necesitaría.
 - **FR-006**: El sistema MUST contar los plazos en la zona horaria de la sede, de modo que el resultado no dependa de dónde se despliegue.
 - **FR-007**: El sistema MUST permitir distinguir el origen de cada solicitud de la bandeja —registrada por la Coordinación o recibida por el enlace público—, porque el origen cambia qué se ha verificado antes de que llegue.
@@ -93,7 +94,7 @@ Cuando un estudiante pregunta por su trámite —por correo, por teléfono o en 
 - **FR-011b**: El sistema MUST NOT exponer un orden lineal del recorrido. El flujo de un trámite **no es una secuencia**: admite devoluciones que regresan a un punto anterior y ramas de rechazo que terminan antes. Un indicador de «paso N de M» afirmaría una linealidad que la configuración no tiene, y obligaría a inventar un orden y mantenerlo por definición.
 - **FR-011c**: La extensión del catálogo MUST ser aditiva: un cliente que hoy consume el catálogo debe seguir funcionando sin cambios.
 - **FR-012**: El sistema MUST permitir distinguir una solicitud devuelta para corrección de una que nunca salió de ese punto, sabiendo que en uno de los dos trámites del alcance la devolución es un movimiento del historial y no un estado.
-- **FR-013**: El sistema MUST NOT ofrecer al estudiante ninguna vista propia del estado de su trámite: la visibilidad sigue siendo mediada por la Coordinación, que lo rechazó explícitamente en la entrevista.
+- **FR-013**: El sistema MUST NOT ofrecer al estudiante ninguna vista propia del estado de su trámite: la visibilidad sigue siendo mediada por la Coordinación. Es la decisión que el árbol de problemas fija para SP5 («visibilidad mediada») a partir de la Sesión 2 parte B, donde la Coordinación lo consideró innecesario para el estudiante y de alcance administrativo.
 - **FR-014**: El sistema MUST hacer visible una solicitud detenida sin responsable posible, en lugar de omitirla silenciosamente de toda vista.
 
 ### Key Entities
@@ -120,12 +121,12 @@ Estos son hechos **medidos** el 2026-09-21 contra el estado real del sistema, no
 
 - **La lista existe, el criterio no**: el sistema ya ofrece una consulta de solicitudes recientes, pero devuelve las más nuevas sin filtrar por estado ni por responsable, y ningún cliente la consume. Lo que esta feature construye es el **criterio** y el **indicador**, no el listado.
 - **No hay roles de usuario**: existe una sola cuenta —la de la Coordinación— y el sistema no distingue perfiles. La configuración de cada trámite sí declara qué área es responsable de cada movimiento, pero nadie compara ese dato con quién está autenticado. De ahí Q1.
-- **El plazo no tiene fuente, y por eso no se juzga**: la Coordinación mencionó plazos «de 3 a 5 días» y «hasta 15 días hábiles» sin poder ubicar la norma; el árbol de problemas lo registra como *«documento pendiente de obtener»*. Esta feature **mide y no dictamina**. Se descartó sembrar un umbral provisional: haría que el sistema afirmara en pantalla algo que no se puede citar, y con 30–40 solicitudes por semestre el dato crudo ya permite priorizar.
+- **El plazo no tiene fuente, y por eso no se juzga**: la Coordinación mencionó plazos «de 3 a 5 días» y «hasta 15 días hábiles» sin poder ubicar la norma (Sesión 2 parte A); el árbol de problemas lo registró como *«documento pendiente de obtener»*. La norma se obtuvo después: el Reglamento Estudiantil de Pregrado (Acuerdo n.º 13 de 2023) fija quince días hábiles solo para la **corrección** de una nota ya reportada (art. 35 §3), que no es la novedad del alcance; para los dos trámites del MVP no hay plazo. No es un documento pendiente: es un vacío normativo. Esta feature **mide y no dictamina**. Se descartó sembrar un umbral provisional: haría que el sistema afirmara en pantalla algo que no se puede citar, y con 30–40 solicitudes por semestre el dato crudo ya permite priorizar.
 - **Los días hábiles se descartaron con el umbral**: medirlos en Colombia exige modelar unos 18 festivos anuales, varios trasladados al lunes por la Ley Emiliani y cinco móviles atados a la Pascua — un calendario que hay que mantener cada año. Desproporcionado para esta feature, y **innecesario** si no se dictamina vencimiento. La antigüedad se expresa en tiempo transcurrido, sin calendario laboral. *(Nota: la única cifra en días hábiles que la entrevista atribuye a un tramo concreto son «cinco días hábiles» para la facultad; ningún plazo global está respaldado.)*
 - **El cliente actual mide mal y lo dice mal**: muestra un vencimiento de «6 días hábiles» que no sale de ninguna fuente, calculado con una función que **suma días corridos pese a llamarse `addBusinessDays`** y que no contempla festivos. Esta feature no hereda ese número ni esa función.
 - **El origen de las solicitudes no es uniforme**: desde la captura pública, una solicitud puede nacer sin que ninguna persona con sesión la haya registrado. El actor es el portal.
 - **El estudiante no tendrá vista propia**: decidido y registrado en entrevista. La bandeja es la vía de visibilidad, no un paso hacia un portal de auto-consulta.
-- **El decano no será usuario del sistema**: la Coordinación mencionó su interés en que la facultad firmara sin intervención suya, pero darle cuenta, rol y permisos a un aprobador externo para que entre una sola vez a firmar no se justifica en este alcance, y el circuito alternativo —enviarle el documento, recibir su firma y devolverla al sistema— depende de correo saliente, que es una dependencia externa sin resolver. Queda fuera. Si algún día entra, el patrón a reusar es el que el proyecto ya aplicó dos veces —acceso sin cuenta, autorizado por posesión de un enlace o un código—, no un rol.
+- **El decano no será usuario del sistema**: el equipo consideró darle a la facultad una vía para firmar sin intervención de la Coordinación (idea surgida en la sesión de especificación, no en la entrevista: en el verbatim la Coordinación ni siquiera sabe con certeza quién firma — *«No sé si el decano solo revisa o si hace la firma, no me consta»*, Sesión 1 parte A), pero darle cuenta, rol y permisos a un aprobador externo para que entre una sola vez a firmar no se justifica en este alcance, y el circuito alternativo —enviarle el documento, recibir su firma y devolverla al sistema— depende de correo saliente, que es una dependencia externa sin resolver. Queda fuera. Si algún día entra, el patrón a reusar es el que el proyecto ya aplicó dos veces —acceso sin cuenta, autorizado por posesión de un enlace o un código—, no un rol.
 - **Exponer los estados es aditivo y está medido**: se construyó un spike descartable para comprobarlo antes de decidir. Son **5 archivos tocados y uno nuevo, +16/−9 líneas**, la suite completa pasa **sin modificar un solo test**, y los clientes actuales del catálogo siguen funcionando porque solo se agregan campos. El dato de «estado inicial» ya está almacenado desde la primera migración del motor: nunca se expuso.
 - **El recorrido no se expone como secuencia porque no lo es**: la configuración declara transiciones de retorno —una devolución vuelve a un punto anterior— y transiciones de rechazo que cierran antes del final. Ordenar eso en línea recta exigiría inventar el orden, sembrarlo por definición y mantenerlo. Se descartó.
 - **Las métricas del prototipo no cubren esto**: el código no integrado de la rama de exploración calcula agregados globales por trámite y por estado. No es una bandeja y no cierra este issue.

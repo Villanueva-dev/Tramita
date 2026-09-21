@@ -45,8 +45,9 @@ solicitudes por semestre** para el trámite más frecuente, concentradas al inic
 espera de cada solicitud (research D3). El resultado va acotado por un `Limit` explícito, que
 la firma del repositorio ya exige desde la 004.
 
-**Scale/Scope**: Sede Cali, dos trámites configurados, una cuenta de usuario. Tres endpoints
-tocados en total, ninguno nuevo.
+**Scale/Scope**: Sede Cali, dos trámites configurados, una cuenta de usuario. Dos endpoints
+cambian de contrato (`/requests/inbox` y `/workflow-definitions`), ninguno nuevo; `StateResponse`
+gana `isInitial` y eso se propaga, de forma aditiva, a toda respuesta que anide un estado.
 
 ## Constitution Check
 
@@ -58,7 +59,7 @@ tocados en total, ninguno nuevo.
 | **II — Arquitectura por capas** | ✅ Pasa | Se tocan `controller/`, `dto/`, `repo/`, `service/` y `service/impl/`, en su sitio. Sin clases nuevas fuera de esas capas. |
 | **III — Seguridad y minimización** | ✅ Pasa, y se refuerza | `InboxEntryResponse` sigue **sin** documento de identidad; el quickstart lo verifica explícitamente (paso 2). Se listan nombre y trámite, que es el mínimo para identificar y priorizar. Los endpoints siguen bajo sesión. |
 | **IV — Decisiones trazables** | ✅ Pasa | Ocho decisiones en `research.md`, cada una con su alternativa rechazada y su costo aceptado. La decisión del catálogo se **midió con un spike** antes de elegirse. |
-| **V — Testing del comportamiento sensible** | ✅ Pasa | Lo sensible acá es el **criterio de selección** —incluir de más o de menos es el fallo caro— y la **medición de la espera**. Ambos llevan tests, con mutantes sobre las aserciones que afirman el criterio. |
+| **V — Testing del comportamiento sensible** | ✅ Pasa | Lo sensible acá es el **criterio de selección** —incluir de más o de menos es el fallo caro— y la **medición de la espera**. El criterio vive en la consulta, así que sus tests son de integración contra Postgres (T005–T007) y el mutante ataca la consulta (T017); la medición se prueba en el unitario del servicio (T020–T022) con sus mutantes (T027–T028). Un test con el repositorio mockeado no puede probar una consulta. |
 | **VI — Workflow configurable por dato** | ✅ Pasa, y es el eje | El responsable viaja como **parámetro**: el código no contiene ni `COORDINACION` ni ninguna otra etiqueta (D2). Un test debe demostrar que una definición nueva sembrada por SQL aparece en la bandeja sin desplegar (SC-005). |
 | **VII — Trazabilidad inmutable** | ✅ Pasa | No se escribe en `request_transition_log`: solo se lee. La medición de la espera **hereda** la inmutabilidad del trigger `trg_timeline_immutable` sin agregar mecanismo. Se rechazó una columna `state_since` precisamente porque sería una copia mutable de un dato inmutable (D3). |
 
@@ -112,12 +113,12 @@ src/main/java/com/uniremington/api/tramita/
 
 src/test/java/com/uniremington/api/tramita/
 ├── controller/
-│   ├── RequestControllerIT.java            # bandeja extremo a extremo
+│   ├── RequestControllerIT.java            # bandeja extremo a extremo, incluido el criterio (T005–T007)
 │   └── WorkflowDefinitionControllerIT.java # estados en el catálogo
 ├── service/impl/
-│   └── RequestServiceImplTest.java         # criterio y medición de la espera
+│   └── RequestServiceImplTest.java         # medición de la espera y origin (el criterio va en el IT)
 └── controller/
-    └── WorkflowGenericityIT.java           # SC-005: un trámite nuevo por SQL aparece solo
+    └── WorkflowGenericityIT.java           # SC-005 (T040) e invariante de configuración (T018, FR-014)
 ```
 
 **Structure Decision**: se conserva la estructura *package-by-layer* del §II sin excepciones.

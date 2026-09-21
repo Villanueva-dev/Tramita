@@ -94,10 +94,16 @@ Al citar literatura o normativa institucional, **incluir la referencia exacta** 
 
 <!-- SPECKIT START -->
 **Feature ACTIVA: `007-coordination-inbox`** — SP5 (issue `Tramita#12`), la bandeja de trabajo de la
-Coordinación, y con ella la decisión acoplada del issue `#22`. Fase: **plan cerrado**, lista para
-`/speckit-tasks`. Artefactos en `specs/007-coordination-inbox/`: `spec.md` (20 FR), `plan.md`,
-`research.md` (D1–D8), `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`,
-`checklists/requirements.md`.
+Coordinación, y con ella la decisión acoplada del issue `#22`. Fase: **tasks cerrado y commiteado**
+(`1b1fbd6`); lo siguiente es **implementar**. Artefactos en `specs/007-coordination-inbox/`:
+`spec.md` (20 FR), `plan.md`, `research.md` (D1–D8), `data-model.md`, `contracts/openapi.yaml`,
+`quickstart.md`, `checklists/requirements.md` y **`tasks.md` (44 tareas, 6 fases)**.
+⛔ **NO volver a correr `/speckit-tasks`**: regenera `tasks.md` DESDE PLANTILLA
+(`.claude/skills/speckit-tasks/SKILL.md:77`) y pisaría las 44 tareas curadas —10 RED, 5 mutantes, 2 guardas de
+test, 1 invariante y las dos guardas de proceso T002/T041, medido el 2026-09-21 tras la auditoría;
+el «13 RED, 7 mutantes» que decía antes nunca fue exacto: en `1b1fbd6` eran 12 y 6—. ⚠️ La rama está **solo en local, sin pushear**: el único respaldo de ese
+archivo es el disco. Este bloque lo escribió `/speckit-plan` en el commit del plan, así que **queda
+una fase atrás por construcción** cada vez que corre: revisarlo antes de creerle.
 🔑 **La feature NO lleva migración Flyway**: todo lo que necesita ya está persistido desde `V2.0.0`
 —`workflow_transition.responsible`, `workflow_state.is_initial/is_final`,
 `request_transition_log.occurred_at`—. La última migración del repo sigue siendo **`V4.1.0`**.

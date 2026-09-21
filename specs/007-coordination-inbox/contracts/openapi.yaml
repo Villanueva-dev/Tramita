@@ -48,6 +48,14 @@ paths:
         Un trámite cerrado nunca aparece: de un estado final no sale ninguna transición, así
         que queda excluido sin necesidad de filtrarlo aparte.
 
+        Una solicitud **devuelta para corrección** espera a quien registra el reingreso —en el
+        MVP, la Coordinación— y aparece en su bandeja aunque el formato esté en manos del
+        estudiante (research.md D1).
+
+        **Bajo `limit`**, el corte se hace por radicación y el orden por espera se aplica sobre
+        el resultado: con más pendientes que la cota, no se garantiza que sean las que más
+        esperan (research.md D8). Con 30–40 solicitudes por semestre, no ocurre.
+
         ⚠️ **ESTO NO ES CONTROL DE ACCESO** (FR-003a). Cualquier sesión válida puede consultar
         la bandeja de cualquier responsable. El endpoint **filtra, no impide**: no existe
         noción de rol en el sistema y esta feature decidió no introducirla. Restringir quién
@@ -166,7 +174,12 @@ components:
         createdAt:
           type: string
           format: date-time
-          description: Cuándo se radicó. Es la antigüedad del trámite, no la de la espera.
+          description: |
+            Cuándo se radicó. Es la antigüedad del trámite, no la de la espera.
+
+            Viaja **sin offset** (UTC, sin marcador), como lo definió la 004: se deja así a
+            propósito (research.md D4). `waitingSince` sí lleva offset — dos formatos en el
+            mismo objeto, y es deliberado.
         waitingSince:
           type: string
           format: date-time
@@ -182,6 +195,9 @@ components:
             **Se expone el instante y no un número de días** (research.md D4): una duración
             obligaría a fijar la zona horaria y el «ahora» en el servidor, y envejece en
             cuanto se cachea. La resta la hace quien presenta.
+
+            Lleva el offset de la sede (`CampusTime`, la 006): es lo que hace verdadero
+            «instante» para un cliente que, sin marcador, leería la hora como local.
         pendingResponsible:
           type: string
           description: |

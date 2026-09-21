@@ -21,6 +21,21 @@ en sentido inverso: dado un responsable, qué solicitudes lo esperan. Derivarlo 
 sola fuente de verdad y respeta el Principio VI: el motor no aprende nada nuevo sobre ningún
 trámite.
 
+**De dónde sale el significado de `responsible`, y tres consecuencias a la vista.** El seed de
+la 002 lo definió como el área cuya firma o aprobación espera el paso — no como quién ejecuta
+la transición en el sistema, que en el MVP es siempre la Coordinación (FR-003b).
+
+1. En adición de créditos, `DEVUELTA → EN_COORDINACION` lleva `COORDINACION` (`V2.1.0:52`,
+   retocada por `V3.2.0`): una solicitud **devuelta aparece en la bandeja de la Coordinación**
+   aunque el formato esté en manos del estudiante, porque el reingreso lo registra ella. Es
+   deseable — es el peor retraso que describe la entrevista — y la spec lo fija en el
+   escenario 6 de US1.
+2. En novedad de notas, `EN_PREPARACION → EN_FACULTAD` lleva `SEDE` (`V2.1.0:86`): la carpeta
+   que la Coordinación arma **no** está en su bandeja mientras espera la firma de la Dirección
+   de Sede. Es una decisión del seed de la 002, no de esta feature.
+3. Si un estado tuviera salidas con responsables distintos, la solicitud aparece en la bandeja
+   de cada uno (caso borde de la spec, cerrado así). Hoy ninguna definición sembrada lo tiene.
+
 **Alternativas consideradas**:
 
 - *Columna desnormalizada `pending_responsible` en `request`*: rechazada. Duplica un dato que
@@ -120,6 +135,14 @@ el cliente lo presenta.
 **Costo aceptado**: el cliente hace una resta. A cambio, no hay ninguna decisión de calendario
 en el backend — que es justo lo que la spec decidió evitar al descartar el umbral de SLA.
 
+**Tipo y offset, decidido el 2026-09-21.** `waitingSince` viaja como `OffsetDateTime` construido
+con `CampusTime.toCampus(...)` — la utilidad que dejó la 006 en `util/` — que fija el offset de
+la sede: es lo que hace verdadero «instante con offset» y resuelve FR-006 sin cálculo propio.
+Las entidades guardan `LocalDateTime` en UTC, sin marcador; sin esa conversión el cliente
+recibiría `2026-09-21T15:30:00` y lo leería como hora local. `createdAt` **se deja como está**
+(`LocalDateTime` UTC, contrato de la 004): cambiarlo no es de esta feature. El costo, y se
+declara en el contrato, es un DTO con dos instantes en dos formatos.
+
 ---
 
 ## D5 — El orden lo fija el servidor: primero lo que más espera
@@ -205,6 +228,15 @@ menos siendo un listado de datos personales (§III).
 **Costo aceptado**: si algún día hay más solicitudes pendientes que el tope, la bandeja
 muestra un subconjunto. A 30–40 por semestre no ocurre; cuando ocurra, la respuesta es
 paginación, no quitar la cota.
+
+**Cuál subconjunto, y por qué se declara en vez de corregirse.** La consulta que filtra por
+responsable corta por **radicación ascendente**, y el orden por `waitingSince` (D5) se aplica
+después, en memoria, sobre lo que sobrevivió. Con más pendientes que la cota, el resultado es
+«las N radicadas hace más tiempo, ordenadas por espera», no «las N que más esperan». Exige más
+de 50 pendientes simultáneas de un mismo responsable con un volumen de 30–40 **por semestre**:
+no ocurre. Si algún día importa, la solución es una sola consulta que calcule el instante de
+espera en una subconsulta y ordene por él antes de la cota — no quitar la cota ni traer todo a
+memoria.
 
 ---
 

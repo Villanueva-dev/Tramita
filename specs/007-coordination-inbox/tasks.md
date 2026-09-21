@@ -8,7 +8,7 @@ description: "Lista de tareas de la feature 007 — bandeja de trabajo de la coo
 
 **Prerequisites**: `plan.md`, `spec.md`, `research.md`, `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`
 
-**Tests**: **obligatorios**. El proyecto tiene TDD estricto: el rojo se observa antes de implementar. Cada tarea marcada `(RED)` debe fallar **por la razón esperada** antes de escribir la que la sigue, y cada tarea `(MUTANTE)` comprueba que la aserción afirma lo que su nombre dice.
+**Tests**: **obligatorios**. El proyecto tiene TDD estricto: el rojo se observa antes de implementar. Cada tarea marcada `(RED)` debe fallar **por la razón esperada** antes de escribir la que la sigue, y cada tarea `(MUTANTE)` comprueba que la aserción afirma lo que su nombre dice. Las tareas `(GUARDA)` e `(INVARIANTE)` **no** son RED: están verdes antes de escribirlas y fijan algo que ya se cumple para que no se pierda; etiquetarlas RED diluiría la regla.
 
 ## Formato: `[ID] [P?] [Story] Descripción`
 
@@ -37,7 +37,7 @@ docker start tramita-postgres && ./mvnw clean verify
 **Propósito**: confirmar el punto de partida y el hecho que sostiene la decisión D7.
 
 - [ ] T001 Levantar la base y confirmar la línea base en verde: `docker start tramita-postgres && ./mvnw clean verify`, anotando el conteo real de unitarios e IT
-- [ ] T002 Confirmar que **ningún cliente consume** `GET /requests/inbox`, que es lo que autoriza la enmienda no aditiva de D7: `git -C ../tramita-frontend grep -rn 'requests/inbox' origin/main` debe devolver **0 resultados**. Si devuelve alguno, **detenerse**: la enmienda rompería un cliente real y hay que reabrir D7
+- [ ] T002 Confirmar que **ningún cliente consume** `GET /requests/inbox`, que es lo que autoriza la enmienda no aditiva de D7: `git -C ../tramita-frontend grep -rn 'requests/inbox' origin/main -- app lib components` debe devolver **0 resultados** (medido así el 2026-09-21). Se acota a código a propósito: sin acotar aparecen 2 líneas en `openspec/changes/archive/…/proposal.md`, documentación de la 004 que cita el endpoint, no un consumidor. Si el comando acotado devuelve alguno, **detenerse**: la enmienda rompería un cliente real y hay que reabrir D7
 
 ---
 
@@ -48,7 +48,7 @@ docker start tramita-postgres && ./mvnw clean verify
 **⚠️ CRÍTICO**: ninguna historia puede empezar hasta que esta fase esté completa.
 
 - [ ] T003 Enmendar `specs/004-public-request-capture/contracts/openapi.yaml`: la descripción de `GET /requests/inbox` deja de prometer «las solicitudes más recientes, sin criterio» y remite a `specs/007-coordination-inbox/contracts/openapi.yaml`. Dejar escrito que el cambio **no es aditivo** y por qué se hizo igual (nadie lo consume, T002)
-- [ ] T004 Actualizar el javadoc de `findAllByOrderByCreatedAtDesc` en `src/main/java/com/uniremington/api/tramita/repo/IRequestRepo.java` si el método deja de usarse, o marcarlo como reemplazado. **No borrarlo en esta tarea**: su eliminación se decide en T031 según quede o no sin llamadores
+- [ ] T004 Actualizar el javadoc de `findAllByOrderByCreatedAtDesc` en `src/main/java/com/uniremington/api/tramita/repo/IRequestRepo.java` si el método deja de usarse, o marcarlo como reemplazado. **No borrarlo en esta tarea**: su eliminación se decide en T014, que reemplaza su única llamada: si queda sin llamadores, se borra ahí
 
 **Checkpoint**: el contrato viejo ya no promete algo que el código dejará de cumplir.
 
@@ -62,15 +62,17 @@ docker start tramita-postgres && ./mvnw clean verify
 
 ### Tests para US1 ⚠️ primero el rojo
 
-- [ ] T005 [US1] **(RED)** En `src/test/java/com/uniremington/api/tramita/service/impl/RequestServiceImplTest.java`: una solicitud cuyo estado actual tiene una transición con `responsible = X` **aparece** en la bandeja de X. Debe fallar porque el método todavía no existe
-- [ ] T006 [P] [US1] **(RED)** En el mismo archivo: una solicitud cuyo estado actual **no** ofrece ninguna transición de X **no aparece** en la bandeja de X
-- [ ] T007 [P] [US1] **(RED)** En el mismo archivo: una solicitud en **estado final** no aparece en la bandeja de **ningún** responsable. El nombre del test debe afirmar que sale por construcción —de un estado final no salen transiciones—, no que hay un filtro de cerradas
-- [ ] T008 [US1] **(RED)** En `src/test/java/com/uniremington/api/tramita/controller/RequestControllerIT.java`: `GET /api/requests/inbox?responsible=COORDINACION` responde 200 con las pendientes de esa área; sin sesión responde 401; sin el parámetro `responsible` responde 400
-- [ ] T009 [P] [US1] **(RED)** En el mismo IT: la respuesta **no contiene** `studentDocument`. Es el invariante del DTO desde la 004 (§III) y se fija acá para que no se pierda al ampliarlo
+⚠️ **Los tests del criterio (T005–T007) son de integración, no unitarios.** El criterio vive en la consulta de T010, y `RequestServiceImplTest` mockea `IRequestRepo` (línea 52): un test con el repositorio mockeado devuelve lo que el mock diga, sin importar qué consulta tenga el método real, y el mutante de T017 no lo tocaría. Van en `RequestControllerIT`, contra Postgres real, con los helpers que ya registran y avanzan solicitudes por la API.
+
+- [ ] T005 [US1] **(RED)** En `src/test/java/com/uniremington/api/tramita/controller/RequestControllerIT.java`: una solicitud cuyo estado actual tiene una transición con `responsible = X` **aparece** en `GET /api/requests/inbox?responsible=X`, y la lista tiene **exactamente el tamaño esperado** (`$.length()`), no solo «contiene»: sin `distinct` en T010, una solicitud en `EN_COORDINACION` saldría dos veces, porque ese estado tiene dos transiciones de salida con el mismo responsable. Cubrir también una solicitud **devuelta** (`DEVUELTA`): aparece en la bandeja de `COORDINACION`, porque es ella quien registra el reingreso (research D1, spec US1 escenario 6). Debe fallar porque el parámetro todavía no existe y la lista viene sin criterio
+- [ ] T006 [P] [US1] **(RED)** En el mismo IT: una solicitud cuyo estado actual **no** ofrece ninguna transición de X (por ejemplo, avanzada a `EN_FACULTAD`, cuyas salidas son todas de `FACULTAD`) **no aparece** en la bandeja de X
+- [ ] T007 [P] [US1] **(RED)** En el mismo IT: una solicitud llevada por el motor a un **estado final** (`RECHAZADA` está a dos avances del inicial) no aparece en la bandeja de **ningún** responsable sembrado. El nombre del test debe afirmar que sale por construcción —de un estado final no salen transiciones—, no que hay un filtro de cerradas. Lo que hace verdadero «por construcción» es el invariante de T018, porque la base no lo impide
+- [ ] T008 [US1] **(RED)** En el mismo IT, el contrato HTTP de `GET /api/requests/inbox`: con sesión y `responsible` responde 200 (el contenido lo afirman T005–T007); sin sesión responde 401; sin el parámetro `responsible` responde 400 en `application/problem+json`
+- [ ] T009 [P] [US1] **(GUARDA)** En el mismo IT: la respuesta **no contiene** `studentDocument`. Está verde desde antes de escribirlo —el DTO ya no lleva el campo— y por eso no es un RED: es el invariante del DTO desde la 004 (§III) y se fija acá para que no se pierda al ampliarlo en T011. Su mutante es T019
 
 ### Implementación de US1
 
-- [ ] T010 [US1] Agregar a `src/main/java/com/uniremington/api/tramita/repo/IRequestRepo.java` la consulta que devuelve las solicitudes cuyo estado actual ofrece una transición con el `responsible` dado, con `Limit` explícito. **Sin literales de responsables** en la consulta: el valor llega por parámetro (research D2)
+- [ ] T010 [US1] Agregar a `src/main/java/com/uniremington/api/tramita/repo/IRequestRepo.java` la consulta que devuelve las solicitudes cuyo estado actual ofrece una transición con el `responsible` dado, con `select distinct` (un estado puede tener varias salidas con el mismo responsable), ordenada por `createdAt` ascendente y con `Limit` explícito. El orden por espera se aplica después, en memoria (T026): bajo la cota, el corte es por radicación, y así lo declara research D8. **Sin literales de responsables** en la consulta: el valor llega por parámetro (research D2)
 - [ ] T011 [US1] Ampliar `src/main/java/com/uniremington/api/tramita/dto/InboxEntryResponse.java` con `pendingResponsible` y `origin`. **No agregar `studentDocument`**
 - [ ] T012 [US1] Derivar `origin` en `src/main/java/com/uniremington/api/tramita/service/impl/RequestServiceImpl.java` a partir del actor de la **primera** entrada de timeline: el canal público actúa con cuenta propia desde la 004, así que el dato ya está registrado
 - [ ] T013 [US1] Cambiar la firma de la bandeja en `src/main/java/com/uniremington/api/tramita/service/IRequestService.java` para que reciba el responsable y la cota
@@ -81,7 +83,7 @@ docker start tramita-postgres && ./mvnw clean verify
 ### Verificación de US1
 
 - [ ] T017 [US1] **(MUTANTE)** Invertir el criterio de la consulta de T010 —devolver las que **no** esperan a ese responsable— y comprobar que T005 y T006 se ponen **rojos**. Revertir con `cp` desde backup, **nunca** `git checkout` si hay trabajo sin commitear
-- [ ] T018 [US1] **(MUTANTE)** Quitar el filtro por estado final implícito —forzar que incluya cerradas— y comprobar que T007 se pone **rojo**
+- [ ] T018 [US1] **(INVARIANTE)** En `src/test/java/com/uniremington/api/tramita/controller/WorkflowGenericityIT.java` (ya tiene `JdbcTemplate` y carga la definición DEMO): para **toda** definición presente en la base, **ningún estado final tiene transiciones de salida** y **todo estado no final tiene al menos una**. No es un RED —el seed lo cumple hoy— y reemplaza al mutante que había acá: no existe un «filtro de cerradas» que quitar, porque el cierre queda fuera por construcción (T007), y la base no lo garantiza (`V2.2.0` solo agrega `uq_workflow_state_one_initial_per_definition` y `ck_workflow_transition_not_self`). La segunda mitad es la cobertura de **FR-014**: una solicitud detenida sin responsable posible solo puede existir si la configuración tiene un estado así, y este test lo hace visible antes de que exista la solicitud
 - [ ] T019 [US1] **(MUTANTE)** Agregar `studentDocument` al DTO y comprobar que T009 se pone **rojo**. Revertir
 
 **Checkpoint**: US1 funciona sola. La Coordinación ya puede reemplazar la revisión manual del correo.
@@ -97,15 +99,15 @@ docker start tramita-postgres && ./mvnw clean verify
 ### Tests para US2 ⚠️ primero el rojo
 
 - [ ] T020 [US2] **(RED)** En `RequestServiceImplTest.java`: el `waitingSince` de una solicitud **con transiciones** es el `occurredAt` de la **última**, no su `createdAt`. El test debe usar una solicitud cuyo `createdAt` sea claramente anterior, de modo que confundir ambos campos lo ponga rojo
-- [ ] T021 [P] [US2] **(RED)** En el mismo archivo: el `waitingSince` de una solicitud **sin transiciones** es su `createdAt`
+- [ ] T021 [P] [US2] **(RED)** En el mismo archivo: el `waitingSince` de una solicitud **sin entradas de timeline** es su `createdAt`. Es un respaldo **defensivo**: en producción no ocurre, porque toda solicitud nace con una entrada (`RequestServiceImpl.register`, también por el canal público, que delega en él). El test fija que el respaldo existe, no que el caso sea real
 - [ ] T022 [P] [US2] **(RED)** En el mismo archivo: la bandeja viene ordenada por `waitingSince` **ascendente** — primero la que más lleva esperando
 - [ ] T023 [US2] **(RED)** En `RequestControllerIT.java`: una solicitud **antigua que fue devuelta** aparece con `waitingSince` reciente y `createdAt` antiguo, y queda **después** de otra que lleva más tiempo detenida. Es el escenario que distingue esta feature de ordenar por fecha de radicación
 
 ### Implementación de US2
 
 - [ ] T024 [US2] Agregar a `src/main/java/com/uniremington/api/tramita/repo/IRequestTransitionLogRepo.java` la consulta que devuelve el `occurredAt` **más reciente por solicitud** para un conjunto de ids, **en una sola consulta**. No una por solicitud
-- [ ] T025 [US2] Ampliar `InboxEntryResponse.java` con `waitingSince`. **No agregar días ni duración**: se expone el instante (research D4)
-- [ ] T026 [US2] Resolver `waitingSince` en `RequestServiceImpl.java` combinando el resultado de T024 con `createdAt` como respaldo, y ordenar el resultado ascendente
+- [ ] T025 [US2] Ampliar `InboxEntryResponse.java` con `waitingSince` de tipo **`OffsetDateTime`**, construido con `CampusTime.toCampus(...)` (`util/CampusTime.java`, la 006): es lo que hace verdadero «instante con offset» (research D4) y resuelve FR-006 sin cálculo propio. **`createdAt` se deja como está** (`LocalDateTime`, contrato de la 004): decidido el 2026-09-21, ver data-model. **No agregar días ni duración**: se expone el instante
+- [ ] T026 [US2] Resolver `waitingSince` en `RequestServiceImpl.java` combinando el resultado de T024 con `createdAt` como respaldo, convirtiéndolo con `CampusTime.toCampus`, y ordenar el resultado ascendente
 
 ### Verificación de US2
 
@@ -127,7 +129,7 @@ docker start tramita-postgres && ./mvnw clean verify
 
 - [ ] T030 [P] [US3] **(RED)** En `src/test/java/com/uniremington/api/tramita/controller/WorkflowDefinitionControllerIT.java`: cada definición del catálogo trae su lista de `states`, y cada estado trae `isInitial` e `isFinal`
 - [ ] T031 [P] [US3] **(RED)** En el mismo IT: el estado con `isInitial = true` es **distinto** entre `ADICION_CREDITOS` y `NOVEDAD_NOTAS`. Es lo que demuestra por qué el cliente no puede usar una constante global — y lo que se rompió en silencio cuando `V3.2.0` renombró uno solo de los dos
-- [ ] T032 [P] [US3] **(RED)** En el mismo IT: los campos `code`, `name` y `version` siguen presentes con su significado anterior (FR-011c, el cambio es aditivo)
+- [ ] T032 [P] [US3] **(GUARDA)** En el mismo IT: los campos `code`, `name` y `version` siguen presentes con su significado anterior (FR-011c, el cambio es aditivo). Está verde desde antes —los tres campos ya existen— y por eso no es un RED: fija la aditividad para que T034–T036 no la rompan
 
 ### Implementación de US3
 
@@ -173,7 +175,7 @@ Phase 1 (T001–T002)
 
 ## Oportunidades de paralelismo
 
-- T006, T007 y T009 son archivos de test distintos o casos independientes: `[P]`.
+- T006, T007 y T009 son casos independientes dentro del mismo IT: `[P]`.
 - T020–T022 pueden escribirse juntos antes de implementar.
 - T030–T032 son todos en el mismo IT pero independientes entre sí.
 - **US3 completa** puede ir en paralelo con US1 si hay dos personas: no comparten archivos salvo `RequestServiceImpl.toStateResponse` (T033), que hay que coordinar.

@@ -36,7 +36,10 @@ una solicitud espera a **X** si alguna de sus transiciones sale de su estado act
 
 Un estado sin transiciones de salida y no final deja a la solicitud **detenida sin
 responsable**: no aparece en ninguna bandeja. FR-014 exige que eso sea visible en lugar de
-desaparecer en silencio — se cubre con una consulta de diagnóstico, no con una columna.
+desaparecer en silencio — se cubre con un **test de invariante de configuración** (tasks T018):
+todo estado no final tiene al menos una salida y ningún estado final tiene alguna. Un estado
+huérfano se detecta en la configuración, antes de que exista la solicitud que quedaría detenida.
+La base no lo garantiza (`V2.2.0` no lo restringe); el test sí.
 
 ### `WorkflowState`
 
@@ -60,13 +63,16 @@ Hoy lleva `id`, `definition`, `studentName`, `currentState`, `createdAt`.
 
 | Campo nuevo | Tipo | Qué es |
 |---|---|---|
-| `waitingSince` | instante con offset | Desde cuándo espera: `occurredAt` de su última transición, o `createdAt` si aún no tiene ninguna (research D3) |
+| `waitingSince` | `OffsetDateTime` con el offset de la sede (`CampusTime.toCampus`) | Desde cuándo espera: `occurredAt` de su última transición, o `createdAt` si aún no tiene ninguna (research D3) |
 | `pendingResponsible` | texto | El responsable que la solicitud espera. Redundante con el filtro pedido, y deliberado: hace la respuesta legible por sí sola y sobrevive al día en que la consulta acepte varios |
 | `origin` | texto | Cómo nació la solicitud: capturada por la Coordinación o recibida por el enlace público (FR-007) |
 
 **Sigue sin llevar documento de identidad.** Es el invariante de este DTO y no cambia.
 
 **No** lleva duración en días: se expone el instante y el cliente resta (research D4).
+
+⚠️ **`createdAt` sigue siendo `LocalDateTime` en UTC sin marcador** (contrato de la 004). Se decidió
+el 2026-09-21 dejarlo así: el DTO lleva dos instantes en dos formatos, y el contrato lo advierte.
 
 ### `StateResponse` — gana un campo
 
@@ -88,10 +94,12 @@ solicitud devuelta y dispararía carga perezosa en cada una (research D6).
 
 1. **Pendiente de X** = existe `WorkflowTransition` con `fromState = request.currentState` y
    `responsible = X`. Un estado final no tiene transiciones de salida, así que un trámite
-   cerrado nunca aparece — sin necesidad de filtrarlo aparte.
+   cerrado nunca aparece — sin necesidad de filtrarlo aparte. Que un estado final no tenga
+   salidas lo garantiza el invariante de T018, no la base.
 2. **`waitingSince`** = `max(occurredAt)` de las entradas de timeline de la solicitud;
    `createdAt` si no hay ninguna.
-3. **Orden** = `waitingSince` ascendente: primero lo que más espera (research D5).
+3. **Orden** = `waitingSince` ascendente: primero lo que más espera (research D5). Bajo la cota,
+   el corte previo es por radicación (research D8).
 4. **`origin`** = se deriva del actor de la **primera** entrada del timeline. El canal público
    actúa con una cuenta propia, así que el dato ya está registrado y no hay que guardarlo de
    nuevo.

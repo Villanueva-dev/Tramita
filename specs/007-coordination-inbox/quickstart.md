@@ -80,7 +80,7 @@ y **entra** en la de la facultad:
 ID=<id de una solicitud en el estado inicial>
 curl -s -b /tmp/tramita.jar -X POST http://localhost:8080/api/requests/$ID/transitions \
   -H 'Content-Type: application/json' -H "X-XSRF-TOKEN: $(grep XSRF /tmp/tramita.jar | awk '{print $7}')" \
-  -d '{"toState":"EN_FACULTAD"}'
+  -d '{"targetStateCode":"EN_FACULTAD"}'
 
 curl -s -b /tmp/tramita.jar 'http://localhost:8080/api/requests/inbox?responsible=COORDINACION' \
   | jq --arg id "$ID" 'map(.id == $id) | any'    # → false
@@ -95,9 +95,14 @@ real y no de un supuesto.
 
 ## 4. Un trámite cerrado no aparece en ninguna bandeja
 
-Llevar una solicitud hasta un estado final y consultar **todos** los responsables:
+Llevar una solicitud hasta un estado final y consultar **todos** los responsables. Desde
+`EN_FACULTAD` (donde quedó `$ID` en el paso 3), `RECHAZADA` es final y está a un avance:
 
 ```bash
+curl -s -b /tmp/tramita.jar -X POST http://localhost:8080/api/requests/$ID/transitions \
+  -H 'Content-Type: application/json' -H "X-XSRF-TOKEN: $(grep XSRF /tmp/tramita.jar | awk '{print $7}')" \
+  -d '{"targetStateCode":"RECHAZADA"}'
+
 for R in COORDINACION FACULTAD REGISTRO_CALI REGISTRO_NACIONAL SEDE FINANCIERA; do
   echo -n "$R: "
   curl -s -b /tmp/tramita.jar "http://localhost:8080/api/requests/inbox?responsible=$R" \
@@ -113,12 +118,24 @@ queda fuera por construcción.
 
 ## 5. La espera se cuenta desde la última transición, no desde la radicación
 
-Es la decisión D3 y la más fácil de romper sin darse cuenta. Tomar una solicitud **antigua**,
-devolverla y comprobar que su `waitingSince` se **reinicia** mientras su `createdAt` no cambia:
+Es la decisión D3 y la más fácil de romper sin darse cuenta. Tomar **otra** solicitud en el
+estado inicial (la del paso 4 ya está cerrada), mandarla a la facultad y que la facultad la
+**devuelva** —la devolución exige nota—; su `waitingSince` se **reinicia** mientras su
+`createdAt` no cambia, y vuelve a la bandeja de la Coordinación, que es quien registra el
+reingreso (research D1):
 
 ```bash
+ID2=<id de otra solicitud en el estado inicial>
+XSRF="$(grep XSRF /tmp/tramita.jar | awk '{print $7}')"
+curl -s -b /tmp/tramita.jar -X POST http://localhost:8080/api/requests/$ID2/transitions \
+  -H 'Content-Type: application/json' -H "X-XSRF-TOKEN: $XSRF" \
+  -d '{"targetStateCode":"EN_FACULTAD"}'
+curl -s -b /tmp/tramita.jar -X POST http://localhost:8080/api/requests/$ID2/transitions \
+  -H 'Content-Type: application/json' -H "X-XSRF-TOKEN: $XSRF" \
+  -d '{"targetStateCode":"DEVUELTA","note":"Falta la firma del estudiante"}'
+
 curl -s -b /tmp/tramita.jar "http://localhost:8080/api/requests/inbox?responsible=COORDINACION" \
-  | jq --arg id "$ID" '.[] | select(.id == $id) | {createdAt, waitingSince}'
+  | jq --arg id "$ID2" '.[] | select(.id == $id) | {createdAt, waitingSince}'
 ```
 
 `createdAt` debe seguir siendo el original y `waitingSince` debe ser reciente. Si los dos
