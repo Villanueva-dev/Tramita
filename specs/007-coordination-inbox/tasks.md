@@ -47,8 +47,8 @@ docker start tramita-postgres && ./mvnw clean verify
 
 **⚠️ CRÍTICO**: ninguna historia puede empezar hasta que esta fase esté completa.
 
-- [ ] T003 Enmendar `specs/004-public-request-capture/contracts/openapi.yaml`: la descripción de `GET /requests/inbox` deja de prometer «las solicitudes más recientes, sin criterio» y remite a `specs/007-coordination-inbox/contracts/openapi.yaml`. Dejar escrito que el cambio **no es aditivo** y por qué se hizo igual (nadie lo consume, T002)
-- [ ] T004 Actualizar el javadoc de `findAllByOrderByCreatedAtDesc` en `src/main/java/com/uniremington/api/tramita/repo/IRequestRepo.java` si el método deja de usarse, o marcarlo como reemplazado. **No borrarlo en esta tarea**: su eliminación se decide en T014, que reemplaza su única llamada: si queda sin llamadores, se borra ahí
+- [x] T003 Enmendar `specs/004-public-request-capture/contracts/openapi.yaml`: la descripción de `GET /requests/inbox` deja de prometer «las solicitudes más recientes, sin criterio» y remite a `specs/007-coordination-inbox/contracts/openapi.yaml`. Dejar escrito que el cambio **no es aditivo** y por qué se hizo igual (nadie lo consume, T002)
+- [x] T004 Actualizar el javadoc de `findAllByOrderByCreatedAtDesc` en `src/main/java/com/uniremington/api/tramita/repo/IRequestRepo.java` si el método deja de usarse, o marcarlo como reemplazado. **No borrarlo en esta tarea**: su eliminación se decide en T014, que reemplaza su única llamada: si queda sin llamadores, se borra ahí
 
 **Checkpoint**: el contrato viejo ya no promete algo que el código dejará de cumplir.
 

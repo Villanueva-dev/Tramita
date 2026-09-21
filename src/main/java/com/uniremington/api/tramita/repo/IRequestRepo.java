@@ -40,6 +40,12 @@ public interface IRequestRepo extends JpaRepository<Request, UUID> {
      * El {@link Limit} es obligatorio en la firma y no un default del repositorio:
      * una consulta sin cota podría convertirse en un volcado el día que el volumen
      * crezca, y quien la llame debe decidir explícitamente cuánto pide.
+     *
+     * ⚠️ REEMPLAZADA por la feature 007 (research.md D7): la bandeja deja de ser
+     * «las más recientes» y pasa a ser «las que esperan a un responsable». Esta
+     * consulta se conserva hasta que su único llamador cambie; si queda sin
+     * llamadores, se elimina en esa misma entrega. El contrato de la 004 ya
+     * declara la enmienda como no aditiva.
      */
     List<Request> findAllByOrderByCreatedAtDesc(Limit limit);
 }

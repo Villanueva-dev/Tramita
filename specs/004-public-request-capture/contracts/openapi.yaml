@@ -9,7 +9,8 @@ info:
       * `POST /public/requests/{definitionCode}` — recepción SIN autenticación del formato
         DO-FR-100. Es el segundo endpoint abierto del sistema; el primero es el login.
       * `GET /requests/inbox` — vista de solicitudes recientes para la Coordinación, SIN
-        número de documento (FR-014).
+        número de documento (FR-014). ⚠️ **ENMENDADO por la feature 007, de forma NO
+        aditiva**: ver la nota en la ruta.
 
     Ningún endpoint existente cambia. `POST /requests` conserva su contrato, ampliado por
     la 003, y suma seis campos opcionales heredados del modelo (`studentEmail`,
@@ -142,8 +143,24 @@ paths:
 
   /requests/inbox:
     get:
-      summary: Solicitudes recientes, sin criterio de búsqueda
+      summary: Solicitudes recientes, sin criterio de búsqueda — ENMENDADO por la 007
       description: |
+        ⚠️ **Este contrato fue enmendado por la feature 007 y ya no rige tal como está
+        escrito.** Lo que sigue se conserva como registro de lo que la 004 prometió.
+
+        Desde la 007, `GET /requests/inbox` exige el parámetro `responsible` y devuelve
+        **las solicitudes que esperan la acción de ese responsable**, ordenadas por
+        antigüedad de la espera — no «las más recientes, sin criterio». El cambio **no es
+        aditivo**: quien esperara el listado completo recibe un subconjunto, y la llamada
+        sin parámetro responde 400. Se enmendó a conciencia y sin estrenar un endpoint
+        paralelo porque **ningún cliente lo consumía** — medido el 2026-09-21 sobre el
+        frontend: `git grep -rn 'requests/inbox' origin/main -- app lib components`
+        devuelve cero resultados — y dos listados con el mismo propósito se desincronizan.
+        El contrato vigente es `specs/007-coordination-inbox/contracts/openapi.yaml`
+        (research.md D7 de esa feature).
+
+        --- Texto original de la 004 ---
+
         Existe porque `GET /requests` exige un criterio de búsqueda y no se puede buscar a
         alguien de cuya solicitud nadie se enteró (FR-012).
 
@@ -153,7 +170,9 @@ paths:
         ese campo la resuelve conservando el listado (research.md D8).
       responses:
         '200':
-          description: Solicitudes de la más reciente a la más antigua.
+          description: |
+            Solicitudes de la más reciente a la más antigua. ⚠️ Desde la 007: las que
+            esperan al responsable pedido, de la que más lleva esperando a la que menos.
           content:
             application/json:
               schema:
