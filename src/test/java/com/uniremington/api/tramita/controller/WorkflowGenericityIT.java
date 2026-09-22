@@ -196,27 +196,85 @@ class WorkflowGenericityIT {
 
     // --- helpers -------------------------------------------------------------------------
 
+    // --- T040: SC-005 aplicado a la bandeja (007) ---------------------------------------
+
+    /**
+     * SC-005 de la 007: un trámite incorporado por configuración, a cargo de un área que
+     * ningún código conoce, aparece en la bandeja de esa área sin desplegar nada. Si este
+     * test necesitara tocar src/main para pasar, el §VI estaría roto en la bandeja. El
+     * responsable se elige inexistente a propósito: con COORDINACION no se distinguiría
+     * leer la configuración de tener el nombre del área cableado.
+     */
+    @Test
+    @Order(4)
+    @DisplayName("un trámite nuevo por SQL, con un área nueva, aparece en la bandeja de esa área sin tocar el motor (SC-005)")
+    void liveLoadedDefinitionShowsUpInTheInboxOfItsOwnResponsible() throws Exception {
+        MockHttpSession session = login();
+        insertDefinition("SC005_BANDEJA", 1, "Trámite sembrado en caliente", "MESA_DE_AYUDA",
+                new String[][] {{"ABIERTO", "CERRADO"}});
+
+        String id = registerAndGetId(session, "SC005_BANDEJA", "Sembrada En Caliente", "608");
+
+        String ownInbox = inboxOf(session, "MESA_DE_AYUDA");
+        List<String> ownIds = com.jayway.jsonpath.JsonPath.read(ownInbox, "$[*].id");
+        assertThat(ownIds).contains(id);
+        List<String> pending = com.jayway.jsonpath.JsonPath.read(
+                ownInbox, "$[?(@.id == '" + id + "')].pendingResponsible");
+        assertThat(pending).containsExactly("MESA_DE_AYUDA");
+
+        // El área que ya existía no la ve: la bandeja lee la configuración, no un supuesto.
+        List<String> coordinationIds = com.jayway.jsonpath.JsonPath.read(
+                inboxOf(session, "COORDINACION"), "$[*].id");
+        assertThat(coordinationIds).doesNotContain(id);
+
+        // Cerrada, sale de la bandeja de su área por construcción: CERRADO no tiene salidas.
+        mockMvc.perform(advanceRequest(id, "CERRADO", null).session(session))
+                .andExpect(status().isOk());
+        List<String> afterClosing = com.jayway.jsonpath.JsonPath.read(
+                inboxOf(session, "MESA_DE_AYUDA"), "$[*].id");
+        assertThat(afterClosing).doesNotContain(id);
+    }
+
+    /** La bandeja de un responsable con la cota máxima: la base es compartida entre IT. */
+    private String inboxOf(MockHttpSession session, String responsible) throws Exception {
+        return mockMvc.perform(get("/api/requests/inbox")
+                        .param("responsible", responsible)
+                        .param("limit", "200")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+    }
+
     /** DEMO v1: ABIERTO → CERRADO directo. Idempotente para no chocar entre tests. */
     private void insertDemoV1() {
-        insertDemoDefinition(1, new String[][] {{"ABIERTO", "CERRADO"}});
+        insertDefinition("DEMO", 1, "Trámite de demostración", "COORDINACION",
+                new String[][] {{"ABIERTO", "CERRADO"}});
     }
 
     /** DEMO v2: el cierre pasa por REVISION — la edición es un INSERT (research.md D2). */
     private void insertDemoV2() {
-        insertDemoDefinition(2, new String[][] {{"ABIERTO", "REVISION"}, {"REVISION", "CERRADO"}});
+        insertDefinition("DEMO", 2, "Trámite de demostración", "COORDINACION",
+                new String[][] {{"ABIERTO", "REVISION"}, {"REVISION", "CERRADO"}});
     }
 
-    private void insertDemoDefinition(int version, String[][] transitions) {
+    /**
+     * Siembra por SQL una definición con estados ABIERTO (inicial) y CERRADO (final) y
+     * las transiciones dadas, todas a cargo del mismo responsable. El responsable es
+     * parámetro a propósito: SC-005 de la 007 necesita un área que ningún código
+     * conozca. Idempotente por código y versión.
+     */
+    private void insertDefinition(String code, int version, String name, String responsible,
+            String[][] transitions) {
         Integer exists = jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM workflow_definition WHERE code = 'DEMO' AND version = ?",
-                Integer.class, version);
+                "SELECT count(*) FROM workflow_definition WHERE code = ? AND version = ?",
+                Integer.class, code, version);
         if (exists != null && exists > 0) {
             return;
         }
         jdbcTemplate.update("""
                 INSERT INTO workflow_definition (id, code, version, name, created_at)
-                VALUES (gen_random_uuid(), 'DEMO', ?, 'Trámite de demostración', now())
-                """, version);
+                VALUES (gen_random_uuid(), ?, ?, ?, now())
+                """, code, version, name);
         // Solo los estados que las transiciones conectan: la v1 declaraba REVISION sin
         // usarlo, y un estado no final sin salida es justo lo que el invariante de
         // configuración (FR-014) señala — con razón. Un fixture no puede ser la
@@ -230,19 +288,19 @@ class WorkflowGenericityIT {
             jdbcTemplate.update("""
                     INSERT INTO workflow_state (id, definition_id, code, name, is_initial, is_final)
                     SELECT gen_random_uuid(), d.id, ?, initcap(?), ?, ?
-                    FROM workflow_definition d WHERE d.code = 'DEMO' AND d.version = ?
-                    """, state, state, "ABIERTO".equals(state), "CERRADO".equals(state), version);
+                    FROM workflow_definition d WHERE d.code = ? AND d.version = ?
+                    """, state, state, "ABIERTO".equals(state), "CERRADO".equals(state), code, version);
         }
         for (String[] t : transitions) {
             jdbcTemplate.update("""
                     INSERT INTO workflow_transition
                         (id, definition_id, from_state_id, to_state_id, responsible, requires_note)
-                    SELECT gen_random_uuid(), d.id, f.id, s.id, 'COORDINACION', false
+                    SELECT gen_random_uuid(), d.id, f.id, s.id, ?, false
                     FROM workflow_definition d
                     JOIN workflow_state f ON f.definition_id = d.id AND f.code = ?
                     JOIN workflow_state s ON s.definition_id = d.id AND s.code = ?
-                    WHERE d.code = 'DEMO' AND d.version = ?
-                    """, t[0], t[1], version);
+                    WHERE d.code = ? AND d.version = ?
+                    """, responsible, t[0], t[1], code, version);
         }
     }
 

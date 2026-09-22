@@ -149,10 +149,10 @@ docker start tramita-postgres && ./mvnw clean verify
 
 ## Phase 6: Cierre y verificación transversal
 
-- [ ] T039 **La tesis sigue en pie**: `git grep -nE '"(FINALIZADA|DEVUELTA|ADICION_CREDITOS|NOVEDAD_NOTAS)"' -- 'src/main/java/*.java'` devuelve **una sola línea**, la del rótulo impreso del papel. Y `git grep -nE '"(COORDINACION|FACULTAD|REGISTRO_CALI|REGISTRO_NACIONAL|SEDE|FINANCIERA)"' -- 'src/main/java/*.java'` devuelve **cero**: el responsable nunca es un literal (research D2)
-- [ ] T040 **SC-005 / §VI**: en `src/test/java/com/uniremington/api/tramita/controller/WorkflowGenericityIT.java`, sembrar una definición nueva por SQL en el test y comprobar que sus solicitudes aparecen en la bandeja **sin desplegar código ni tocar el motor**
-- [ ] T041 Comprobar que la última migración del repositorio **sigue siendo `V4.1.0`**: `ls src/main/resources/db/migration/ | sort | tail -1`. Si aparece una nueva, se salió del diseño
-- [ ] T042 Suite completa: `docker start tramita-postgres && ./mvnw clean verify`. Anotar el conteo y compararlo con la línea base de T001
+- [x] T039 **La tesis sigue en pie**: `git grep -nE '"(FINALIZADA|DEVUELTA|ADICION_CREDITOS|NOVEDAD_NOTAS)"' -- 'src/main/java/*.java'` devuelve **una sola línea**, la del rótulo impreso del papel. Y `git grep -nE '"(COORDINACION|FACULTAD|REGISTRO_CALI|REGISTRO_NACIONAL|SEDE|FINANCIERA)"' -- 'src/main/java/*.java'` devuelve **cero**: el responsable nunca es un literal (research D2)
+- [x] T040 **SC-005 / §VI**: en `src/test/java/com/uniremington/api/tramita/controller/WorkflowGenericityIT.java`, sembrar una definición nueva por SQL en el test y comprobar que sus solicitudes aparecen en la bandeja **sin desplegar código ni tocar el motor**
+- [x] T041 Comprobar que la última migración del repositorio **sigue siendo `V4.1.0`**: `ls src/main/resources/db/migration/ | sort | tail -1`. Si aparece una nueva, se salió del diseño
+- [x] T042 Suite completa: `docker start tramita-postgres && ./mvnw clean verify`. Anotar el conteo y compararlo con la línea base de T001
 - [ ] T043 Recorrer `specs/007-coordination-inbox/quickstart.md` **contra el servidor arriba**, los siete pasos. Es lo que ningún test con mocks cubre: que el filtro esté cableado en la cadena real y que el responsable salga de la configuración y no de un supuesto
 - [ ] T044 Revisar que `spec.md`, `plan.md` y `research.md` no hayan quedado desmentidos por la implementación. Si algo cambió, **se corrige el documento**, no se deja la afirmación vieja
 
