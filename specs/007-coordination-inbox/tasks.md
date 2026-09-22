@@ -127,21 +127,21 @@ docker start tramita-postgres && ./mvnw clean verify
 
 ### Tests para US3 ⚠️ primero el rojo
 
-- [ ] T030 [P] [US3] **(RED)** En `src/test/java/com/uniremington/api/tramita/controller/WorkflowDefinitionControllerIT.java`: cada definición del catálogo trae su lista de `states`, y cada estado trae `isInitial` e `isFinal`
-- [ ] T031 [P] [US3] **(RED)** En el mismo IT: el estado con `isInitial = true` es **distinto** entre `ADICION_CREDITOS` y `NOVEDAD_NOTAS`. Es lo que demuestra por qué el cliente no puede usar una constante global — y lo que se rompió en silencio cuando `V3.2.0` renombró uno solo de los dos
-- [ ] T032 [P] [US3] **(GUARDA)** En el mismo IT: los campos `code`, `name` y `version` siguen presentes con su significado anterior (FR-011c, el cambio es aditivo). Está verde desde antes —los tres campos ya existen— y por eso no es un RED: fija la aditividad para que T034–T036 no la rompan
+- [x] T030 [P] [US3] **(RED)** En `src/test/java/com/uniremington/api/tramita/controller/WorkflowDefinitionControllerIT.java`: cada definición del catálogo trae su lista de `states`, y cada estado trae `isInitial` e `isFinal`
+- [x] T031 [P] [US3] **(RED)** En el mismo IT: el estado con `isInitial = true` es **distinto** entre `ADICION_CREDITOS` y `NOVEDAD_NOTAS`. Es lo que demuestra por qué el cliente no puede usar una constante global — y lo que se rompió en silencio cuando `V3.2.0` renombró uno solo de los dos
+- [x] T032 [P] [US3] **(GUARDA)** En el mismo IT: los campos `code`, `name` y `version` siguen presentes con su significado anterior (FR-011c, el cambio es aditivo). Está verde desde antes —los tres campos ya existen— y por eso no es un RED: fija la aditividad para que T034–T036 no la rompan
 
 ### Implementación de US3
 
-- [ ] T033 [US3] Agregar `isInitial` a `src/main/java/com/uniremington/api/tramita/dto/StateResponse.java` y actualizar su único constructor, en `RequestServiceImpl.toStateResponse`
-- [ ] T034 [US3] Crear `src/main/java/com/uniremington/api/tramita/dto/WorkflowDefinitionDetailResponse.java` con `code`, `name`, `version` y `states`. ⛔ **No ampliar `WorkflowDefinitionResponse`**: se anida en cada respuesta de solicitud (research D6)
-- [ ] T035 [US3] Cambiar el tipo de retorno en `src/main/java/com/uniremington/api/tramita/service/IWorkflowDefinitionService.java` y mapear los estados en `src/main/java/com/uniremington/api/tramita/service/impl/WorkflowDefinitionServiceImpl.java`
-- [ ] T036 [US3] Ajustar el tipo de retorno en `src/main/java/com/uniremington/api/tramita/controller/WorkflowDefinitionController.java`
+- [x] T033 [US3] Agregar `isInitial` a `src/main/java/com/uniremington/api/tramita/dto/StateResponse.java` y actualizar su único constructor, en `RequestServiceImpl.toStateResponse`
+- [x] T034 [US3] Crear `src/main/java/com/uniremington/api/tramita/dto/WorkflowDefinitionDetailResponse.java` con `code`, `name`, `version` y `states`. ⛔ **No ampliar `WorkflowDefinitionResponse`**: se anida en cada respuesta de solicitud (research D6)
+- [x] T035 [US3] Cambiar el tipo de retorno en `src/main/java/com/uniremington/api/tramita/service/IWorkflowDefinitionService.java` y mapear los estados en `src/main/java/com/uniremington/api/tramita/service/impl/WorkflowDefinitionServiceImpl.java`
+- [x] T036 [US3] Ajustar el tipo de retorno en `src/main/java/com/uniremington/api/tramita/controller/WorkflowDefinitionController.java`
 
 ### Verificación de US3
 
-- [ ] T037 [US3] **(MUTANTE)** Devolver `isInitial` siempre `false` y comprobar que T030 y T031 se ponen **rojos**
-- [ ] T038 [US3] Comprobar que `git diff` sobre `src/main/java/com/uniremington/api/tramita/dto/WorkflowDefinitionResponse.java` **no muestra cambios**: es la garantía de que el DTO anidado quedó intacto
+- [x] T037 [US3] **(MUTANTE)** Devolver `isInitial` siempre `false` y comprobar que T030 y T031 se ponen **rojos**
+- [x] T038 [US3] Comprobar que `git diff` sobre `src/main/java/com/uniremington/api/tramita/dto/WorkflowDefinitionResponse.java` **no muestra cambios**: es la garantía de que el DTO anidado quedó intacto
 
 **Checkpoint**: las tres historias funcionan, cada una verificable por separado.
 

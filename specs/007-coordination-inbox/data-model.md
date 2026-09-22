@@ -77,8 +77,10 @@ el 2026-09-21 dejarlo así: el DTO lleva dos instantes en dos formatos, y el con
 ### `StateResponse` — gana un campo
 
 `code`, `name`, `isFinal` → se suma **`isInitial`**. Es el campo que saca del cliente el
-reconocimiento de códigos (research D6). Se construye en un solo lugar
-(`RequestServiceImpl.toStateResponse`), así que el cambio es puntual.
+reconocimiento de códigos (research D6). Se construye en un solo lugar —desde la
+implementación, `StateResponseMapper` en `service/impl/`, compartido por las respuestas de
+solicitud y por el catálogo—, así que el cambio es puntual y un mutante sobre las marcas
+alcanza a todas las respuestas.
 
 ### `WorkflowDefinitionDetailResponse` — nuevo
 

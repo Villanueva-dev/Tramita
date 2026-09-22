@@ -451,7 +451,7 @@ public class RequestServiceImpl implements IRequestService {
                         definition.getCode(), definition.getName(), definition.getVersion()),
                 request.getStudentName(),
                 request.getStudentDocument(),
-                toStateResponse(request.getCurrentState()),
+                StateResponseMapper.toResponse(request.getCurrentState()),
                 request.getCreatedAt());
     }
 
@@ -468,7 +468,7 @@ public class RequestServiceImpl implements IRequestService {
                 new WorkflowDefinitionResponse(
                         definition.getCode(), definition.getName(), definition.getVersion()),
                 request.getStudentName(),
-                toStateResponse(request.getCurrentState()),
+                StateResponseMapper.toResponse(request.getCurrentState()),
                 request.getCreatedAt(),
                 waitingSince(request, timeline),
                 pendingResponsible,
@@ -487,8 +487,8 @@ public class RequestServiceImpl implements IRequestService {
                         .orElse(null);
         return new TimelineEntryResponse(
                 entry.getId(),
-                entry.getFromState() == null ? null : toStateResponse(entry.getFromState()),
-                toStateResponse(entry.getToState()),
+                entry.getFromState() == null ? null : StateResponseMapper.toResponse(entry.getFromState()),
+                StateResponseMapper.toResponse(entry.getToState()),
                 entry.getActor().getEmail(),
                 responsible,
                 entry.getNote(),
@@ -509,7 +509,7 @@ public class RequestServiceImpl implements IRequestService {
         var available = definition.getTransitions().stream()
                 .filter(t -> t.getFromState().getCode().equals(current.getCode()))
                 .map(t -> new AvailableTransitionResponse(
-                        toStateResponse(t.getToState()), t.getResponsible(), t.isRequiresNote()))
+                        StateResponseMapper.toResponse(t.getToState()), t.getResponsible(), t.isRequiresNote()))
                 .toList();
         return new RequestResponse(
                 request.getId(),
@@ -522,7 +522,7 @@ public class RequestServiceImpl implements IRequestService {
                 request.getSemester(),
                 request.getReason(),
                 toSubjectResponses(request),
-                toStateResponse(current),
+                StateResponseMapper.toResponse(current),
                 available,
                 request.getCreatedAt());
     }
@@ -533,9 +533,5 @@ public class RequestServiceImpl implements IRequestService {
                         subject.getCode(), subject.getName(), subject.getCredits(),
                         subject.getGroup(), subject.getCurrentGrade(), subject.getProposedGrade()))
                 .toList();
-    }
-
-    private StateResponse toStateResponse(WorkflowState state) {
-        return new StateResponse(state.getCode(), state.getName(), state.isFinalState());
     }
 }
