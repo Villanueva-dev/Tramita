@@ -1290,9 +1290,10 @@ class RequestControllerIT {
     }
 
     /**
-     * Publica una v2 de adición de créditos con su propio tope. Le basta un estado
-     * inicial: registrar solo exige exactamente uno, y este test no avanza la
-     * solicitud.
+     * Publica una v2 de adición de créditos con su propio tope. Hasta la 007 le bastaba un
+     * estado inicial; desde FR-014 el motor rechaza registrar en un inicial sin salida —con
+     * razón: sería un callejón—, así que la v2 cierra en CERRADA. Un fixture no puede ser
+     * la excepción de la regla que el sistema afirma. Este test sigue sin avanzar nada.
      */
     private void publishSecondVersionWithMaxCredits(String maxCredits) {
         jdbcTemplate.update("""
@@ -1302,6 +1303,18 @@ class RequestControllerIT {
                 INSERT INTO workflow_state (id, definition_id, code, name, is_initial, is_final)
                 SELECT gen_random_uuid(), id, 'REGISTRADA', 'Registrada', TRUE, FALSE
                 FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2""");
+        jdbcTemplate.update("""
+                INSERT INTO workflow_state (id, definition_id, code, name, is_initial, is_final)
+                SELECT gen_random_uuid(), id, 'CERRADA', 'Cerrada', FALSE, TRUE
+                FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2""");
+        jdbcTemplate.update("""
+                INSERT INTO workflow_transition
+                    (id, definition_id, from_state_id, to_state_id, responsible, requires_note)
+                SELECT gen_random_uuid(), d.id, f.id, s.id, 'COORDINACION', false
+                FROM workflow_definition d
+                JOIN workflow_state f ON f.definition_id = d.id AND f.code = 'REGISTRADA'
+                JOIN workflow_state s ON s.definition_id = d.id AND s.code = 'CERRADA'
+                WHERE d.code = 'ADICION_CREDITOS' AND d.version = 2""");
         jdbcTemplate.update("""
                 INSERT INTO workflow_parameter (id, definition_id, parameter_key, parameter_value)
                 SELECT gen_random_uuid(), id, 'MAX_CREDITS', ?
@@ -1322,6 +1335,9 @@ class RequestControllerIT {
      * contra esta versión sería imposible de limpiar sin violar esa garantía.
      */
     private void dropSecondVersion() {
+        jdbcTemplate.update("""
+                DELETE FROM workflow_transition WHERE definition_id IN (
+                    SELECT id FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2)""");
         jdbcTemplate.update("""
                 DELETE FROM workflow_parameter WHERE definition_id IN (
                     SELECT id FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2)""");

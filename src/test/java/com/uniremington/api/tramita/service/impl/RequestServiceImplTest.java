@@ -336,16 +336,25 @@ class RequestServiceImplTest {
                 "Distancia", "8", "Necesito la asignatura para graduarme", "data:image/png;base64,AAAA");
     }
 
+    /**
+     * Definición mínima con una transición guardada. Cierra en FINAL a propósito: hasta la
+     * 007 dejaba SIGUIENTE sin salida, y el motor rechaza ahora ese callejón (FR-014) — con
+     * razón. Un fixture no puede ser la excepción de la regla que el sistema afirma.
+     */
     private WorkflowDefinition definitionGuardedBy(String code, String guardKey) {
         return WorkflowDefinition.builder()
                 .code(code)
                 .version(1)
                 .name("Trámite con guarda")
-                .states(List.of(initial, next))
-                .transitions(List.of(WorkflowTransition.builder()
-                        .fromState(initial).toState(next)
-                        .responsible("COORDINACION").requiresNote(false)
-                        .guardKey(guardKey).build()))
+                .states(List.of(initial, next, terminal))
+                .transitions(List.of(
+                        WorkflowTransition.builder()
+                                .fromState(initial).toState(next)
+                                .responsible("COORDINACION").requiresNote(false)
+                                .guardKey(guardKey).build(),
+                        WorkflowTransition.builder()
+                                .fromState(next).toState(terminal)
+                                .responsible("COORDINACION").requiresNote(false).build()))
                 .build();
     }
 
@@ -514,6 +523,69 @@ class RequestServiceImplTest {
         assertThat(inbox).extracting(InboxEntryResponse::id)
                 .containsExactly(THIRD_ID, SECOND_ID, REQUEST_ID);
         assertThat(inbox).extracting(InboxEntryResponse::waitingSince).isSorted();
+    }
+
+    // --- 007 FR-014: el motor no deja una solicitud detenida sin responsable posible ------
+    // Un estado no final sin transiciones de salida es un callejón: la solicitud que entrara
+    // no aparecería en ninguna bandeja y nadie sería responsable de ella. La base no lo
+    // impide (V2.2.0) y el invariante de WorkflowGenericityIT solo mira lo sembrado al
+    // correr: la guarda del motor es la que vale para una definición cargada en caliente.
+
+    /** Definición con un callejón: INICIAL → LIMBO, y LIMBO no es final ni tiene salidas. */
+    private final WorkflowState limbo =
+            WorkflowState.builder().code("LIMBO").name("Limbo").build();
+    private final WorkflowDefinition deadEndDefinition = WorkflowDefinition.builder()
+            .code("TRAMITE_CALLEJON")
+            .version(1)
+            .name("Trámite con callejón")
+            .states(List.of(initial, limbo, terminal))
+            .transitions(List.of(
+                    WorkflowTransition.builder()
+                            .fromState(initial).toState(limbo)
+                            .responsible("EXTERNO").requiresNote(false).build(),
+                    WorkflowTransition.builder()
+                            .fromState(initial).toState(terminal)
+                            .responsible("EXTERNO").requiresNote(false).build()))
+            .build();
+
+    @Test
+    @DisplayName("avanzar hacia un estado no final sin salidas: 500 de configuración, sin efectos (FR-014)")
+    void advanceIntoADeadEndStateFailsClosed() {
+        Request request = requestAt(initial, deadEndDefinition);
+
+        assertThatExceptionOfType(IncompleteConfigurationException.class)
+                .isThrownBy(() -> service.advance(
+                        REQUEST_ID, new AdvanceRequestBody("LIMBO", null), EMAIL))
+                .withMessageContaining("LIMBO")
+                .withMessageContaining("TRAMITE_CALLEJON");
+
+        // La guarda rechaza el destino, no la solicitud: sigue donde estaba, sin rastro
+        assertThat(request.getCurrentState()).isSameAs(initial);
+        verify(logRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("registrar en una definición cuyo inicial no tiene salidas: 500 de configuración, nada se persiste (FR-014)")
+    void registerIntoAnInitialStateWithoutExitsFailsClosed() {
+        WorkflowDefinition lonely = WorkflowDefinition.builder()
+                .code("TRAMITE_SIN_SALIDA")
+                .version(1)
+                .name("Trámite sin salida")
+                .states(List.of(initial))
+                .transitions(List.of())
+                .build();
+        when(definitionRepo.findTopByCodeOrderByVersionDesc("TRAMITE_SIN_SALIDA"))
+                .thenReturn(Optional.of(lonely));
+
+        assertThatExceptionOfType(IncompleteConfigurationException.class)
+                .isThrownBy(() -> service.register(
+                        new CreateRequestBody("TRAMITE_SIN_SALIDA", "Ana María Pérez", "DOC-PRUEBA-001"),
+                        EMAIL))
+                .withMessageContaining("INICIAL")
+                .withMessageContaining("TRAMITE_SIN_SALIDA");
+
+        verify(requestRepo, never()).save(any());
+        verify(logRepo, never()).save(any());
     }
 
     /** Solicitud del trámite de prueba, pendiente en el estado inicial, con id y radicación fijos. */

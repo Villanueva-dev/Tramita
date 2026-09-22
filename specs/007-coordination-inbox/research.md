@@ -35,6 +35,11 @@ la transición en el sistema, que en el MVP es siempre la Coordinación (FR-003b
    de Sede. Es una decisión del seed de la 002, no de esta feature.
 3. Si un estado tuviera salidas con responsables distintos, la solicitud aparece en la bandeja
    de cada uno (caso borde de la spec, cerrado así). Hoy ninguna definición sembrada lo tiene.
+4. Un estado **no final sin salidas** dejaría la solicitud fuera de toda bandeja y sin responsable
+   (FR-014). Como el criterio se deriva de las transiciones, la única forma de que eso no ocurra
+   en silencio es que el motor no deje entrar ahí: `register` y `advance` lo rechazan como
+   configuración rota (review A1, 2026-09-21). La base no lo impide y el invariante de test solo
+   ve lo sembrado al correr.
 
 **Alternativas consideradas**:
 

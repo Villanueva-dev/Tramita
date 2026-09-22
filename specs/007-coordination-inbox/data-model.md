@@ -36,10 +36,17 @@ una solicitud espera a **X** si alguna de sus transiciones sale de su estado act
 
 Un estado sin transiciones de salida y no final deja a la solicitud **detenida sin
 responsable**: no aparece en ninguna bandeja. FR-014 exige que eso sea visible en lugar de
-desaparecer en silencio — se cubre con un **test de invariante de configuración** (tasks T018):
-todo estado no final tiene al menos una salida y ningún estado final tiene alguna. Un estado
-huérfano se detecta en la configuración, antes de que exista la solicitud que quedaría detenida.
-La base no lo garantiza (`V2.2.0` no lo restringe); el test sí.
+desaparecer en silencio — y se cubre en **dos capas**, porque la base no lo garantiza (`V2.2.0`
+no lo restringe):
+
+1. **Guarda de runtime en el motor** (review A1 del 2026-09-21): `register` y `advance` rechazan
+   dejar una solicitud en un estado no final sin transiciones de salida, con
+   `IncompleteConfigurationException` (500 de configuración, sin datos del estudiante en el
+   mensaje). El callejón se detecta en el momento en que una solicitud entraría en él, también
+   para una definición cargada por SQL en caliente, que es la vía que SC-005 promueve.
+2. **Invariante sobre la configuración sembrada** (tasks T018): todo estado no final tiene al
+   menos una salida y ningún estado final tiene alguna. Vale para lo que está en la base cuando
+   corre; por eso sola no bastaba.
 
 ### `WorkflowState`
 

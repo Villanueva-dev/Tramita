@@ -7,7 +7,6 @@ import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.PublicRequestBody;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
-import com.uniremington.api.tramita.dto.StateResponse;
 import com.uniremington.api.tramita.dto.SubjectResponse;
 import com.uniremington.api.tramita.dto.TimelineEntryResponse;
 import com.uniremington.api.tramita.dto.WorkflowDefinitionResponse;
@@ -115,6 +114,10 @@ public class RequestServiceImpl implements IRequestService {
                                     initialStates.size()));
         }
         WorkflowState initial = initialStates.getFirst();
+        // Y el inicial tiene que tener salida (FR-014 de la 007): la configuración se
+        // comprueba antes que el formulario, porque una definición rota no es culpa de
+        // quien envía y no debe llegar a evaluarle nada.
+        requireAnExitOrClosure(definition, initial);
 
         // Las reglas del trámite se aplican ANTES de persistir: una solicitud que
         // las incumple no debe existir ni siquiera un instante (US2).
@@ -267,6 +270,11 @@ public class RequestServiceImpl implements IRequestService {
                         "La transición %s → %s no está definida para este trámite"
                                 .formatted(current.getCode(), body.targetStateCode())));
 
+        // El destino tiene que tener salida o ser un cierre (FR-014 de la 007). Va después
+        // de resolver la transición —un destino inexistente sigue siendo 409— y antes de
+        // la nota: la configuración rota es del operador, no de quien envía.
+        requireAnExitOrClosure(request.getDefinition(), transition.getToState());
+
         // La obligatoriedad de la nota es dato de la definición (FR-014): el
         // motor solo la hace cumplir — la "devolución" es concepto de la config
         String note = body.note() == null || body.note().isBlank() ? null : body.note();
@@ -324,6 +332,33 @@ public class RequestServiceImpl implements IRequestService {
         if (!guard.isSatisfiedBy(request)) {
             throw new GuardRejectedException(
                     "La regla '%s' no se cumple para esta solicitud".formatted(guardKey));
+        }
+    }
+
+    /**
+     * FR-014 de la 007: una solicitud nunca queda detenida en un estado del que no se
+     * puede salir. Un estado no final sin transiciones de salida es un callejón: la
+     * solicitud que entrara no aparecería en la bandeja de nadie —la bandeja lee las
+     * transiciones de salida, research.md D1— y nadie sería responsable de ella. Eso es
+     * configuración rota, no un error de quien envía, así que se rechaza con el 500 de
+     * configuración antes de persistir nada.
+     *
+     * Es la capa de RUNTIME de FR-014. La base no lo impide (V2.2.0 solo restringe los
+     * iniciales y las transiciones a sí mismo) y el invariante de configuración de
+     * WorkflowGenericityIT solo cubre lo sembrado cuando corre: para una definición
+     * cargada por SQL en caliente —la vía que SC-005 promueve— esta guarda es la que vale.
+     * El motor sigue sin conocer trámites: compara estados por código, como el resto.
+     */
+    private void requireAnExitOrClosure(WorkflowDefinition definition, WorkflowState state) {
+        if (state.isFinalState()) {
+            return;
+        }
+        boolean hasExit = definition.getTransitions().stream()
+                .anyMatch(t -> t.getFromState().getCode().equals(state.getCode()));
+        if (!hasExit) {
+            throw new IncompleteConfigurationException(
+                    "El estado %s de la definición %s v%d no es final y no tiene transiciones de salida: una solicitud quedaría detenida sin responsable posible"
+                            .formatted(state.getCode(), definition.getCode(), definition.getVersion()));
         }
     }
 

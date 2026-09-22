@@ -153,6 +153,44 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
 
+  /requests:
+    post:
+      summary: Registrar una solicitud (contrato de la 002/003; acá solo el caso nuevo)
+      description: |
+        Sin cambios salvo un caso de error más, **aditivo** (FR-014, review A1): si el estado
+        inicial de la definición no es final y no tiene transiciones de salida, la solicitud
+        quedaría detenida sin responsable posible y fuera de toda bandeja. El motor lo rechaza
+        como configuración rota antes de persistir nada. El resto del contrato se rige por
+        `specs/002-workflow-engine/contracts/openapi.yaml` y `specs/003-request-form-rules/`.
+      responses:
+        '500':
+          description: |
+            Configuración del trámite incompleta: el estado inicial es un callejón. El detalle
+            no viaja al cliente; el diagnóstico queda en el log del servidor.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /requests/{id}/transitions:
+    post:
+      summary: Avanzar una solicitud (contrato de la 002/003; acá solo el caso nuevo)
+      description: |
+        Sin cambios salvo un caso de error más, **aditivo** (FR-014, review A1): si el estado
+        destino de la transición no es final y no tiene transiciones de salida, el motor rechaza
+        el avance como configuración rota, sin mover la solicitud ni escribir en el timeline.
+        Un destino inexistente sigue siendo 409, como en la 002. El resto del contrato se rige
+        por `specs/002-workflow-engine/contracts/openapi.yaml` y `specs/003-request-form-rules/`.
+      responses:
+        '500':
+          description: |
+            Configuración del trámite incompleta: el destino es un callejón. La solicitud sigue
+            en su estado y en la bandeja de su responsable.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
 components:
   schemas:
     InboxEntryResponse:

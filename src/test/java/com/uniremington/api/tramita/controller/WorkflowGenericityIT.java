@@ -235,6 +235,75 @@ class WorkflowGenericityIT {
         assertThat(afterClosing).doesNotContain(id);
     }
 
+    // --- FR-014 (007, review A1): el motor rechaza el callejón en runtime -----------------
+
+    /**
+     * La guarda de runtime de FR-014. El invariante de @Order(3) solo cubre la configuración
+     * presente cuando corre, y la base no lo impide (V2.2.0): una definición cargada por SQL
+     * en caliente —la vía que SC-005 promueve— con un estado no final sin salidas dejaría una
+     * solicitud detenida sin responsable posible y fuera de toda bandeja, en silencio. El
+     * motor la rechaza como configuración rota, con el 500 de configuración, y la solicitud
+     * sigue donde estaba y en su bandeja.
+     */
+    @Test
+    @Order(5)
+    @DisplayName("avanzar hacia un estado no final sin salidas es configuración rota: 500 problem+json, la solicitud no se mueve ni sale de la bandeja (FR-014)")
+    void advancingIntoADeadEndStateIsRejectedAsBrokenConfiguration() throws Exception {
+        MockHttpSession session = login();
+        // ABIERTO → LIMBO y ABIERTO → CERRADO: LIMBO queda no final y sin salidas.
+        insertDefinition("CALLEJON", 1, "Trámite con callejón", "VENTANILLA_CALLEJON",
+                new String[][] {{"ABIERTO", "LIMBO"}, {"ABIERTO", "CERRADO"}});
+        String id = registerAndGetId(session, "CALLEJON", "Solicitud Sin Salida", "609");
+        try {
+            mockMvc.perform(advanceRequest(id, "LIMBO", null).session(session))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.title").value("Configuración del trámite incompleta"));
+
+            mockMvc.perform(get("/api/requests/" + id).session(session))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.currentState.code").value("ABIERTO"));
+            List<String> stillPending = com.jayway.jsonpath.JsonPath.read(
+                    inboxOf(session, "VENTANILLA_CALLEJON"), "$[*].id");
+            assertThat(stillPending).contains(id);
+
+            // Por la salida sana sí avanza: la guarda rechaza el destino, no la solicitud.
+            mockMvc.perform(advanceRequest(id, "CERRADO", null).session(session))
+                    .andExpect(status().isOk());
+        } finally {
+            // Ninguna solicitud llegó a LIMBO —la guarda lo impide—, así que el callejón se
+            // retira y la configuración sembrada vuelve a cumplir el invariante de @Order(3).
+            dropState("CALLEJON", 1, "LIMBO");
+        }
+    }
+
+    @Test
+    @Order(6)
+    @DisplayName("registrar en una definición cuyo estado inicial no tiene salidas es configuración rota: 500 y nada se persiste (FR-014)")
+    void registeringIntoAnInitialStateWithoutExitsIsRejectedAsBrokenConfiguration() throws Exception {
+        MockHttpSession session = login();
+        insertLonelyInitialDefinition("SIN_SALIDA");
+        try {
+            mockMvc.perform(post("/api/requests")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"definitionCode\":\"SIN_SALIDA\",\"studentName\":\"Nadie La Atiende\",\"studentDocument\":\"610\"}")
+                            .session(session))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.title").value("Configuración del trámite incompleta"));
+
+            Integer persisted = jdbcTemplate.queryForObject("""
+                    SELECT count(*) FROM request r
+                    JOIN workflow_definition d ON d.id = r.definition_id
+                    WHERE d.code = 'SIN_SALIDA'
+                    """, Integer.class);
+            assertThat(persisted).isZero();
+        } finally {
+            dropDefinition("SIN_SALIDA");
+        }
+    }
+
     /** La bandeja de un responsable con la cota máxima: la base es compartida entre IT. */
     private String inboxOf(MockHttpSession session, String responsible) throws Exception {
         return mockMvc.perform(get("/api/requests/inbox")
@@ -302,6 +371,44 @@ class WorkflowGenericityIT {
                     WHERE d.code = ? AND d.version = ?
                     """, responsible, t[0], t[1], code, version);
         }
+    }
+
+    /** Una definición con un solo estado, inicial y no final, sin transiciones: el callejón en el origen. */
+    private void insertLonelyInitialDefinition(String code) {
+        jdbcTemplate.update("""
+                INSERT INTO workflow_definition (id, code, version, name, created_at)
+                VALUES (gen_random_uuid(), ?, 1, 'Trámite sin salida', now())
+                """, code);
+        jdbcTemplate.update("""
+                INSERT INTO workflow_state (id, definition_id, code, name, is_initial, is_final)
+                SELECT gen_random_uuid(), d.id, 'ABIERTO', 'Abierto', TRUE, FALSE
+                FROM workflow_definition d WHERE d.code = ? AND d.version = 1
+                """, code);
+    }
+
+    /** Retira un estado sembrado y las transiciones que entran a él. Solo vale si ninguna solicitud lo alcanzó. */
+    private void dropState(String definitionCode, int version, String stateCode) {
+        jdbcTemplate.update("""
+                DELETE FROM workflow_transition WHERE to_state_id IN (
+                    SELECT s.id FROM workflow_state s
+                    JOIN workflow_definition d ON d.id = s.definition_id
+                    WHERE d.code = ? AND d.version = ? AND s.code = ?)
+                """, definitionCode, version, stateCode);
+        jdbcTemplate.update("""
+                DELETE FROM workflow_state WHERE id IN (
+                    SELECT s.id FROM workflow_state s
+                    JOIN workflow_definition d ON d.id = s.definition_id
+                    WHERE d.code = ? AND d.version = ? AND s.code = ?)
+                """, definitionCode, version, stateCode);
+    }
+
+    /** Retira una definición sin transiciones ni parámetros. Solo vale si ninguna solicitud nació de ella. */
+    private void dropDefinition(String code) {
+        jdbcTemplate.update("""
+                DELETE FROM workflow_state WHERE definition_id IN (
+                    SELECT id FROM workflow_definition WHERE code = ?)
+                """, code);
+        jdbcTemplate.update("DELETE FROM workflow_definition WHERE code = ?", code);
     }
 
     private String registerAndGetId(MockHttpSession session, String definitionCode,
