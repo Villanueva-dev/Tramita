@@ -95,8 +95,9 @@ Al citar literatura o normativa institucional, **incluir la referencia exacta** 
 <!-- SPECKIT START -->
 **Feature ACTIVA: `007-coordination-inbox`** — SP5 (issue `Tramita#12`), la bandeja de trabajo de la
 Coordinación, y con ella la decisión acoplada del issue `#22`. Fase: **implementada** (T001–T044,
-rama con siete commits desde `659f666`, ver `git log`), **sin pushear**; lo siguiente es el review
-y la PR con `Closes #12` y `Closes #22` en texto plano. Artefactos en `specs/007-coordination-inbox/`:
+commits desde `659f666`, ver `git log`), **revisada por agente limpio el 2026-09-21 con sus
+correcciones aplicadas**, **sin pushear**; lo siguiente es la PR con `Closes #12` y `Closes #22` en
+texto plano. Artefactos en `specs/007-coordination-inbox/`:
 `spec.md` (20 FR), `plan.md`, `research.md` (D1–D8), `data-model.md`, `contracts/openapi.yaml`,
 `quickstart.md`, `checklists/requirements.md` y **`tasks.md` (44 tareas, 6 fases)**.
 ⛔ **NO volver a correr `/speckit-tasks`**: regenera `tasks.md` DESDE PLANTILLA
@@ -131,8 +132,9 @@ respuesta de solicitud. Los estados van en un DTO propio, `WorkflowDefinitionDet
 Medido con un spike descartable: 5 archivos + 1 nuevo, +16/−9 líneas, suite verde sin tocar un test.
 ⚠️ **`InboxEntryResponse` NUNCA lleva documento de identidad** — es el invariante del DTO desde la
 004 y la garantía de minimización del §III. El `quickstart.md` lo verifica explícitamente.
-Suite base sobre `29acf33`: 157 unitarios + 96 IT; al cerrar la implementación (`d221b69`): **160
-unitarios + 108 IT, sin fallos**. Como siempre en este repo, se
+Suite base sobre `29acf33`: 157 unitarios + 96 IT; al cerrar la implementación (`d221b69`): 160
+unitarios + 108 IT; tras las correcciones del review (`cb85fd6`): **163 unitarios + 112 IT, sin
+fallos**. Como siempre en este repo, se
 re-mide, no se cita de memoria.
 Última feature cerrada: `006-verifiable-document-seal` — SP4 (issue `Tramita#11`, **CERRADO**), PR #41
 (`789faea`). ⛔ Nada de la 006 se re-agenda. Sus decisiones vivas: el sello compara contra la **huella

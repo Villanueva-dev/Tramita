@@ -245,12 +245,17 @@ components:
             El responsable que esta solicitud espera. Redundante con el parámetro de consulta
             y deliberado: hace la respuesta legible por sí sola.
         origin:
-          type: string
-          enum: [COORDINATION, PUBLIC_LINK]
+          type: [string, "null"]
+          enum: [COORDINATION, PUBLIC_LINK, null]
           description: |
             Cómo llegó la solicitud (FR-007). Se deriva del actor de su primera entrada de
             timeline: el canal público actúa con una cuenta propia, así que el dato ya está
             registrado desde la 004 y no hace falta persistir nada nuevo.
+
+            `null` solo si la solicitud no tiene entrada de nacimiento en el timeline, que
+            `register` escribe siempre: es una anomalía de datos declarada, no un tercer
+            origen (review M3, 2026-09-21). La clave sigue siendo requerida: viaja con valor
+            nulo, nunca ausente.
 
             Importa porque cambia qué se verificó antes de que llegara: lo que entra por el
             enlace público lo diligenció el estudiante sin que nadie lo revisara.

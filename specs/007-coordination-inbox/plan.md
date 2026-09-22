@@ -32,7 +32,8 @@ Lombok. Ninguna dependencia nueva.
 
 **Testing**: JUnit 5 + AssertJ para unitarios; Testcontainers (`@ServiceConnection`) para los
 IT. La suite base sobre `29acf33` es **157 unitarios + 96 IT**; al cerrar la implementación
-(`d221b69`) es **160 unitarios + 108 IT**.
+(`d221b69`) es **160 unitarios + 108 IT**, y tras las correcciones del review limpio (`cb85fd6`)
+**163 unitarios + 112 IT**.
 
 **Target Platform**: servicio HTTP, despliegue en Linux.
 

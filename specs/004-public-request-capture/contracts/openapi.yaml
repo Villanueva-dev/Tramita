@@ -308,6 +308,11 @@ components:
         Entrada de la vista de recientes. Es `RequestSummary` (contrato de la 002) MENOS
         `studentDocument`. No es duplicación: son dos contratos con reglas de exposición
         distintas, y esa diferencia es el punto.
+
+        ⚠️ **ENMENDADO POR LA 007** (2026-09-21): la forma vigente vive en
+        `specs/007-coordination-inbox/contracts/openapi.yaml`. Suma `waitingSince`,
+        `pendingResponsible` y `origin`, y `createdAt` pasa a llevar el offset de la sede
+        (cambio NO aditivo). Lo de abajo es la forma histórica de la 004.
       required: [id, definition, studentName, currentState, createdAt]
       properties:
         id:

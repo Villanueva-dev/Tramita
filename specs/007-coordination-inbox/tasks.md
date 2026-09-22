@@ -105,7 +105,7 @@ docker start tramita-postgres && ./mvnw clean verify
 
 ### Implementación de US2
 
-- [x] T024 [US2] Agregar a `src/main/java/com/uniremington/api/tramita/repo/IRequestTransitionLogRepo.java` la consulta que devuelve el `occurredAt` **más reciente por solicitud** para un conjunto de ids, **en una sola consulta**. No una por solicitud
+- [x] T024 [US2] Agregar a `src/main/java/com/uniremington/api/tramita/repo/IRequestTransitionLogRepo.java` la consulta que devuelve el `occurredAt` **más reciente por solicitud** para un conjunto de ids, **en una sola consulta**. No una por solicitud. *(Implementado como `findTimelinesOf(ids)`: trae el timeline del lote en UNA consulta y el máximo se calcula en memoria, junto con el origen; ver el javadoc del método y research D3.)*
 - [x] T025 [US2] Ampliar `InboxEntryResponse.java` con `waitingSince` de tipo **`OffsetDateTime`**, construido con `CampusTime.toCampus(...)` (`util/CampusTime.java`, la 006): es lo que hace verdadero «instante con offset» (research D4) y resuelve FR-006 sin cálculo propio. **`createdAt` se deja como está** (`LocalDateTime`, contrato de la 004): decidido el 2026-09-21, ver data-model. *(Revisado tras el review del mismo día, M4: `createdAt` pasó también a `OffsetDateTime` vía `CampusTime`; ver research D4.)* **No agregar días ni duración**: se expone el instante
 - [x] T026 [US2] Resolver `waitingSince` en `RequestServiceImpl.java` combinando el resultado de T024 con `createdAt` como respaldo, convirtiéndolo con `CampusTime.toCampus`, y ordenar el resultado ascendente
 
@@ -141,7 +141,7 @@ docker start tramita-postgres && ./mvnw clean verify
 ### Verificación de US3
 
 - [x] T037 [US3] **(MUTANTE)** Devolver `isInitial` siempre `false` y comprobar que T030 y T031 se ponen **rojos**
-- [x] T038 [US3] Comprobar que `git diff` sobre `src/main/java/com/uniremington/api/tramita/dto/WorkflowDefinitionResponse.java` **no muestra cambios**: es la garantía de que el DTO anidado quedó intacto
+- [x] T038 [US3] Comprobar que `git diff` sobre `src/main/java/com/uniremington/api/tramita/dto/WorkflowDefinitionResponse.java` **no muestra cambios**: es la garantía de que el DTO anidado quedó intacto. *(Era cierto en `7cec04c`; `223f256` le agregó javadoc. La verificación vigente es «sin cambios de forma»: `git diff 659f666..HEAD -- src/main/java/com/uniremington/api/tramita/dto/WorkflowDefinitionResponse.java | grep -E '^[-+]\s*(String|int|public record)'` devuelve vacío.)*
 
 **Checkpoint**: las tres historias funcionan, cada una verificable por separado.
 
