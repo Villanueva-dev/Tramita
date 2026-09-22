@@ -14,7 +14,13 @@ import com.uniremington.api.tramita.TramitaIntegrationTest;
 import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
+import jakarta.persistence.EntityManagerFactory;
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +52,9 @@ class RequestControllerIT {
 
     @Autowired
     private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
 
     // --- US1: registrar ------------------------------------------------------------------
 
@@ -840,49 +849,248 @@ class RequestControllerIT {
                 .andExpect(jsonPath("$.currentState.code").value("EN_COORDINACION"));
     }
 
-    // --- US2 (004): la bandeja de recientes -----------------------------------------------
+    // --- 007 / SP5: la bandeja de trabajo ------------------------------------------------
+    // El criterio vive en la consulta del repositorio (research.md D1, T010), así que
+    // estos tests corren contra Postgres real: un unit test con el repositorio mockeado
+    // devolvería lo que el mock diga y el mutante de T017 no lo tocaría.
+    //
+    // `limit=200` —el tope del contrato— a propósito en los escenarios: la base es
+    // compartida entre ITs y acumula solicitudes en EN_COORDINACION; con la cota por
+    // defecto y el corte por radicación ascendente (research.md D8), las recién
+    // registradas quedarían fuera y el test afirmaría algo sobre la cota, no sobre el
+    // criterio.
+
+    private static final String INBOX = "/api/requests/inbox";
 
     @Test
-    @DisplayName("la bandeja lista sin criterio y de la más nueva a la más vieja (FR-012, FR-013)")
-    void inboxListsRecentRequestsNewestFirst() throws Exception {
+    @DisplayName("la bandeja lista exactamente lo que espera al responsable, sin duplicados; la devuelta cuenta (FR-001, D1)")
+    void inboxListsExactlyWhatWaitsForTheResponsible() throws Exception {
         MockHttpSession session = login();
+        String waiting = registerAndGetId(session, "ADICION_CREDITOS",
+                "Bandeja Espera Coordinacion", "SIN-DATO-REAL-201");
+        String atFaculty = registerAndGetId(session, "ADICION_CREDITOS",
+                "Bandeja En Facultad", "SIN-DATO-REAL-202");
+        String returned = registerAndGetId(session, "ADICION_CREDITOS",
+                "Bandeja Devuelta", "SIN-DATO-REAL-203");
+        mockMvc.perform(advanceRequest(atFaculty, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(advanceRequest(returned, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+        // La devolución la ejecuta la facultad; el reingreso lo registra la Coordinación,
+        // así que la solicitud devuelta ESPERA a la Coordinación (spec US1, escenario 6).
+        mockMvc.perform(advanceRequest(returned, "DEVUELTA", "Falta la firma del estudiante")
+                        .session(session))
+                .andExpect(status().isOk());
 
-        // Tres solicitudes en orden conocido. Nombres propios del escenario: el IT
-        // comparte base con los demás tests y una bandeja global trae también lo suyo.
-        String primera = "Bandeja Primera EnLlegar";
-        String segunda = "Bandeja Segunda EnLlegar";
-        String tercera = "Bandeja Tercera EnLlegar";
-        registerAndGetId(session, "ADICION_CREDITOS", primera, "SIN-DATO-REAL-201");
-        registerAndGetId(session, "ADICION_CREDITOS", segunda, "SIN-DATO-REAL-202");
-        registerAndGetId(session, "ADICION_CREDITOS", tercera, "SIN-DATO-REAL-203");
-
-        String body = mockMvc.perform(get("/api/requests/inbox").session(session))
+        String body = mockMvc.perform(get(INBOX)
+                        .param("responsible", "COORDINACION").param("limit", "200")
+                        .session(session))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andReturn().getResponse().getContentAsString();
+        List<String> ids = com.jayway.jsonpath.JsonPath.read(body, "$[*].id");
 
-        List<String> names = com.jayway.jsonpath.JsonPath.read(body, "$[*].studentName");
+        // Tamaño EXACTO sobre las solicitudes de este escenario —la base es compartida—.
+        // Hibernate deduplica la entidad raíz aunque el join multiplique filas: la
+        // ausencia de duplicados NO prueba el `distinct` de la consulta. Lo que el
+        // `distinct` decide es que la cota cuente solicitudes y no filas, y eso lo prueba
+        // WorkflowGenericityIT (review M1).
+        assertThat(ids).doesNotHaveDuplicates();
+        assertThat(ids.stream().filter(List.of(waiting, atFaculty, returned)::contains).toList())
+                .as("de las tres, esperan a la Coordinación la recién registrada y la devuelta")
+                .containsExactlyInAnyOrder(waiting, returned);
 
-        // Se asertan las POSICIONES RELATIVAS y no los tres primeros puestos: lo que
-        // FR-013 promete es el orden, y exigir que encabecen la lista ataría el test a
-        // que ningún otro escenario registre algo después.
-        assertThat(names).contains(primera, segunda, tercera);
-        assertThat(names.indexOf(tercera))
-                .as("la última registrada debe aparecer antes que la segunda")
-                .isLessThan(names.indexOf(segunda));
-        assertThat(names.indexOf(segunda))
-                .as("la segunda registrada debe aparecer antes que la primera")
-                .isLessThan(names.indexOf(primera));
+        // Cada entrada dice a quién espera y de dónde vino (FR-007): las registradas con
+        // sesión nacen de la Coordinación.
+        List<String> responsibles = com.jayway.jsonpath.JsonPath.read(body, "$[*].pendingResponsible");
+        assertThat(responsibles).isNotEmpty().containsOnly("COORDINACION");
+        List<String> origins = com.jayway.jsonpath.JsonPath.read(body,
+                "$[?(@.id == '%s' || @.id == '%s')].origin".formatted(waiting, returned));
+        assertThat(origins).containsExactly("COORDINATION", "COORDINATION");
     }
 
     @Test
-    @DisplayName("la bandeja nunca expone el número de documento (FR-014)")
+    @DisplayName("lo que espera a otra área no está en la bandeja pedida, y sí en la de esa área (FR-001)")
+    void aRequestWaitingForAnotherAreaIsNotInTheResponsibleInbox() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Otra Area", "SIN-DATO-REAL-205");
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+
+        assertThat(inboxIds(session, "COORDINACION")).doesNotContain(id);
+        assertThat(inboxIds(session, "FACULTAD")).contains(id);
+    }
+
+    @Test
+    @DisplayName("un trámite cerrado sale de todas las bandejas por construcción: de un estado final no hay transiciones (FR-001)")
+    void aClosedRequestLeavesEveryInboxByConstruction() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Cerrada", "SIN-DATO-REAL-206");
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(advanceRequest(id, "RECHAZADA", null).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.isFinal").value(true));
+
+        // Los responsables salen de la configuración, no de una lista escrita acá: si
+        // mañana entra un área nueva por SQL, este test la recorre sin tocarlo.
+        List<String> responsibles = jdbcTemplate.queryForList(
+                "SELECT DISTINCT responsible FROM workflow_transition", String.class);
+        assertThat(responsibles).isNotEmpty();
+        for (String responsible : responsibles) {
+            assertThat(inboxIds(session, responsible))
+                    .as("la bandeja de %s no debe listar un trámite cerrado", responsible)
+                    .doesNotContain(id);
+        }
+    }
+
+    @Test
+    @DisplayName("la bandeja exige el responsable y una cota dentro del rango: si no, 400 problem+json (contrato 007)")
+    void inboxRequiresTheResponsibleAndABoundedLimit() throws Exception {
+        MockHttpSession session = login();
+
+        mockMvc.perform(get(INBOX).session(session))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+
+        mockMvc.perform(get(INBOX).param("responsible", "COORDINACION").param("limit", "201")
+                        .session(session))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+
+        // La cota inferior también es load-bearing: sin @Min(1), limit=0 llega al
+        // repositorio y Limit.of(0) revienta en un 500 (review B1).
+        mockMvc.perform(get(INBOX).param("responsible", "COORDINACION").param("limit", "0")
+                        .session(session))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+
+        // Con el responsable y sin cota, la cota por defecto alcanza: 200.
+        mockMvc.perform(get(INBOX).param("responsible", "COORDINACION").session(session))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
+    }
+
+    @Test
+    @DisplayName("un responsable que no existe en ninguna configuración: 200 con lista vacía, no 404 (contrato 007)")
+    void anUnknownResponsibleAnswersAnEmptyListNotNotFound() throws Exception {
+        // Un 404 filtraría qué etiquetas existen, y una etiqueta inventada no se
+        // distingue de un área real sin nada pendiente.
+        mockMvc.perform(get(INBOX).param("responsible", "NO_EXISTE").session(login()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
+    // --- US2 de la 007: desde cuándo espera ---------------------------------------------
+
+    @Test
+    @DisplayName("una solicitud antigua devuelta hoy espera desde la devolución: waitingSince reciente, createdAt antiguo, y va DESPUÉS de la que lleva más tiempo detenida (D3, D5)")
+    void anOldReturnedRequestWaitsSinceItsReturnNotSinceRegistration() throws Exception {
+        MockHttpSession session = login();
+        String stuck = registerAndGetId(session, "ADICION_CREDITOS",
+                "Bandeja Detenida Hace Rato", "SIN-DATO-REAL-211");
+        String returned = registerAndGetId(session, "ADICION_CREDITOS",
+                "Bandeja Antigua Devuelta", "SIN-DATO-REAL-212");
+        // Envejecer la radicación: created_at NO es inmutable (solo el timeline lo es, por
+        // trg_timeline_immutable), y es exactamente el dato que NO debe mandar en el orden.
+        jdbcTemplate.update("UPDATE request SET created_at = created_at - interval '60 days' WHERE id = ?",
+                UUID.fromString(returned));
+        mockMvc.perform(advanceRequest(returned, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(advanceRequest(returned, "DEVUELTA", "Falta la firma del estudiante")
+                        .session(session))
+                .andExpect(status().isOk());
+
+        String body = mockMvc.perform(get(INBOX)
+                        .param("responsible", "COORDINACION").param("limit", "200")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        // Orden: la detenida desde que nació va ANTES que la devuelta hace un instante,
+        // aunque la devuelta se radicó dos meses antes. Ordenar por radicación lo invertiría.
+        List<String> ids = com.jayway.jsonpath.JsonPath.read(body, "$[*].id");
+        assertThat(ids).contains(stuck, returned);
+        assertThat(ids.indexOf(stuck)).isLessThan(ids.indexOf(returned));
+
+        // La devuelta: createdAt antiguo y waitingSince reciente, LOS DOS con el offset de
+        // la sede (D4, FR-006). Un instante sin marcador se lee como hora local: es el
+        // defecto que la 006 ya corrigió en sus DTO (CampusTime, revisión #34 M1) y que el
+        // review de la 007 (M4) encontró reintroducido en createdAt.
+        String createdAtJson = com.jayway.jsonpath.JsonPath.<List<String>>read(body,
+                "$[?(@.id == '%s')].createdAt".formatted(returned)).get(0);
+        String waitingSinceJson = com.jayway.jsonpath.JsonPath.<List<String>>read(body,
+                "$[?(@.id == '%s')].waitingSince".formatted(returned)).get(0);
+        assertThat(waitingSinceJson).endsWith("-05:00");
+        assertThat(createdAtJson).endsWith("-05:00");
+        OffsetDateTime waitingSince = OffsetDateTime.parse(waitingSinceJson);
+        OffsetDateTime createdAt = OffsetDateTime.parse(createdAtJson);
+        assertThat(waitingSince.toInstant())
+                .isAfter(createdAt.toInstant().plus(Duration.ofDays(59)));
+
+        // La detenida espera desde que nació: su waitingSince y su createdAt son el mismo
+        // instante, salvo microsegundos (la entrada de nacimiento se escribe al registrar).
+        String stuckWaiting = com.jayway.jsonpath.JsonPath.<List<String>>read(body,
+                "$[?(@.id == '%s')].waitingSince".formatted(stuck)).get(0);
+        String stuckCreated = com.jayway.jsonpath.JsonPath.<List<String>>read(body,
+                "$[?(@.id == '%s')].createdAt".formatted(stuck)).get(0);
+        assertThat(Duration.between(
+                OffsetDateTime.parse(stuckCreated).toInstant(),
+                OffsetDateTime.parse(stuckWaiting).toInstant()).abs())
+                .isLessThan(Duration.ofSeconds(5));
+    }
+
+    @Test
+    @DisplayName("la bandeja emite el mismo número de sentencias SQL con N y con N+3 solicitudes: sin N+1 (T029)")
+    void inboxStatementCountDoesNotGrowWithTheNumberOfEntries() throws Exception {
+        // Medición real, no opinión: estadísticas de Hibernate habilitadas en runtime para no
+        // tocar las properties compartidas de @TramitaIntegrationTest (cambiarlas invalidaría
+        // el caché de contexto de todos los IT).
+        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        statistics.setStatisticsEnabled(true);
+        try {
+            MockHttpSession session = login();
+            registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Conteo Uno", "SIN-DATO-REAL-221");
+            registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Conteo Dos", "SIN-DATO-REAL-222");
+            long withN = statementsIssuedBy(statistics, session);
+
+            registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Conteo Tres", "SIN-DATO-REAL-223");
+            registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Conteo Cuatro", "SIN-DATO-REAL-224");
+            registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Conteo Cinco", "SIN-DATO-REAL-225");
+            long withNPlusThree = statementsIssuedBy(statistics, session);
+
+            assertThat(withNPlusThree)
+                    .as("sentencias con N+3 pendientes frente a N: %d vs %d", withNPlusThree, withN)
+                    .isEqualTo(withN);
+        } finally {
+            statistics.setStatisticsEnabled(false);
+        }
+    }
+
+    /** Sentencias preparadas que cuesta UNA consulta de la bandeja de la Coordinación. */
+    private long statementsIssuedBy(Statistics statistics, MockHttpSession session) throws Exception {
+        statistics.clear();
+        mockMvc.perform(get(INBOX)
+                        .param("responsible", "COORDINACION").param("limit", "200")
+                        .session(session))
+                .andExpect(status().isOk());
+        return statistics.getPrepareStatementCount();
+    }
+
+    /**
+     * GUARDA, no RED: el DTO ya no lleva el campo desde la 004. Se conserva para que no se
+     * pierda al ampliarlo (§III); su mutante es T019.
+     */
+    @Test
+    @DisplayName("la bandeja nunca expone el número de documento (FR-014 de la 004, §III)")
     void inboxNeverExposesStudentDocument() throws Exception {
         MockHttpSession session = login();
         String document = "SIN-DATO-REAL-204";
         registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Sin Cedula", document);
 
-        String body = mockMvc.perform(get("/api/requests/inbox").session(session))
+        String body = mockMvc.perform(get(INBOX)
+                        .param("responsible", "COORDINACION").param("limit", "200")
+                        .session(session))
                 .andExpect(status().isOk())
                 // Sobre el JSON servido, no sobre el DTO: lo que se promete es que el
                 // dato no SALE, y quien lo verifica del lado del DTO no vería un campo
@@ -899,8 +1107,17 @@ class RequestControllerIT {
     @Test
     @DisplayName("la bandeja exige sesión: sin ella, 401 (FR-015)")
     void inboxRequiresAnAuthenticatedSession() throws Exception {
-        mockMvc.perform(get("/api/requests/inbox"))
+        mockMvc.perform(get(INBOX).param("responsible", "COORDINACION"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    private List<String> inboxIds(MockHttpSession session, String responsible) throws Exception {
+        String body = mockMvc.perform(get(INBOX)
+                        .param("responsible", responsible).param("limit", "200")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return com.jayway.jsonpath.JsonPath.read(body, "$[*].id");
     }
 
     // --- 010 / SP3: el documento formal del trámite ---------------------------------------
@@ -1082,9 +1299,10 @@ class RequestControllerIT {
     }
 
     /**
-     * Publica una v2 de adición de créditos con su propio tope. Le basta un estado
-     * inicial: registrar solo exige exactamente uno, y este test no avanza la
-     * solicitud.
+     * Publica una v2 de adición de créditos con su propio tope. Hasta la 007 le bastaba un
+     * estado inicial; desde FR-014 el motor rechaza registrar en un inicial sin salida —con
+     * razón: sería un callejón—, así que la v2 cierra en CERRADA. Un fixture no puede ser
+     * la excepción de la regla que el sistema afirma. Este test sigue sin avanzar nada.
      */
     private void publishSecondVersionWithMaxCredits(String maxCredits) {
         jdbcTemplate.update("""
@@ -1094,6 +1312,18 @@ class RequestControllerIT {
                 INSERT INTO workflow_state (id, definition_id, code, name, is_initial, is_final)
                 SELECT gen_random_uuid(), id, 'REGISTRADA', 'Registrada', TRUE, FALSE
                 FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2""");
+        jdbcTemplate.update("""
+                INSERT INTO workflow_state (id, definition_id, code, name, is_initial, is_final)
+                SELECT gen_random_uuid(), id, 'CERRADA', 'Cerrada', FALSE, TRUE
+                FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2""");
+        jdbcTemplate.update("""
+                INSERT INTO workflow_transition
+                    (id, definition_id, from_state_id, to_state_id, responsible, requires_note)
+                SELECT gen_random_uuid(), d.id, f.id, s.id, 'COORDINACION', false
+                FROM workflow_definition d
+                JOIN workflow_state f ON f.definition_id = d.id AND f.code = 'REGISTRADA'
+                JOIN workflow_state s ON s.definition_id = d.id AND s.code = 'CERRADA'
+                WHERE d.code = 'ADICION_CREDITOS' AND d.version = 2""");
         jdbcTemplate.update("""
                 INSERT INTO workflow_parameter (id, definition_id, parameter_key, parameter_value)
                 SELECT gen_random_uuid(), id, 'MAX_CREDITS', ?
@@ -1114,6 +1344,9 @@ class RequestControllerIT {
      * contra esta versión sería imposible de limpiar sin violar esa garantía.
      */
     private void dropSecondVersion() {
+        jdbcTemplate.update("""
+                DELETE FROM workflow_transition WHERE definition_id IN (
+                    SELECT id FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2)""");
         jdbcTemplate.update("""
                 DELETE FROM workflow_parameter WHERE definition_id IN (
                     SELECT id FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2)""");

@@ -93,57 +93,58 @@ issue por SP1–SP7), no en un archivo. Se cierra con `Closes #N` en el cuerpo d
 Al citar literatura o normativa institucional, **incluir la referencia exacta** en cada afirmación — alineado con la regla general #4 del CLAUDE.md global.
 
 <!-- SPECKIT START -->
-Última feature cerrada: `006-verifiable-document-seal` — SP4 (issue `Tramita#11`, **CERRADO**):
-sello verificable sobre los documentos que el sistema emite, y registro de emisiones. Completa el
-**objetivo específico 4** del documento de grado. **46/46 tareas, mergeada a `main` en la PR #41
-(`789faea`)**. ⛔ Nada de la 006 se re-agenda. **No hay feature activa**: lo siguiente es `#12`
-(SP5, bandeja de trabajo de la coordinación), que arranca por `/speckit-specify` como `specs/007-*`.
-Insumos de la 006: `specs/006-verifiable-document-seal/plan.md` (+ `research.md` con D1–D11,
-`data-model.md`, `contracts/openapi.yaml`, `quickstart.md`, `checklists/requirements.md`).
-🔑 **Medición que definió el render**: el PDF no era reproducible, y la causa **NO son los
-metadatos de fecha** — `CreationDate`, `ModDate` y `Producer` están AUSENTES (PDFBox 3 no los
-escribe). La única causa era el `/ID` aleatorio del trailer: de 52 348 bytes, los primeros 52 021
-eran idénticos **entre dos renders seguidos de la misma solicitud, no entre emisiones
-cualesquiera** — T022a refutó esa generalización más amplia: fuentes compartidas entre documentos,
-con el renderer como `@Service` singleton, cambiaban los bytes de documentos ya emitidos. Fijar el
-`/ID` —derivado del trámite, nunca una constante (todos los documentos compartirían identificador)—
-da bytes iguales, probado.
-Diseño: sello en tabla append-only `request_document_seal` con trigger `BEFORE UPDATE OR DELETE`
-⚠️ **que NUNCA debe cubrir INSERT** (con fail-closed, apagaría la emisión entera). El patrón **NO se
-cosecha de `router-ia`: ya está en `main`**, `trg_timeline_immutable` (`V2.0.0:80-88`), y el §VII lo
-nombra como mecanismo vigente.
-🔑 **La verificación exacta (`POST /seals/verify`, con sesión) compara la huella recibida CONTRA
-LA HUELLA GUARDADA al emitir, SIN REGENERAR el documento** — reemplazó al diseño original, que
-reconstruía y comparaba. Da **TRES** resultados —íntegro / alterado / no verificable— y el tercero
-cubre DOS causas: cambió el formato o cambió la revisión de los datos. Solo cuando la huella NO
-coincide el sistema busca esas explicaciones antes de decir «alterado», que es la acusación falsa
-que FR-007 prohíbe.
-Canal público `GET /public/seals/{code}`, autorizado **por posesión** de un código de 64 bits en
-base 36 (≤13 chars) impreso en el pie: **solo afirma que el sello existe (`ISSUED`)** — sin huella
-recibida no compara nada, y NO tiene veredicto de integridad: ni «alterado» ni «no verificable» son
-respuestas posibles ahí, eso es exclusivo del canal autenticado de arriba. Sin datos personales,
-**sin excluir nada de CSRF** (un GET no lo necesita) y **sin límite de tasa** (la protección es el
-tamaño del espacio, y a diferencia de la captura pública este canal solo lee). La verificación
-exacta recibe la **huella, no el archivo** — sin multipart, sin tope, y hace literal el «no
-almacenamos archivos». **Migración `V4.1.0`**, hoy la última del repo.
-FR-012 **fail-closed**: sellar y entregar son atómicos; ⛔ **sin política de reintento** (reintentar
-es volver a pedir el documento), sin transacción aparte, sin contador propio — los tres se
-rechazaron como sobreingeniería. FR-013 **disuelve la deuda M2**: se valida un decimal en la entrada
-—`@AtMostOneDecimal`, propio: `@Digits(fraction=1)` medía la escala literal del `BigDecimal` y
-rechazaba un JSON válido como `2.80`— y en la base (Acuerdo n.º 13 de 2023, **art. 32**), sin
-cambiar el tipo de columna. ⚠️ El `MAX_GRADE = 100` que cita el issue #11 es **falso**: `V3.0.0:51`
-siembra `5.0`.
-⚠️ La traza de aprobaciones **YA EXISTE** desde SP6 (`request_transition_log` + `GET /requests/{id}/timeline`):
-no reimplementarla. Sin dependencias nuevas.
-Suite medida sobre `789faea`: **145 unitarios + 94 IT, sin fallos**. Como siempre en
-este repo, se re-mide, no se cita de memoria.
-Antes de la 006: `005-formal-document` (SP3 — el PDF del DO-FR-100, PR #31),
-`004-public-request-capture` (captura pública del formato, sin sesión) y `003-request-form-rules`
-(SP2 — formularios validados + reglas configurables por trámite).
+**Feature ACTIVA: `007-coordination-inbox`** — SP5 (issue `Tramita#12`), la bandeja de trabajo de la
+Coordinación, y con ella la decisión acoplada del issue `#22`. Fase: **implementada** (T001–T044,
+commits desde `659f666`, ver `git log`), **revisada por agente limpio el 2026-09-21 con sus
+correcciones aplicadas**, **sin pushear**; lo siguiente es la PR con `Closes #12` y `Closes #22` en
+texto plano. Artefactos en `specs/007-coordination-inbox/`:
+`spec.md` (20 FR), `plan.md`, `research.md` (D1–D8), `data-model.md`, `contracts/openapi.yaml`,
+`quickstart.md`, `checklists/requirements.md` y **`tasks.md` (44 tareas, 6 fases)**.
+⛔ **NO volver a correr `/speckit-tasks`**: regenera `tasks.md` DESDE PLANTILLA
+(`.claude/skills/speckit-tasks/SKILL.md:77`) y pisaría las 44 tareas curadas —10 RED, 5 mutantes, 2 guardas de
+test, 1 invariante y las dos guardas de proceso T002/T041, medido el 2026-09-21 tras la auditoría;
+el «13 RED, 7 mutantes» que decía antes nunca fue exacto: en `1b1fbd6` eran 12 y 6—. ⚠️ La rama está **solo en local, sin pushear**: el único respaldo de ese
+archivo es el disco. Este bloque lo escribió `/speckit-plan` en el commit del plan, así que **queda
+una fase atrás por construcción** cada vez que corre: revisarlo antes de creerle.
+🔑 **La feature NO lleva migración Flyway**: todo lo que necesita ya está persistido desde `V2.0.0`
+—`workflow_transition.responsible`, `workflow_state.is_initial/is_final`,
+`request_transition_log.occurred_at`—. La última migración del repo sigue siendo **`V4.1.0`**.
+⛔ **Tres decisiones de la spec que NO se reabren**: (1) la bandeja lee el responsable que la
+configuración declara, **sin roles de usuario** — filtra pero **no impide**, y eso es trabajo futuro
+declarado, no un olvido; (2) se **mide** la antigüedad y **no** se dictamina vencimiento, porque no
+hay plazo institucional citable (el árbol lo registra como «documento pendiente de obtener») — de
+paso evita modelar los festivos de Colombia; (3) el catálogo expone los estados con `isInitial` e
+`isFinal` pero **sin orden lineal**: el flujo admite devoluciones y rechazos, así que no es una
+secuencia y un «paso N de M» sería una ficción.
+🔑 **El responsable viaja como PARÁMETRO de la consulta, nunca como literal en el código**: es lo que
+mantiene en una sola línea el `git grep` que prueba la tesis del §VI. Hardcodear `COORDINACION`
+agregaría una segunda.
+🔑 **La espera se cuenta desde la ÚLTIMA TRANSICIÓN, no desde la radicación** (research D3): una
+solicitud radicada hace dos meses y devuelta ayer lleva **un día** esperando. Medir desde `createdAt`
+invierte justo la priorización que la feature viene a dar. Y se expone el **instante**, no un número
+de días: así no hay zona horaria ni «ahora» congelado en la respuesta (D4).
+⚠️ **`GET /requests/inbox` se REUSA y eso ENMIENDA el contrato de la 004 de forma NO aditiva**: pasa
+de «las 50 más recientes, sin criterio» a «las que esperan a un responsable». Se apoya en un hecho
+medido: **ningún cliente lo consume**. `GET /workflow-definitions`, en cambio, cambia de forma
+**aditiva**.
+⚠️ **NO ampliar `WorkflowDefinitionResponse`**: se construye en CUATRO sitios porque se anida en cada
+respuesta de solicitud. Los estados van en un DTO propio, `WorkflowDefinitionDetailResponse`.
+Medido con un spike descartable: 5 archivos + 1 nuevo, +16/−9 líneas, suite verde sin tocar un test.
+⚠️ **`InboxEntryResponse` NUNCA lleva documento de identidad** — es el invariante del DTO desde la
+004 y la garantía de minimización del §III. El `quickstart.md` lo verifica explícitamente.
+Suite base sobre `29acf33`: 157 unitarios + 96 IT; al cerrar la implementación (`d221b69`): 160
+unitarios + 108 IT; tras las correcciones del review (`cb85fd6`): **163 unitarios + 112 IT, sin
+fallos**. Como siempre en este repo, se
+re-mide, no se cita de memoria.
+Última feature cerrada: `006-verifiable-document-seal` — SP4 (issue `Tramita#11`, **CERRADO**), PR #41
+(`789faea`). ⛔ Nada de la 006 se re-agenda. Sus decisiones vivas: el sello compara contra la **huella
+guardada** sin regenerar el documento; el canal público `GET /public/seals/{code}` solo afirma que el
+sello existe; el `/ID` del trailer se fija derivado del trámite para que el PDF sea reproducible.
+Antes: `005-formal-document` (SP3, PR #31), `004-public-request-capture` y `003-request-form-rules`.
 Stack: Java 21 · Spring Boot 4.0.7 (Security 7, Data JPA, Validation, WebMVC) · PostgreSQL + Flyway
 (validate) · PDFBox 3 · BCrypt · Lombok · Testcontainers (test).
 Paquete `com.uniremington.api.tramita`, estructura **package-by-layer**: `controller/`,
 `dto/`, `model/`, `repo/`, `security/`, `service/` (contratos) + `service/impl/`, `util/`
 y `shared/` (`config/`, `exception/`, `seed/`). Interfaces con prefijo `I`.
-Para más contexto de tecnologías, estructura y comandos, leer el plan actual.
+Para más contexto de tecnologías, estructura y comandos, leer `specs/007-coordination-inbox/plan.md`.
 <!-- SPECKIT END -->

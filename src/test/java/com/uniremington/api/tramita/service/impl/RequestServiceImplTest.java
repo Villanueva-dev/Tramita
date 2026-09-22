@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.uniremington.api.tramita.dto.AdvanceRequestBody;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
+import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.PublicRequestBody;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.model.Request;
@@ -31,11 +32,14 @@ import com.uniremington.api.tramita.shared.exception.IllegalTransitionException;
 import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationException;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
+import com.uniremington.api.tramita.util.CampusTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.Limit;
 
 /**
  * Unit test del algoritmo del motor (T013 RED antes de T018; T022 RED antes de
@@ -332,16 +336,25 @@ class RequestServiceImplTest {
                 "Distancia", "8", "Necesito la asignatura para graduarme", "data:image/png;base64,AAAA");
     }
 
+    /**
+     * Definición mínima con una transición guardada. Cierra en FINAL a propósito: hasta la
+     * 007 dejaba SIGUIENTE sin salida, y el motor rechaza ahora ese callejón (FR-014) — con
+     * razón. Un fixture no puede ser la excepción de la regla que el sistema afirma.
+     */
     private WorkflowDefinition definitionGuardedBy(String code, String guardKey) {
         return WorkflowDefinition.builder()
                 .code(code)
                 .version(1)
                 .name("Trámite con guarda")
-                .states(List.of(initial, next))
-                .transitions(List.of(WorkflowTransition.builder()
-                        .fromState(initial).toState(next)
-                        .responsible("COORDINACION").requiresNote(false)
-                        .guardKey(guardKey).build()))
+                .states(List.of(initial, next, terminal))
+                .transitions(List.of(
+                        WorkflowTransition.builder()
+                                .fromState(initial).toState(next)
+                                .responsible("COORDINACION").requiresNote(false)
+                                .guardKey(guardKey).build(),
+                        WorkflowTransition.builder()
+                                .fromState(next).toState(terminal)
+                                .responsible("COORDINACION").requiresNote(false).build()))
                 .build();
     }
 
@@ -432,6 +445,191 @@ class RequestServiceImplTest {
 
     private static final java.util.UUID REQUEST_ID =
             java.util.UUID.fromString("00000000-0000-0000-0000-000000000001");
+
+    // --- 007 US2: desde cuándo espera cada entrada de la bandeja ---------------------
+    // El criterio de selección vive en la consulta y se prueba en el IT (RequestControllerIT);
+    // acá se prueba lo que SÍ es lógica del servicio: combinar el timeline con la
+    // radicación, convertir a la hora de la sede y ordenar (research.md D3, D4, D5).
+
+    private static final java.util.UUID SECOND_ID =
+            java.util.UUID.fromString("00000000-0000-0000-0000-000000000002");
+    private static final java.util.UUID THIRD_ID =
+            java.util.UUID.fromString("00000000-0000-0000-0000-000000000003");
+
+    @Test
+    @DisplayName("bandeja: waitingSince es el occurredAt de la ÚLTIMA transición, no la radicación (D3)")
+    void inboxWaitingSinceIsTheLastTransitionNotTheRegistration() {
+        // Radicada hace dos meses, movida dos veces: espera desde el ÚLTIMO movimiento.
+        LocalDateTime registered = LocalDateTime.of(2026, 7, 1, 12, 0);
+        LocalDateTime firstMove = registered.plusDays(10);
+        LocalDateTime lastMove = registered.plusDays(60);
+        Request request = pendingRequest(REQUEST_ID, registered);
+        when(requestRepo.findPendingFor(any(), any(Limit.class))).thenReturn(List.of(request));
+        when(logRepo.findTimelinesOf(any())).thenReturn(List.of(
+                entry(request, null, initial, registered),
+                entry(request, initial, next, firstMove),
+                entry(request, next, initial, lastMove)));
+
+        List<InboxEntryResponse> inbox = service.getInbox("EXTERNO", 50);
+
+        assertThat(inbox).singleElement().satisfies(entry -> {
+            assertThat(entry.waitingSince()).isEqualTo(CampusTime.toCampus(lastMove));
+            // Confundir los dos campos es el error que el frontend comete hoy: se fija
+            // que son instantes DISTINTOS, no solo que uno tiene el valor esperado.
+            assertThat(entry.waitingSince().toInstant()).isNotEqualTo(entry.createdAt().toInstant());
+            // createdAt también sale con el offset de la sede (review M4). El offset se
+            // afirma aparte: AssertJ compara OffsetDateTime por instante, y UTC crudo y
+            // Bogotá son el mismo instante con distinto marcador.
+            assertThat(entry.createdAt()).isEqualTo(CampusTime.toCampus(registered));
+            assertThat(entry.createdAt().getOffset())
+                    .isEqualTo(CampusTime.toCampus(registered).getOffset());
+        });
+    }
+
+    @Test
+    @DisplayName("bandeja: sin entradas de timeline, waitingSince es la radicación — respaldo defensivo, no un caso real")
+    void inboxWaitingSinceFallsBackToRegistrationWhenThereIsNoTimeline() {
+        // En producción no ocurre: toda solicitud nace con una entrada (register, también
+        // por el canal público). El test fija que el respaldo existe, no que el caso sea real.
+        LocalDateTime registered = LocalDateTime.of(2026, 7, 1, 12, 0);
+        Request request = pendingRequest(REQUEST_ID, registered);
+        when(requestRepo.findPendingFor(any(), any(Limit.class))).thenReturn(List.of(request));
+        when(logRepo.findTimelinesOf(any())).thenReturn(List.of());
+
+        List<InboxEntryResponse> inbox = service.getInbox("EXTERNO", 50);
+
+        assertThat(inbox).singleElement()
+                .extracting(InboxEntryResponse::waitingSince)
+                .isEqualTo(CampusTime.toCampus(registered));
+    }
+
+    @Test
+    @DisplayName("bandeja: ordenada por waitingSince ascendente — primero la que más lleva esperando (D5)")
+    void inboxIsOrderedByWaitingSinceAscending() {
+        // El repositorio las devuelve por radicación (corte bajo la cota, D8); la espera
+        // las reordena: la radicada ÚLTIMA es la que más lleva detenida.
+        LocalDateTime base = LocalDateTime.of(2026, 7, 1, 12, 0);
+        Request first = pendingRequest(REQUEST_ID, base);
+        Request second = pendingRequest(SECOND_ID, base.plusDays(1));
+        Request third = pendingRequest(THIRD_ID, base.plusDays(2));
+        when(requestRepo.findPendingFor(any(), any(Limit.class)))
+                .thenReturn(List.of(first, second, third));
+        when(logRepo.findTimelinesOf(any())).thenReturn(List.of(
+                entry(first, null, initial, base),
+                entry(first, initial, next, base.plusDays(30)),   // movida hace poco
+                entry(second, null, initial, base.plusDays(1)),
+                entry(second, initial, next, base.plusDays(15)),  // en el medio
+                entry(third, null, initial, base.plusDays(2))));  // quieta desde que nació
+
+        List<InboxEntryResponse> inbox = service.getInbox("EXTERNO", 50);
+
+        assertThat(inbox).extracting(InboxEntryResponse::id)
+                .containsExactly(THIRD_ID, SECOND_ID, REQUEST_ID);
+        assertThat(inbox).extracting(InboxEntryResponse::waitingSince).isSorted();
+    }
+
+    // --- 007 FR-014: el motor no deja una solicitud detenida sin responsable posible ------
+    // Un estado no final sin transiciones de salida es un callejón: la solicitud que entrara
+    // no aparecería en ninguna bandeja y nadie sería responsable de ella. La base no lo
+    // impide (V2.2.0) y el invariante de WorkflowGenericityIT solo mira lo sembrado al
+    // correr: la guarda del motor es la que vale para una definición cargada en caliente.
+
+    /** Definición con un callejón: INICIAL → LIMBO, y LIMBO no es final ni tiene salidas. */
+    private final WorkflowState limbo =
+            WorkflowState.builder().code("LIMBO").name("Limbo").build();
+    private final WorkflowDefinition deadEndDefinition = WorkflowDefinition.builder()
+            .code("TRAMITE_CALLEJON")
+            .version(1)
+            .name("Trámite con callejón")
+            .states(List.of(initial, limbo, terminal))
+            .transitions(List.of(
+                    WorkflowTransition.builder()
+                            .fromState(initial).toState(limbo)
+                            .responsible("EXTERNO").requiresNote(false).build(),
+                    WorkflowTransition.builder()
+                            .fromState(initial).toState(terminal)
+                            .responsible("EXTERNO").requiresNote(false).build()))
+            .build();
+
+    @Test
+    @DisplayName("avanzar hacia un estado no final sin salidas: 500 de configuración, sin efectos (FR-014)")
+    void advanceIntoADeadEndStateFailsClosed() {
+        Request request = requestAt(initial, deadEndDefinition);
+
+        assertThatExceptionOfType(IncompleteConfigurationException.class)
+                .isThrownBy(() -> service.advance(
+                        REQUEST_ID, new AdvanceRequestBody("LIMBO", null), EMAIL))
+                .withMessageContaining("LIMBO")
+                .withMessageContaining("TRAMITE_CALLEJON");
+
+        // La guarda rechaza el destino, no la solicitud: sigue donde estaba, sin rastro
+        assertThat(request.getCurrentState()).isSameAs(initial);
+        verify(logRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("registrar en una definición cuyo inicial no tiene salidas: 500 de configuración, nada se persiste (FR-014)")
+    void registerIntoAnInitialStateWithoutExitsFailsClosed() {
+        WorkflowDefinition lonely = WorkflowDefinition.builder()
+                .code("TRAMITE_SIN_SALIDA")
+                .version(1)
+                .name("Trámite sin salida")
+                .states(List.of(initial))
+                .transitions(List.of())
+                .build();
+        when(definitionRepo.findTopByCodeOrderByVersionDesc("TRAMITE_SIN_SALIDA"))
+                .thenReturn(Optional.of(lonely));
+
+        assertThatExceptionOfType(IncompleteConfigurationException.class)
+                .isThrownBy(() -> service.register(
+                        new CreateRequestBody("TRAMITE_SIN_SALIDA", "Ana María Pérez", "DOC-PRUEBA-001"),
+                        EMAIL))
+                .withMessageContaining("INICIAL")
+                .withMessageContaining("TRAMITE_SIN_SALIDA");
+
+        verify(requestRepo, never()).save(any());
+        verify(logRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("bandeja: sin entrada de nacimiento, origin es null — anomalía de datos declarada en el contrato, no un tercer origen (review M3)")
+    void inboxOriginIsNullWhenTheBirthEntryIsMissing() {
+        // Un timeline con movimientos pero sin la entrada from NULL: no ocurre por register,
+        // que la escribe siempre. Si ocurre, el contrato declara null; nadie lo miraba.
+        LocalDateTime registered = LocalDateTime.of(2026, 7, 1, 12, 0);
+        Request request = pendingRequest(REQUEST_ID, registered);
+        when(requestRepo.findPendingFor(any(), any(Limit.class))).thenReturn(List.of(request));
+        when(logRepo.findTimelinesOf(any())).thenReturn(List.of(
+                entry(request, initial, next, registered.plusDays(1))));
+
+        List<InboxEntryResponse> inbox = service.getInbox("EXTERNO", 50);
+
+        assertThat(inbox).singleElement().extracting(InboxEntryResponse::origin).isNull();
+    }
+
+    /** Solicitud del trámite de prueba, pendiente en el estado inicial, con id y radicación fijos. */
+    private Request pendingRequest(java.util.UUID id, LocalDateTime createdAt) {
+        return Request.builder()
+                .id(id)
+                .definition(definition)
+                .currentState(initial)
+                .studentName("Ana María Pérez")
+                .studentDocument("DOC-PRUEBA-001")
+                .createdAt(createdAt)
+                .build();
+    }
+
+    /** Entrada de timeline con instante fijo: lo que @PrePersist pondría en la base. */
+    private RequestTransitionLog entry(Request request, WorkflowState from, WorkflowState to,
+            LocalDateTime occurredAt) {
+        return RequestTransitionLog.builder()
+                .request(request)
+                .fromState(from)
+                .toState(to)
+                .actor(actor)
+                .occurredAt(occurredAt)
+                .build();
+    }
 
     /** Motor con las guardas dadas registradas; sin argumentos, ninguna. */
     private RequestServiceImpl serviceWith(IWorkflowGuard... guards) {

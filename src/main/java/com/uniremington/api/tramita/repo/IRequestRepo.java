@@ -31,15 +31,37 @@ public interface IRequestRepo extends JpaRepository<Request, UUID> {
     List<Request> search(@Param("q") String q, @Param("pattern") String escapedPattern);
 
     /**
-     * Las solicitudes más recientes, sin criterio (004, FR-012/FR-013). Es la
-     * consulta que la búsqueda de arriba deliberadamente NO ofrece: allá un patrón
-     * sin escapar devolvería el padrón completo, y acá el listado total es el
-     * contrato — lo que evita el volcado de datos personales no es negarse a
-     * listar, sino que {@code InboxEntryResponse} no lleve documento (D8).
+     * La bandeja de trabajo (007, FR-001, research.md D1): las solicitudes cuyo estado
+     * actual ofrece, en la definición con la que nacieron, alguna transición cuyo
+     * {@code responsible} es el pedido. No hay columna que lo almacene: se deriva de
+     * la configuración, de modo que incorporar un área nueva no toca este código
+     * (§VI). El responsable llega por parámetro y nunca como literal (D2).
      *
-     * El {@link Limit} es obligatorio en la firma y no un default del repositorio:
-     * una consulta sin cota podría convertirse en un volcado el día que el volumen
-     * crezca, y quien la llame debe decidir explícitamente cuánto pide.
+     * {@code distinct} NO es para evitar duplicados en la lista: Hibernate ya deduplica
+     * la entidad raíz aunque el join multiplique filas. Es para que la COTA cuente
+     * solicitudes y no filas del join: sin él, {@code fetch first N} corta filas antes de
+     * deduplicar, y un estado con dos salidas del mismo responsable —EN_COORDINACION
+     * tiene dos: avanzar y devolver— devuelve menos de N (review M1; lo prueba
+     * WorkflowGenericityIT). Un estado final no tiene salidas, así que un trámite cerrado
+     * queda fuera sin filtrarlo aparte; lo garantizan la guarda del motor (FR-014) y el
+     * invariante de configuración de WorkflowGenericityIT, no la base.
+     *
+     * Orden por radicación ascendente: es el corte bajo la cota (D8). El orden por
+     * espera (D5) lo aplica el servicio sobre el resultado a partir de la US2.
+     *
+     * El {@link Limit} sigue siendo obligatorio en la firma, por la misma razón que
+     * en la consulta de la 004 a la que reemplaza: quien llama decide cuánto pide;
+     * una consulta sin cota se vuelve un volcado el día que el volumen crezca. Lo que
+     * evita el volcado de datos personales no es negarse a listar, sino que
+     * {@code InboxEntryResponse} no lleve documento (§III).
      */
-    List<Request> findAllByOrderByCreatedAtDesc(Limit limit);
+    @Query("""
+            select distinct r from Request r
+            join r.definition d
+            join d.transitions t
+            where t.fromState = r.currentState
+              and t.responsible = :responsible
+            order by r.createdAt asc
+            """)
+    List<Request> findPendingFor(@Param("responsible") String responsible, Limit limit);
 }

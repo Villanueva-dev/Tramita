@@ -52,15 +52,21 @@ public interface IRequestService {
     List<RequestSummaryResponse> search(String query);
 
     /**
-     * Las solicitudes registradas más recientemente, sin criterio de búsqueda (004,
-     * US2, FR-012/FR-013). Existe porque no se puede buscar a alguien de cuya
-     * solicitud nadie se enteró: con la captura pública, una solicitud puede llegar
-     * sin que nadie de la Coordinación sepa que existe.
+     * La bandeja de trabajo (007, US1, FR-001): las solicitudes que esperan la acción
+     * del responsable pedido, según lo que la configuración de cada trámite declara
+     * para el siguiente movimiento (research.md D1). El responsable viaja como
+     * parámetro y nunca como literal (D2). NO es control de acceso (FR-003a): filtra,
+     * no impide.
      *
-     * Devuelve {@link InboxEntryResponse} y no el resumen de la 002 porque esta
-     * vista lista SIN filtro y no puede exponer documentos de identidad (FR-014).
+     * Enmienda no aditiva de la 004 (D7): antes listaba «las más recientes, sin
+     * criterio». Sigue existiendo por la misma razón de entonces —con la captura
+     * pública, una solicitud puede llegar sin que nadie de la Coordinación sepa que
+     * existe— y sigue devolviendo {@link InboxEntryResponse}, sin documento de
+     * identidad (§III).
+     *
+     * @param limit cota explícita del resultado; la decide quien llama (D8).
      */
-    List<InboxEntryResponse> getInbox();
+    List<InboxEntryResponse> getInbox(String responsible, int limit);
 
     /**
      * Timeline completo en orden cronológico (US3, FR-008): cada entrada con su

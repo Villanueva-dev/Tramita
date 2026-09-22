@@ -1,0 +1,327 @@
+openapi: 3.1.0
+info:
+  title: Trámita — delta de contrato de la feature 007
+  version: 0.7.0
+  description: |
+    Delta sobre los contratos de las features 002, 003, 004, 005 y 006, cuyas estructuras NO
+    se alteran salvo donde se declara abajo. Esta feature entrega la bandeja de trabajo de la
+    Coordinación (SP5) y resuelve la decisión acoplada del issue #22.
+
+    **Ningún endpoint es nuevo.** Los dos que cambian ya existen:
+
+      * `GET /requests/inbox` — ⚠️ **ENMIENDA DE COMPORTAMIENTO, no aditiva.** La 004 lo
+        definió como «las solicitudes más recientes, sin criterio» (FR-012/FR-013). A partir
+        de esta feature responde **las que esperan acción de un responsable**, ordenadas por
+        antigüedad de la espera. Quien esperara el listado completo ahora recibe un
+        subconjunto. Se enmienda a conciencia y no se estrena endpoint paralelo: ningún
+        cliente lo consume hoy —medido: cero llamadas a `/requests/inbox` en el frontend— y
+        dos listados con el mismo propósito se desincronizan (research.md D7).
+
+      * `GET /workflow-definitions` — **cambio aditivo**: cada definición pasa a incluir sus
+        estados. Un cliente que lee `code`, `name` y `version` sigue funcionando sin cambios
+        (FR-011c). Resuelve el issue #22 sacando del cliente el reconocimiento de códigos de
+        estado (research.md D6).
+
+    **Sin migración.** Esta feature no crea tablas ni columnas: todo lo que necesita ya está
+    persistido desde `V2.0.0`. La última migración del repositorio sigue siendo `V4.1.0`.
+
+    Lo no listado aquí se rige por `specs/006-verifiable-document-seal/contracts/openapi.yaml`
+    y, en lo que aquélla no altera, por los de la 005, la 004, la 003 y la 002.
+
+servers:
+  - url: /api
+
+paths:
+  /requests/inbox:
+    get:
+      summary: Solicitudes que esperan la acción de un responsable
+      description: |
+        La bandeja de trabajo. Devuelve las solicitudes **detenidas esperando que un
+        responsable concreto actúe**, ordenadas de la que más lleva esperando a la que menos.
+
+        **Cómo se determina la espera** (research.md D1): una solicitud espera a `X` cuando la
+        definición con la que nació declara alguna transición que sale de su estado actual con
+        `responsible = X`. No hay ninguna columna que lo almacene: se deriva de la
+        configuración, de modo que incorporar un área nueva no requiere desplegar código
+        (Principio VI).
+
+        Un trámite cerrado nunca aparece: de un estado final no sale ninguna transición, así
+        que queda excluido sin necesidad de filtrarlo aparte.
+
+        Una solicitud **devuelta para corrección** espera a quien registra el reingreso —en el
+        MVP, la Coordinación— y aparece en su bandeja aunque el formato esté en manos del
+        estudiante (research.md D1).
+
+        **Bajo `limit`**, el corte se hace por radicación y el orden por espera se aplica sobre
+        el resultado: con más pendientes que la cota, no se garantiza que sean las que más
+        esperan (research.md D8). Con 30–40 solicitudes por semestre, no ocurre.
+
+        ⚠️ **ESTO NO ES CONTROL DE ACCESO** (FR-003a). Cualquier sesión válida puede consultar
+        la bandeja de cualquier responsable. El endpoint **filtra, no impide**: no existe
+        noción de rol en el sistema y esta feature decidió no introducirla. Restringir quién
+        ve qué es trabajo futuro declarado, no un olvido.
+
+        **NO expone el número de documento** (FR-014 de la 004, y §III). Esa omisión es el
+        invariante de `InboxEntryResponse` y no cambia con esta feature: lo que evita el
+        volcado de datos personales no es negarse a listar, sino no listar la cédula.
+      parameters:
+        - name: responsible
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 50
+          description: |
+            Etiqueta del responsable, tal como la declara la configuración del trámite
+            (`workflow_transition.responsible`). El servidor **no** contiene ningún literal de
+            responsables: se pasa como parámetro precisamente para que el motor no aprenda
+            nombres de áreas (research.md D2).
+
+            Una etiqueta que no exista en ninguna configuración es una consulta válida con
+            resultado vacío, no un error: no hay forma de distinguirla de un área real que hoy
+            no tiene nada pendiente, y responder 404 filtraría qué etiquetas existen.
+          example: COORDINACION
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+          description: |
+            Cota explícita del resultado. Obligatoria en la firma del repositorio desde la 004
+            y conservada acá: una consulta sin cota se convierte en un volcado el día que el
+            volumen crezca, y quien llama debe decidir cuánto pide.
+      responses:
+        '200':
+          description: |
+            Las solicitudes pendientes de ese responsable, de la más antigua en espera a la
+            más reciente. Una lista vacía es una respuesta legítima y frecuente: significa que
+            no hay nada pendiente, no que la consulta falló (FR-010).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InboxEntryResponse'
+        '400':
+          description: Falta `responsible`, o `limit` está fuera de rango.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '401':
+          description: Sin sesión.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /workflow-definitions:
+    get:
+      summary: Catálogo de trámites vigentes, con sus estados
+      description: |
+        Extiende el catálogo de la 002 con los estados de cada definición.
+
+        **Por qué** (issue #22, research.md D6): sin este dato el cliente tiene que reconocer
+        códigos de estado a mano para saber si un trámite empezó o terminó, y eso es
+        conocimiento de trámites concretos viviendo fuera del motor. Ya se rompió en silencio
+        una vez: `V3.2.0` renombró el estado inicial **solo** para adición de créditos, y un
+        cliente con una constante global dejó de acertar sin que nada fallara.
+
+        **Lo que NO expone, a propósito** (FR-011b): un orden del recorrido. La configuración
+        declara transiciones de retorno —una devolución vuelve a un punto anterior— y de
+        rechazo, que cierran antes del final. El conjunto de estados **no es una secuencia**, y
+        un «paso N de M» afirmaría una linealidad que el modelo no tiene.
+
+        **Cambio aditivo** (FR-011c): `code`, `name` y `version` conservan su forma y su
+        significado.
+      responses:
+        '200':
+          description: Definiciones vigentes, una por trámite, con sus estados.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkflowDefinitionDetailResponse'
+        '401':
+          description: Sin sesión.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /requests:
+    post:
+      summary: Registrar una solicitud (contrato de la 002/003; acá solo el caso nuevo)
+      description: |
+        Sin cambios salvo un caso de error más, **aditivo** (FR-014, review A1): si el estado
+        inicial de la definición no es final y no tiene transiciones de salida, la solicitud
+        quedaría detenida sin responsable posible y fuera de toda bandeja. El motor lo rechaza
+        como configuración rota antes de persistir nada. El resto del contrato se rige por
+        `specs/002-workflow-engine/contracts/openapi.yaml` y `specs/003-request-form-rules/`.
+      responses:
+        '500':
+          description: |
+            Configuración del trámite incompleta: el estado inicial es un callejón. El detalle
+            no viaja al cliente; el diagnóstico queda en el log del servidor.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /requests/{id}/transitions:
+    post:
+      summary: Avanzar una solicitud (contrato de la 002/003; acá solo el caso nuevo)
+      description: |
+        Sin cambios salvo un caso de error más, **aditivo** (FR-014, review A1): si el estado
+        destino de la transición no es final y no tiene transiciones de salida, el motor rechaza
+        el avance como configuración rota, sin mover la solicitud ni escribir en el timeline.
+        Un destino inexistente sigue siendo 409, como en la 002. El resto del contrato se rige
+        por `specs/002-workflow-engine/contracts/openapi.yaml` y `specs/003-request-form-rules/`.
+      responses:
+        '500':
+          description: |
+            Configuración del trámite incompleta: el destino es un callejón. La solicitud sigue
+            en su estado y en la bandeja de su responsable.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+components:
+  schemas:
+    InboxEntryResponse:
+      type: object
+      description: |
+        Una entrada de la bandeja. **Nunca lleva número de documento** — ver la descripción
+        del endpoint.
+      required: [id, definition, studentName, currentState, createdAt, waitingSince, pendingResponsible, origin]
+      properties:
+        id:
+          type: string
+          format: uuid
+        definition:
+          $ref: '#/components/schemas/WorkflowDefinitionResponse'
+        studentName:
+          type: string
+        currentState:
+          $ref: '#/components/schemas/StateResponse'
+        createdAt:
+          type: string
+          format: date-time
+          description: |
+            Cuándo se radicó. Es la antigüedad del trámite, no la de la espera.
+
+            **Con el offset de la sede**, igual que `waitingSince` (research.md D4). ⚠️ Es una
+            enmienda **no aditiva** del contrato de la 004, que lo exponía en UTC sin marcador:
+            un cliente que asumiera hora local lo leía cinco horas adelante, el mismo defecto
+            que la 006 corrigió en sus DTO (`CampusTime`, revisión #34 M1). Lo encontró el
+            review de la 007 (M4) el 2026-09-21. Nadie consume este endpoint (T002), así que no
+            rompe a ningún cliente real.
+        waitingSince:
+          type: string
+          format: date-time
+          description: |
+            **Desde cuándo espera**: el instante de su última transición, o el de su
+            radicación si todavía no tuvo ninguna (research.md D3).
+
+            No es lo mismo que `createdAt`, y la diferencia importa: una solicitud radicada
+            hace dos meses, devuelta y corregida ayer, lleva **un día** esperando. Ordenar por
+            `createdAt` la pondría primera y desplazaría a otra que de verdad lleva semanas
+            detenida.
+
+            **Se expone el instante y no un número de días** (research.md D4): una duración
+            obligaría a fijar la zona horaria y el «ahora» en el servidor, y envejece en
+            cuanto se cachea. La resta la hace quien presenta.
+
+            Lleva el offset de la sede (`CampusTime`, la 006): es lo que hace verdadero
+            «instante» para un cliente que, sin marcador, leería la hora como local.
+        pendingResponsible:
+          type: string
+          description: |
+            El responsable que esta solicitud espera. Redundante con el parámetro de consulta
+            y deliberado: hace la respuesta legible por sí sola.
+        origin:
+          type: [string, "null"]
+          enum: [COORDINATION, PUBLIC_LINK, null]
+          description: |
+            Cómo llegó la solicitud (FR-007). Se deriva del actor de su primera entrada de
+            timeline: el canal público actúa con una cuenta propia, así que el dato ya está
+            registrado desde la 004 y no hace falta persistir nada nuevo.
+
+            `null` solo si la solicitud no tiene entrada de nacimiento en el timeline, que
+            `register` escribe siempre: es una anomalía de datos declarada, no un tercer
+            origen (review M3, 2026-09-21). La clave sigue siendo requerida: viaja con valor
+            nulo, nunca ausente.
+
+            Importa porque cambia qué se verificó antes de que llegara: lo que entra por el
+            enlace público lo diligenció el estudiante sin que nadie lo revisara.
+
+    WorkflowDefinitionDetailResponse:
+      type: object
+      description: |
+        Definición vigente **con sus estados**. Es un esquema propio y NO una ampliación de
+        `WorkflowDefinitionResponse`, que se anida en cada respuesta de solicitud: ampliar
+        aquél metería el listado completo de estados dentro de cada solicitud devuelta
+        (research.md D6).
+      required: [code, name, version, states]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        version:
+          type: integer
+        states:
+          type: array
+          description: Los estados de esta definición, **sin orden significativo**.
+          items:
+            $ref: '#/components/schemas/StateResponse'
+
+    StateResponse:
+      type: object
+      description: |
+        Estado de un trámite. Gana `isInitial` en esta feature; el dato existe en la base
+        desde `V2.0.0` y nunca se había expuesto.
+      required: [code, name, isInitial, isFinal]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        isInitial:
+          type: boolean
+          description: |
+            Si es el punto de partida del trámite. **Campo nuevo.** Es lo que permite al
+            cliente dejar de reconocer códigos: hasta ahora tenía que saber que el inicial de
+            adición de créditos se llama `EN_COORDINACION` y el de novedad de notas
+            `REGISTRADA`.
+        isFinal:
+          type: boolean
+          description: |
+            Si es un cierre. ⚠️ **Final no significa exitoso**: un rechazo también es final.
+            Distinguirlos no se resuelve con esta marca.
+
+    WorkflowDefinitionResponse:
+      type: object
+      description: |
+        Sin cambios respecto de la 002. Se declara acá solo porque `InboxEntryResponse` lo
+        referencia. **No se amplía** — ver `WorkflowDefinitionDetailResponse`.
+      required: [code, name, version]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        version: { type: integer }
+
+    ProblemDetail:
+      type: object
+      description: RFC 9457, sin cambios respecto de las features anteriores.
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
