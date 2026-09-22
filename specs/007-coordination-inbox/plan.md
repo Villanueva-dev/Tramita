@@ -31,7 +31,8 @@ Lombok. Ninguna dependencia nueva.
 `request_transition_log.occurred_at` existen desde `V2.0.0`.
 
 **Testing**: JUnit 5 + AssertJ para unitarios; Testcontainers (`@ServiceConnection`) para los
-IT. La suite base sobre `29acf33` es **157 unitarios + 96 IT**.
+IT. La suite base sobre `29acf33` es **157 unitarios + 96 IT**; al cerrar la implementación
+(`d221b69`) es **160 unitarios + 108 IT**.
 
 **Target Platform**: servicio HTTP, despliegue en Linux.
 
@@ -102,13 +103,14 @@ src/main/java/com/uniremington/api/tramita/
 │   ├── StateResponse.java                  # + isInitial
 │   └── WorkflowDefinitionDetailResponse.java   # NUEVO, solo para el catálogo
 ├── repo/
-│   ├── IRequestRepo.java                   # consulta por responsable + instante de espera
-│   └── IRequestTransitionLogRepo.java      # última transición por lote (evita N+1)
+│   ├── IRequestRepo.java                   # consulta por responsable (reemplaza a findAllByOrderByCreatedAtDesc, eliminada)
+│   └── IRequestTransitionLogRepo.java      # timeline del lote en una consulta: origen y espera (evita N+1)
 └── service/
     ├── IRequestService.java                # firma de la bandeja
     ├── IWorkflowDefinitionService.java     # tipo de retorno
     └── impl/
         ├── RequestServiceImpl.java         # criterio, orden, derivación de origin
+        ├── StateResponseMapper.java        # NUEVO: único constructor de StateResponse (T033, T037)
         └── WorkflowDefinitionServiceImpl.java  # mapeo de estados
 
 src/test/java/com/uniremington/api/tramita/

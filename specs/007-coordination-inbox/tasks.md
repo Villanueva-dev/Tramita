@@ -36,8 +36,8 @@ docker start tramita-postgres && ./mvnw clean verify
 
 **Propósito**: confirmar el punto de partida y el hecho que sostiene la decisión D7.
 
-- [ ] T001 Levantar la base y confirmar la línea base en verde: `docker start tramita-postgres && ./mvnw clean verify`, anotando el conteo real de unitarios e IT
-- [ ] T002 Confirmar que **ningún cliente consume** `GET /requests/inbox`, que es lo que autoriza la enmienda no aditiva de D7: `git -C ../tramita-frontend grep -rn 'requests/inbox' origin/main -- app lib components` debe devolver **0 resultados** (medido así el 2026-09-21). Se acota a código a propósito: sin acotar aparecen 2 líneas en `openspec/changes/archive/…/proposal.md`, documentación de la 004 que cita el endpoint, no un consumidor. Si el comando acotado devuelve alguno, **detenerse**: la enmienda rompería un cliente real y hay que reabrir D7
+- [x] T001 Levantar la base y confirmar la línea base en verde: `docker start tramita-postgres && ./mvnw clean verify`, anotando el conteo real de unitarios e IT
+- [x] T002 Confirmar que **ningún cliente consume** `GET /requests/inbox`, que es lo que autoriza la enmienda no aditiva de D7: `git -C ../tramita-frontend grep -rn 'requests/inbox' origin/main -- app lib components` debe devolver **0 resultados** (medido así el 2026-09-21). Se acota a código a propósito: sin acotar aparecen 2 líneas en `openspec/changes/archive/…/proposal.md`, documentación de la 004 que cita el endpoint, no un consumidor. Si el comando acotado devuelve alguno, **detenerse**: la enmienda rompería un cliente real y hay que reabrir D7
 
 ---
 
@@ -133,7 +133,7 @@ docker start tramita-postgres && ./mvnw clean verify
 
 ### Implementación de US3
 
-- [x] T033 [US3] Agregar `isInitial` a `src/main/java/com/uniremington/api/tramita/dto/StateResponse.java` y actualizar su único constructor, en `RequestServiceImpl.toStateResponse`
+- [x] T033 [US3] Agregar `isInitial` a `src/main/java/com/uniremington/api/tramita/dto/StateResponse.java` y actualizar su único constructor, en `RequestServiceImpl.toStateResponse` *(al implementar, el único constructor pasó a `StateResponseMapper`, en `service/impl/`, para que el mutante T037 alcance a todos los caminos: ver data-model)*
 - [x] T034 [US3] Crear `src/main/java/com/uniremington/api/tramita/dto/WorkflowDefinitionDetailResponse.java` con `code`, `name`, `version` y `states`. ⛔ **No ampliar `WorkflowDefinitionResponse`**: se anida en cada respuesta de solicitud (research D6)
 - [x] T035 [US3] Cambiar el tipo de retorno en `src/main/java/com/uniremington/api/tramita/service/IWorkflowDefinitionService.java` y mapear los estados en `src/main/java/com/uniremington/api/tramita/service/impl/WorkflowDefinitionServiceImpl.java`
 - [x] T036 [US3] Ajustar el tipo de retorno en `src/main/java/com/uniremington/api/tramita/controller/WorkflowDefinitionController.java`
@@ -153,8 +153,8 @@ docker start tramita-postgres && ./mvnw clean verify
 - [x] T040 **SC-005 / §VI**: en `src/test/java/com/uniremington/api/tramita/controller/WorkflowGenericityIT.java`, sembrar una definición nueva por SQL en el test y comprobar que sus solicitudes aparecen en la bandeja **sin desplegar código ni tocar el motor**
 - [x] T041 Comprobar que la última migración del repositorio **sigue siendo `V4.1.0`**: `ls src/main/resources/db/migration/ | sort | tail -1`. Si aparece una nueva, se salió del diseño
 - [x] T042 Suite completa: `docker start tramita-postgres && ./mvnw clean verify`. Anotar el conteo y compararlo con la línea base de T001
-- [ ] T043 Recorrer `specs/007-coordination-inbox/quickstart.md` **contra el servidor arriba**, los siete pasos. Es lo que ningún test con mocks cubre: que el filtro esté cableado en la cadena real y que el responsable salga de la configuración y no de un supuesto
-- [ ] T044 Revisar que `spec.md`, `plan.md` y `research.md` no hayan quedado desmentidos por la implementación. Si algo cambió, **se corrige el documento**, no se deja la afirmación vieja
+- [x] T043 Recorrer `specs/007-coordination-inbox/quickstart.md` **contra el servidor arriba**, los siete pasos. Es lo que ningún test con mocks cubre: que el filtro esté cableado en la cadena real y que el responsable salga de la configuración y no de un supuesto
+- [x] T044 Revisar que `spec.md`, `plan.md` y `research.md` no hayan quedado desmentidos por la implementación. Si algo cambió, **se corrige el documento**, no se deja la afirmación vieja
 
 ---
 

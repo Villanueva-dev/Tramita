@@ -10,12 +10,17 @@ docker start tramita-postgres && docker ps          # publica en el 5433 del hos
 set -a; source .env; set +a; SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 ```
 
-Iniciar sesión y guardar la cookie:
+Iniciar sesión y guardar la cookie. El login **exige el token CSRF** (patrón SPA de la 001):
+primero un GET cualquiera para que el servidor emita la cookie `XSRF-TOKEN`, y después el POST
+con su valor en la cabecera. Sin eso responde 401 — medido el 2026-09-21 al recorrer esta página:
 
 ```bash
-curl -s -c /tmp/tramita.jar -X POST http://localhost:8080/api/auth/login \
+curl -s -o /dev/null -c /tmp/tramita.jar http://localhost:8080/api/auth/me   # 401, pero emite XSRF-TOKEN
+curl -s -b /tmp/tramita.jar -c /tmp/tramita.jar -X POST http://localhost:8080/api/auth/login \
   -H 'Content-Type: application/json' \
+  -H "X-XSRF-TOKEN: $(grep XSRF /tmp/tramita.jar | awk '{print $7}')" \
   -d '{"email":"coordinacion.cali@uniremington.edu.co","password":"<la del entorno>"}'
+# → 204
 ```
 
 ---
