@@ -446,7 +446,6 @@ class RequestServiceImplTest {
     private static final java.util.UUID REQUEST_ID =
             java.util.UUID.fromString("00000000-0000-0000-0000-000000000001");
 
-    /** Motor con las guardas dadas registradas; sin argumentos, ninguna. */
     // --- 007 US2: desde cuándo espera cada entrada de la bandeja ---------------------
     // El criterio de selección vive en la consulta y se prueba en el IT (RequestControllerIT);
     // acá se prueba lo que SÍ es lógica del servicio: combinar el timeline con la
@@ -592,6 +591,22 @@ class RequestServiceImplTest {
         verify(logRepo, never()).save(any());
     }
 
+    @Test
+    @DisplayName("bandeja: sin entrada de nacimiento, origin es null — anomalía de datos declarada en el contrato, no un tercer origen (review M3)")
+    void inboxOriginIsNullWhenTheBirthEntryIsMissing() {
+        // Un timeline con movimientos pero sin la entrada from NULL: no ocurre por register,
+        // que la escribe siempre. Si ocurre, el contrato declara null; nadie lo miraba.
+        LocalDateTime registered = LocalDateTime.of(2026, 7, 1, 12, 0);
+        Request request = pendingRequest(REQUEST_ID, registered);
+        when(requestRepo.findPendingFor(any(), any(Limit.class))).thenReturn(List.of(request));
+        when(logRepo.findTimelinesOf(any())).thenReturn(List.of(
+                entry(request, initial, next, registered.plusDays(1))));
+
+        List<InboxEntryResponse> inbox = service.getInbox("EXTERNO", 50);
+
+        assertThat(inbox).singleElement().extracting(InboxEntryResponse::origin).isNull();
+    }
+
     /** Solicitud del trámite de prueba, pendiente en el estado inicial, con id y radicación fijos. */
     private Request pendingRequest(java.util.UUID id, LocalDateTime createdAt) {
         return Request.builder()
@@ -616,6 +631,7 @@ class RequestServiceImplTest {
                 .build();
     }
 
+    /** Motor con las guardas dadas registradas; sin argumentos, ninguna. */
     private RequestServiceImpl serviceWith(IWorkflowGuard... guards) {
         return new RequestServiceImpl(
                 definitionRepo, requestRepo, logRepo, userRepo, businessRules, parameterRepo,

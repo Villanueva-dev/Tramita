@@ -37,11 +37,14 @@ public interface IRequestRepo extends JpaRepository<Request, UUID> {
      * la configuración, de modo que incorporar un área nueva no toca este código
      * (§VI). El responsable llega por parámetro y nunca como literal (D2).
      *
-     * {@code distinct} porque un estado puede tener varias salidas con el mismo
-     * responsable —EN_COORDINACION tiene dos: avanzar y devolver— y el join las
-     * multiplicaría. Un estado final no tiene salidas, así que un trámite cerrado
-     * queda fuera sin filtrarlo aparte; eso lo garantiza el invariante de
-     * configuración que prueba WorkflowGenericityIT, no la base.
+     * {@code distinct} NO es para evitar duplicados en la lista: Hibernate ya deduplica
+     * la entidad raíz aunque el join multiplique filas. Es para que la COTA cuente
+     * solicitudes y no filas del join: sin él, {@code fetch first N} corta filas antes de
+     * deduplicar, y un estado con dos salidas del mismo responsable —EN_COORDINACION
+     * tiene dos: avanzar y devolver— devuelve menos de N (review M1; lo prueba
+     * WorkflowGenericityIT). Un estado final no tiene salidas, así que un trámite cerrado
+     * queda fuera sin filtrarlo aparte; lo garantizan la guarda del motor (FR-014) y el
+     * invariante de configuración de WorkflowGenericityIT, no la base.
      *
      * Orden por radicación ascendente: es el corte bajo la cota (D8). El orden por
      * espera (D5) lo aplica el servicio sobre el resultado a partir de la US2.

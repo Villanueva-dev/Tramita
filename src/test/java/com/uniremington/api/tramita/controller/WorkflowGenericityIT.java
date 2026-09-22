@@ -304,11 +304,69 @@ class WorkflowGenericityIT {
         }
     }
 
+    // --- La cota (007, review M1/M2): cuenta solicitudes y corta por radicación -----------
+
+    /**
+     * El {@code distinct} de la consulta de la bandeja NO evita duplicados en la lista:
+     * Hibernate ya deduplica la entidad raíz de un join. Lo que decide es que la COTA
+     * cuente solicitudes y no filas del join: sin él, {@code fetch first N} corta filas
+     * antes de deduplicar, y con un estado de dos salidas del mismo responsable devuelve
+     * menos de N. Es la razón real del {@code distinct}, y una aserción de «sin duplicados»
+     * no la prueba (review M1).
+     */
+    @Test
+    @Order(7)
+    @DisplayName("la cota cuenta solicitudes, no filas del join: un estado con dos salidas del mismo responsable no la consume dos veces (review M1)")
+    void inboxLimitCountsRequestsNotJoinRows() throws Exception {
+        MockHttpSession session = login();
+        // ABIERTO tiene DOS salidas del mismo responsable; REVISION cierra para no violar
+        // el invariante de configuración.
+        insertDefinition("COTA_DOBLE_SALIDA", 1, "Trámite con dos salidas", "VENTANILLA_COTA",
+                new String[][] {{"ABIERTO", "CERRADO"}, {"ABIERTO", "REVISION"}, {"REVISION", "CERRADO"}});
+        String a = registerAndGetId(session, "COTA_DOBLE_SALIDA", "Cota Uno", "611");
+        String b = registerAndGetId(session, "COTA_DOBLE_SALIDA", "Cota Dos", "612");
+        String c = registerAndGetId(session, "COTA_DOBLE_SALIDA", "Cota Tres", "613");
+
+        List<String> ids = com.jayway.jsonpath.JsonPath.read(
+                inboxOf(session, "VENTANILLA_COTA", 3), "$[*].id");
+
+        assertThat(ids).containsExactlyInAnyOrder(a, b, c);
+    }
+
+    /**
+     * Bajo la cota, el corte es por radicación ascendente (research.md D8): las N radicadas
+     * hace más tiempo. El orden por espera (D5) se aplica después, sobre lo que sobrevivió.
+     * Nada lo fijaba (review M2).
+     */
+    @Test
+    @Order(8)
+    @DisplayName("bajo la cota, el corte es por radicación ascendente: quedan las N radicadas hace más tiempo (research D8)")
+    void inboxLimitCutsByRegistrationAscending() throws Exception {
+        MockHttpSession session = login();
+        insertDefinition("COTA_ORDEN", 1, "Trámite para el corte", "VENTANILLA_ORDEN",
+                new String[][] {{"ABIERTO", "CERRADO"}});
+        String first = registerAndGetId(session, "COTA_ORDEN", "Corte Uno", "614");
+        String second = registerAndGetId(session, "COTA_ORDEN", "Corte Dos", "615");
+        String third = registerAndGetId(session, "COTA_ORDEN", "Corte Tres", "616");
+
+        List<String> ids = com.jayway.jsonpath.JsonPath.read(
+                inboxOf(session, "VENTANILLA_ORDEN", 2), "$[*].id");
+
+        // Las dos radicadas primero; la tercera queda fuera. El orden de salida es por
+        // espera (D5), que acá coincide con la radicación: nacieron y no se movieron.
+        assertThat(ids).containsExactly(first, second);
+        assertThat(ids).doesNotContain(third);
+    }
+
     /** La bandeja de un responsable con la cota máxima: la base es compartida entre IT. */
     private String inboxOf(MockHttpSession session, String responsible) throws Exception {
+        return inboxOf(session, responsible, 200);
+    }
+
+    private String inboxOf(MockHttpSession session, String responsible, int limit) throws Exception {
         return mockMvc.perform(get("/api/requests/inbox")
                         .param("responsible", responsible)
-                        .param("limit", "200")
+                        .param("limit", String.valueOf(limit))
                         .session(session))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();

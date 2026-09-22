@@ -890,10 +890,11 @@ class RequestControllerIT {
                 .andReturn().getResponse().getContentAsString();
         List<String> ids = com.jayway.jsonpath.JsonPath.read(body, "$[*].id");
 
-        // Tamaño EXACTO sobre las solicitudes de este escenario —la base es compartida—:
-        // sin `distinct` en la consulta, la que está en EN_COORDINACION saldría dos
-        // veces, porque ese estado tiene dos transiciones de salida con el mismo
-        // responsable (avanzar y devolver).
+        // Tamaño EXACTO sobre las solicitudes de este escenario —la base es compartida—.
+        // Hibernate deduplica la entidad raíz aunque el join multiplique filas: la
+        // ausencia de duplicados NO prueba el `distinct` de la consulta. Lo que el
+        // `distinct` decide es que la cota cuente solicitudes y no filas, y eso lo prueba
+        // WorkflowGenericityIT (review M1).
         assertThat(ids).doesNotHaveDuplicates();
         assertThat(ids.stream().filter(List.of(waiting, atFaculty, returned)::contains).toList())
                 .as("de las tres, esperan a la Coordinación la recién registrada y la devuelta")
@@ -953,6 +954,13 @@ class RequestControllerIT {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
 
         mockMvc.perform(get(INBOX).param("responsible", "COORDINACION").param("limit", "201")
+                        .session(session))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+
+        // La cota inferior también es load-bearing: sin @Min(1), limit=0 llega al
+        // repositorio y Limit.of(0) revienta en un 500 (review B1).
+        mockMvc.perform(get(INBOX).param("responsible", "COORDINACION").param("limit", "0")
                         .session(session))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
