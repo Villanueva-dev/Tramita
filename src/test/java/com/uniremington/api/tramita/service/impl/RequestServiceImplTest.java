@@ -477,9 +477,13 @@ class RequestServiceImplTest {
             assertThat(entry.waitingSince()).isEqualTo(CampusTime.toCampus(lastMove));
             // Confundir los dos campos es el error que el frontend comete hoy: se fija
             // que son instantes DISTINTOS, no solo que uno tiene el valor esperado.
-            assertThat(entry.waitingSince().toInstant())
-                    .isNotEqualTo(CampusTime.toCampus(entry.createdAt()).toInstant());
-            assertThat(entry.createdAt()).isEqualTo(registered);
+            assertThat(entry.waitingSince().toInstant()).isNotEqualTo(entry.createdAt().toInstant());
+            // createdAt también sale con el offset de la sede (review M4). El offset se
+            // afirma aparte: AssertJ compara OffsetDateTime por instante, y UTC crudo y
+            // Bogotá son el mismo instante con distinto marcador.
+            assertThat(entry.createdAt()).isEqualTo(CampusTime.toCampus(registered));
+            assertThat(entry.createdAt().getOffset())
+                    .isEqualTo(CampusTime.toCampus(registered).getOffset());
         });
     }
 

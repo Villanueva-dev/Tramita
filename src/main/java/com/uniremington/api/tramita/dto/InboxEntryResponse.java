@@ -1,6 +1,5 @@
 package com.uniremington.api.tramita.dto;
 
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -33,11 +32,14 @@ public record InboxEntryResponse(
         String studentName,
         StateResponse currentState,
         /**
-         * Cuándo se radicó: la antigüedad del trámite, NO la de la espera. Sigue siendo
-         * {@link LocalDateTime} en UTC sin marcador, como lo fijó la 004 — decidido el
-         * 2026-09-21 dejarlo así (research.md D4): cambiarlo no es de la 007.
+         * Cuándo se radicó: la antigüedad del trámite, NO la de la espera. Con el offset de
+         * la sede, igual que {@code waitingSince}: la 004 lo exponía en UTC sin marcador, y
+         * un cliente que asuma hora local lo leería cinco horas adelante — el defecto que la
+         * 006 ya corrigió en sus DTO ({@code CampusTime}, revisión #34 M1) y que el review de
+         * la 007 (M4) encontró reintroducido acá. Enmienda no aditiva del contrato de la 004,
+         * declarada en el de la 007 (research.md D4).
          */
-        LocalDateTime createdAt,
+        OffsetDateTime createdAt,
         /**
          * Desde cuándo espera (007, FR-004, research.md D3): el instante de su última
          * transición, o el de su radicación si no tiene ninguna. Con el offset de la sede

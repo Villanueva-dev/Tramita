@@ -106,7 +106,7 @@ docker start tramita-postgres && ./mvnw clean verify
 ### Implementación de US2
 
 - [x] T024 [US2] Agregar a `src/main/java/com/uniremington/api/tramita/repo/IRequestTransitionLogRepo.java` la consulta que devuelve el `occurredAt` **más reciente por solicitud** para un conjunto de ids, **en una sola consulta**. No una por solicitud
-- [x] T025 [US2] Ampliar `InboxEntryResponse.java` con `waitingSince` de tipo **`OffsetDateTime`**, construido con `CampusTime.toCampus(...)` (`util/CampusTime.java`, la 006): es lo que hace verdadero «instante con offset» (research D4) y resuelve FR-006 sin cálculo propio. **`createdAt` se deja como está** (`LocalDateTime`, contrato de la 004): decidido el 2026-09-21, ver data-model. **No agregar días ni duración**: se expone el instante
+- [x] T025 [US2] Ampliar `InboxEntryResponse.java` con `waitingSince` de tipo **`OffsetDateTime`**, construido con `CampusTime.toCampus(...)` (`util/CampusTime.java`, la 006): es lo que hace verdadero «instante con offset» (research D4) y resuelve FR-006 sin cálculo propio. **`createdAt` se deja como está** (`LocalDateTime`, contrato de la 004): decidido el 2026-09-21, ver data-model. *(Revisado tras el review del mismo día, M4: `createdAt` pasó también a `OffsetDateTime` vía `CampusTime`; ver research D4.)* **No agregar días ni duración**: se expone el instante
 - [x] T026 [US2] Resolver `waitingSince` en `RequestServiceImpl.java` combinando el resultado de T024 con `createdAt` como respaldo, convirtiéndolo con `CampusTime.toCampus`, y ordenar el resultado ascendente
 
 ### Verificación de US2

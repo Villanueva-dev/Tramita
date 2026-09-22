@@ -144,9 +144,16 @@ en el backend — que es justo lo que la spec decidió evitar al descartar el um
 con `CampusTime.toCampus(...)` — la utilidad que dejó la 006 en `util/` — que fija el offset de
 la sede: es lo que hace verdadero «instante con offset» y resuelve FR-006 sin cálculo propio.
 Las entidades guardan `LocalDateTime` en UTC, sin marcador; sin esa conversión el cliente
-recibiría `2026-09-21T15:30:00` y lo leería como hora local. `createdAt` **se deja como está**
-(`LocalDateTime` UTC, contrato de la 004): cambiarlo no es de esta feature. El costo, y se
-declara en el contrato, es un DTO con dos instantes en dos formatos.
+recibiría `2026-09-21T15:30:00` y lo leería como hora local.
+
+**`createdAt`, decisión revisada el mismo día.** Primero se dejó como estaba (`LocalDateTime` UTC,
+contrato de la 004), aceptando un DTO con dos instantes en dos formatos. El review limpio (M4)
+mostró que ese era exactamente el defecto que la 006 corrigió en `PublicSealResponse`,
+`VerdictResponse` y `SealEntryResponse` —el javadoc de `CampusTime` lo documenta como la
+revisión #34 M1— y que el consumidor de esta bandeja es el mismo front que hoy ordena por
+radicación. Se convirtió también, con la misma utilidad. El costo es una enmienda no aditiva
+más al contrato de la 004, que este slice ya pagaba (D7); `RequestSummaryResponse` y
+`RequestResponse` siguen en UTC sin marcador y quedan para un issue aparte.
 
 ---
 

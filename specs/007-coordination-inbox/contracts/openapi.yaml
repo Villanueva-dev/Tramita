@@ -215,9 +215,12 @@ components:
           description: |
             Cuándo se radicó. Es la antigüedad del trámite, no la de la espera.
 
-            Viaja **sin offset** (UTC, sin marcador), como lo definió la 004: se deja así a
-            propósito (research.md D4). `waitingSince` sí lleva offset — dos formatos en el
-            mismo objeto, y es deliberado.
+            **Con el offset de la sede**, igual que `waitingSince` (research.md D4). ⚠️ Es una
+            enmienda **no aditiva** del contrato de la 004, que lo exponía en UTC sin marcador:
+            un cliente que asumiera hora local lo leía cinco horas adelante, el mismo defecto
+            que la 006 corrigió en sus DTO (`CampusTime`, revisión #34 M1). Lo encontró el
+            review de la 007 (M4) el 2026-09-21. Nadie consume este endpoint (T002), así que no
+            rompe a ningún cliente real.
         waitingSince:
           type: string
           format: date-time

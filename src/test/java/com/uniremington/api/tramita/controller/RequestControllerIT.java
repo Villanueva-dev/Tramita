@@ -16,9 +16,7 @@ import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
 import jakarta.persistence.EntityManagerFactory;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import org.hibernate.SessionFactory;
@@ -1007,17 +1005,20 @@ class RequestControllerIT {
         assertThat(ids).contains(stuck, returned);
         assertThat(ids.indexOf(stuck)).isLessThan(ids.indexOf(returned));
 
-        // La devuelta: createdAt antiguo (sin offset, contrato de la 004) y waitingSince
-        // reciente, con el offset de la sede (D4, FR-006).
+        // La devuelta: createdAt antiguo y waitingSince reciente, LOS DOS con el offset de
+        // la sede (D4, FR-006). Un instante sin marcador se lee como hora local: es el
+        // defecto que la 006 ya corrigió en sus DTO (CampusTime, revisión #34 M1) y que el
+        // review de la 007 (M4) encontró reintroducido en createdAt.
         String createdAtJson = com.jayway.jsonpath.JsonPath.<List<String>>read(body,
                 "$[?(@.id == '%s')].createdAt".formatted(returned)).get(0);
         String waitingSinceJson = com.jayway.jsonpath.JsonPath.<List<String>>read(body,
                 "$[?(@.id == '%s')].waitingSince".formatted(returned)).get(0);
         assertThat(waitingSinceJson).endsWith("-05:00");
+        assertThat(createdAtJson).endsWith("-05:00");
         OffsetDateTime waitingSince = OffsetDateTime.parse(waitingSinceJson);
-        LocalDateTime createdAt = LocalDateTime.parse(createdAtJson);
+        OffsetDateTime createdAt = OffsetDateTime.parse(createdAtJson);
         assertThat(waitingSince.toInstant())
-                .isAfter(createdAt.toInstant(ZoneOffset.UTC).plus(Duration.ofDays(59)));
+                .isAfter(createdAt.toInstant().plus(Duration.ofDays(59)));
 
         // La detenida espera desde que nació: su waitingSince y su createdAt son el mismo
         // instante, salvo microsegundos (la entrada de nacimiento se escribe al registrar).
@@ -1026,7 +1027,7 @@ class RequestControllerIT {
         String stuckCreated = com.jayway.jsonpath.JsonPath.<List<String>>read(body,
                 "$[?(@.id == '%s')].createdAt".formatted(stuck)).get(0);
         assertThat(Duration.between(
-                LocalDateTime.parse(stuckCreated).toInstant(ZoneOffset.UTC),
+                OffsetDateTime.parse(stuckCreated).toInstant(),
                 OffsetDateTime.parse(stuckWaiting).toInstant()).abs())
                 .isLessThan(Duration.ofSeconds(5));
     }

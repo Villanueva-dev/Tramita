@@ -78,8 +78,10 @@ Hoy lleva `id`, `definition`, `studentName`, `currentState`, `createdAt`.
 
 **No** lleva duración en días: se expone el instante y el cliente resta (research D4).
 
-⚠️ **`createdAt` sigue siendo `LocalDateTime` en UTC sin marcador** (contrato de la 004). Se decidió
-el 2026-09-21 dejarlo así: el DTO lleva dos instantes en dos formatos, y el contrato lo advierte.
+**`createdAt` también sale con el offset de la sede** (`OffsetDateTime` vía `CampusTime`). La
+primera decisión del 2026-09-21 fue dejarlo en `LocalDateTime` UTC como en la 004; el review de
+ese mismo día (M4) mostró que era el defecto que la 006 ya había corregido en tres DTO
+(`CampusTime`, revisión #34 M1), y se revirtió la decisión: un solo formato de instante en el DTO.
 
 ### `StateResponse` — gana un campo
 

@@ -504,7 +504,7 @@ public class RequestServiceImpl implements IRequestService {
                         definition.getCode(), definition.getName(), definition.getVersion()),
                 request.getStudentName(),
                 StateResponseMapper.toResponse(request.getCurrentState()),
-                request.getCreatedAt(),
+                CampusTime.toCampus(request.getCreatedAt()),
                 waitingSince(request, timeline),
                 pendingResponsible,
                 originOf(timeline));
