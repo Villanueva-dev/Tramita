@@ -32,6 +32,10 @@ import com.uniremington.api.tramita.shared.exception.IllegalTransitionException;
 import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationException;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
+import com.uniremington.api.tramita.util.CampusTime;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -347,31 +351,64 @@ public class RequestServiceImpl implements IRequestService {
     @Transactional(readOnly = true)
     public List<InboxEntryResponse> getInbox(String responsible, int limit) {
         List<Request> pending = requestRepo.findPendingFor(responsible, Limit.of(limit));
-        Map<UUID, InboxEntryResponse.Origin> origins = originsOf(pending);
+        Map<UUID, List<RequestTransitionLog>> timelines = timelinesOf(pending);
+        // El repositorio corta por radicación (D8); acá manda la espera (D5): primero la
+        // que más lleva detenida. El sort es estable, así que los empates conservan la
+        // radicación.
         return pending.stream()
-                .map(request -> toInboxEntry(request, responsible, origins.get(request.getId())))
+                .map(request -> toInboxEntry(request, responsible,
+                        timelines.getOrDefault(request.getId(), List.of())))
+                .sorted(Comparator.comparing(InboxEntryResponse::waitingSince))
                 .toList();
+    }
+
+    /**
+     * El timeline del lote entero, agrupado por solicitud: UNA consulta, no una por
+     * fila. De él salen las dos cosas que la bandeja deriva por entrada: el origen
+     * (FR-007) y desde cuándo espera (D3). Traer el lote y derivar en memoria es una
+     * consulta menos que una agregada aparte para el máximo, y a este volumen las
+     * filas de más no pesan (javadoc de {@code findTimelinesOf}).
+     */
+    private Map<UUID, List<RequestTransitionLog>> timelinesOf(List<Request> requests) {
+        if (requests.isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> ids = requests.stream().map(Request::getId).toList();
+        return logRepo.findTimelinesOf(ids).stream()
+                .collect(Collectors.groupingBy(entry -> entry.getRequest().getId()));
+    }
+
+    /**
+     * Desde cuándo espera (D3): el instante de su ÚLTIMA transición, no el de su
+     * radicación. Una solicitud radicada hace dos meses y devuelta ayer lleva un día
+     * esperando; medir desde {@code createdAt} la pondría primera y desplazaría a la que
+     * de verdad lleva semanas detenida. La radicación es solo el respaldo para una
+     * solicitud sin timeline, que en producción no existe: {@code register} escribe
+     * la entrada de nacimiento siempre. Se convierte a la hora de la sede en el borde
+     * de salida (D4/FR-006): lo persistido sigue en UTC.
+     */
+    private OffsetDateTime waitingSince(Request request, List<RequestTransitionLog> timeline) {
+        LocalDateTime since = timeline.stream()
+                .map(RequestTransitionLog::getOccurredAt)
+                .max(Comparator.naturalOrder())
+                .orElse(request.getCreatedAt());
+        return CampusTime.toCampus(since);
     }
 
     /**
      * El origen sale del actor de la entrada de nacimiento (FR-007): el portal público
      * escribe con su propia cuenta desde la 004, así que no hay nada nuevo que
-     * persistir. Un lote, una consulta —no una por solicitud—. Hay exactamente una
-     * entrada de nacimiento por solicitud (la escribe {@code register}); la función de
-     * mezcla existe solo para que una anomalía de datos no tumbe la bandeja entera.
+     * persistir. Sin entrada de nacimiento no hay origen que afirmar: null, no un
+     * valor inventado.
      */
-    private Map<UUID, InboxEntryResponse.Origin> originsOf(List<Request> requests) {
-        if (requests.isEmpty()) {
-            return Map.of();
-        }
-        List<UUID> ids = requests.stream().map(Request::getId).toList();
-        return logRepo.findBirthEntries(ids).stream()
-                .collect(Collectors.toMap(
-                        entry -> entry.getRequest().getId(),
-                        entry -> PORTAL_ACTOR_EMAIL.equals(entry.getActor().getEmail())
-                                ? InboxEntryResponse.Origin.PUBLIC_LINK
-                                : InboxEntryResponse.Origin.COORDINATION,
-                        (first, second) -> first));
+    private InboxEntryResponse.Origin originOf(List<RequestTransitionLog> timeline) {
+        return timeline.stream()
+                .filter(entry -> entry.getFromState() == null)
+                .findFirst()
+                .map(entry -> PORTAL_ACTOR_EMAIL.equals(entry.getActor().getEmail())
+                        ? InboxEntryResponse.Origin.PUBLIC_LINK
+                        : InboxEntryResponse.Origin.COORDINATION)
+                .orElse(null);
     }
 
     /**
@@ -424,7 +461,7 @@ public class RequestServiceImpl implements IRequestService {
      * que se vea al leerlo.
      */
     private InboxEntryResponse toInboxEntry(Request request, String pendingResponsible,
-            InboxEntryResponse.Origin origin) {
+            List<RequestTransitionLog> timeline) {
         WorkflowDefinition definition = request.getDefinition();
         return new InboxEntryResponse(
                 request.getId(),
@@ -433,8 +470,9 @@ public class RequestServiceImpl implements IRequestService {
                 request.getStudentName(),
                 toStateResponse(request.getCurrentState()),
                 request.getCreatedAt(),
+                waitingSince(request, timeline),
                 pendingResponsible,
-                origin);
+                originOf(timeline));
     }
 
     private TimelineEntryResponse toTimelineEntry(

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.uniremington.api.tramita.dto.AdvanceRequestBody;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
+import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.PublicRequestBody;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.model.Request;
@@ -31,11 +32,14 @@ import com.uniremington.api.tramita.shared.exception.IllegalTransitionException;
 import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationException;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
+import com.uniremington.api.tramita.util.CampusTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.Limit;
 
 /**
  * Unit test del algoritmo del motor (T013 RED antes de T018; T022 RED antes de
@@ -434,6 +438,108 @@ class RequestServiceImplTest {
             java.util.UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     /** Motor con las guardas dadas registradas; sin argumentos, ninguna. */
+    // --- 007 US2: desde cuándo espera cada entrada de la bandeja ---------------------
+    // El criterio de selección vive en la consulta y se prueba en el IT (RequestControllerIT);
+    // acá se prueba lo que SÍ es lógica del servicio: combinar el timeline con la
+    // radicación, convertir a la hora de la sede y ordenar (research.md D3, D4, D5).
+
+    private static final java.util.UUID SECOND_ID =
+            java.util.UUID.fromString("00000000-0000-0000-0000-000000000002");
+    private static final java.util.UUID THIRD_ID =
+            java.util.UUID.fromString("00000000-0000-0000-0000-000000000003");
+
+    @Test
+    @DisplayName("bandeja: waitingSince es el occurredAt de la ÚLTIMA transición, no la radicación (D3)")
+    void inboxWaitingSinceIsTheLastTransitionNotTheRegistration() {
+        // Radicada hace dos meses, movida dos veces: espera desde el ÚLTIMO movimiento.
+        LocalDateTime registered = LocalDateTime.of(2026, 7, 1, 12, 0);
+        LocalDateTime firstMove = registered.plusDays(10);
+        LocalDateTime lastMove = registered.plusDays(60);
+        Request request = pendingRequest(REQUEST_ID, registered);
+        when(requestRepo.findPendingFor(any(), any(Limit.class))).thenReturn(List.of(request));
+        when(logRepo.findTimelinesOf(any())).thenReturn(List.of(
+                entry(request, null, initial, registered),
+                entry(request, initial, next, firstMove),
+                entry(request, next, initial, lastMove)));
+
+        List<InboxEntryResponse> inbox = service.getInbox("EXTERNO", 50);
+
+        assertThat(inbox).singleElement().satisfies(entry -> {
+            assertThat(entry.waitingSince()).isEqualTo(CampusTime.toCampus(lastMove));
+            // Confundir los dos campos es el error que el frontend comete hoy: se fija
+            // que son instantes DISTINTOS, no solo que uno tiene el valor esperado.
+            assertThat(entry.waitingSince().toInstant())
+                    .isNotEqualTo(CampusTime.toCampus(entry.createdAt()).toInstant());
+            assertThat(entry.createdAt()).isEqualTo(registered);
+        });
+    }
+
+    @Test
+    @DisplayName("bandeja: sin entradas de timeline, waitingSince es la radicación — respaldo defensivo, no un caso real")
+    void inboxWaitingSinceFallsBackToRegistrationWhenThereIsNoTimeline() {
+        // En producción no ocurre: toda solicitud nace con una entrada (register, también
+        // por el canal público). El test fija que el respaldo existe, no que el caso sea real.
+        LocalDateTime registered = LocalDateTime.of(2026, 7, 1, 12, 0);
+        Request request = pendingRequest(REQUEST_ID, registered);
+        when(requestRepo.findPendingFor(any(), any(Limit.class))).thenReturn(List.of(request));
+        when(logRepo.findTimelinesOf(any())).thenReturn(List.of());
+
+        List<InboxEntryResponse> inbox = service.getInbox("EXTERNO", 50);
+
+        assertThat(inbox).singleElement()
+                .extracting(InboxEntryResponse::waitingSince)
+                .isEqualTo(CampusTime.toCampus(registered));
+    }
+
+    @Test
+    @DisplayName("bandeja: ordenada por waitingSince ascendente — primero la que más lleva esperando (D5)")
+    void inboxIsOrderedByWaitingSinceAscending() {
+        // El repositorio las devuelve por radicación (corte bajo la cota, D8); la espera
+        // las reordena: la radicada ÚLTIMA es la que más lleva detenida.
+        LocalDateTime base = LocalDateTime.of(2026, 7, 1, 12, 0);
+        Request first = pendingRequest(REQUEST_ID, base);
+        Request second = pendingRequest(SECOND_ID, base.plusDays(1));
+        Request third = pendingRequest(THIRD_ID, base.plusDays(2));
+        when(requestRepo.findPendingFor(any(), any(Limit.class)))
+                .thenReturn(List.of(first, second, third));
+        when(logRepo.findTimelinesOf(any())).thenReturn(List.of(
+                entry(first, null, initial, base),
+                entry(first, initial, next, base.plusDays(30)),   // movida hace poco
+                entry(second, null, initial, base.plusDays(1)),
+                entry(second, initial, next, base.plusDays(15)),  // en el medio
+                entry(third, null, initial, base.plusDays(2))));  // quieta desde que nació
+
+        List<InboxEntryResponse> inbox = service.getInbox("EXTERNO", 50);
+
+        assertThat(inbox).extracting(InboxEntryResponse::id)
+                .containsExactly(THIRD_ID, SECOND_ID, REQUEST_ID);
+        assertThat(inbox).extracting(InboxEntryResponse::waitingSince).isSorted();
+    }
+
+    /** Solicitud del trámite de prueba, pendiente en el estado inicial, con id y radicación fijos. */
+    private Request pendingRequest(java.util.UUID id, LocalDateTime createdAt) {
+        return Request.builder()
+                .id(id)
+                .definition(definition)
+                .currentState(initial)
+                .studentName("Ana María Pérez")
+                .studentDocument("DOC-PRUEBA-001")
+                .createdAt(createdAt)
+                .build();
+    }
+
+    /** Entrada de timeline con instante fijo: lo que @PrePersist pondría en la base. */
+    private RequestTransitionLog entry(Request request, WorkflowState from, WorkflowState to,
+            LocalDateTime occurredAt) {
+        return RequestTransitionLog.builder()
+                .request(request)
+                .fromState(from)
+                .toState(to)
+                .actor(actor)
+                .occurredAt(occurredAt)
+                .build();
+    }
+
     private RequestServiceImpl serviceWith(IWorkflowGuard... guards) {
         return new RequestServiceImpl(
                 definitionRepo, requestRepo, logRepo, userRepo, businessRules, parameterRepo,

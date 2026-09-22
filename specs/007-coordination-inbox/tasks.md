@@ -98,22 +98,22 @@ docker start tramita-postgres && ./mvnw clean verify
 
 ### Tests para US2 ⚠️ primero el rojo
 
-- [ ] T020 [US2] **(RED)** En `RequestServiceImplTest.java`: el `waitingSince` de una solicitud **con transiciones** es el `occurredAt` de la **última**, no su `createdAt`. El test debe usar una solicitud cuyo `createdAt` sea claramente anterior, de modo que confundir ambos campos lo ponga rojo
-- [ ] T021 [P] [US2] **(RED)** En el mismo archivo: el `waitingSince` de una solicitud **sin entradas de timeline** es su `createdAt`. Es un respaldo **defensivo**: en producción no ocurre, porque toda solicitud nace con una entrada (`RequestServiceImpl.register`, también por el canal público, que delega en él). El test fija que el respaldo existe, no que el caso sea real
-- [ ] T022 [P] [US2] **(RED)** En el mismo archivo: la bandeja viene ordenada por `waitingSince` **ascendente** — primero la que más lleva esperando
-- [ ] T023 [US2] **(RED)** En `RequestControllerIT.java`: una solicitud **antigua que fue devuelta** aparece con `waitingSince` reciente y `createdAt` antiguo, y queda **después** de otra que lleva más tiempo detenida. Es el escenario que distingue esta feature de ordenar por fecha de radicación
+- [x] T020 [US2] **(RED)** En `RequestServiceImplTest.java`: el `waitingSince` de una solicitud **con transiciones** es el `occurredAt` de la **última**, no su `createdAt`. El test debe usar una solicitud cuyo `createdAt` sea claramente anterior, de modo que confundir ambos campos lo ponga rojo
+- [x] T021 [P] [US2] **(RED)** En el mismo archivo: el `waitingSince` de una solicitud **sin entradas de timeline** es su `createdAt`. Es un respaldo **defensivo**: en producción no ocurre, porque toda solicitud nace con una entrada (`RequestServiceImpl.register`, también por el canal público, que delega en él). El test fija que el respaldo existe, no que el caso sea real
+- [x] T022 [P] [US2] **(RED)** En el mismo archivo: la bandeja viene ordenada por `waitingSince` **ascendente** — primero la que más lleva esperando
+- [x] T023 [US2] **(RED)** En `RequestControllerIT.java`: una solicitud **antigua que fue devuelta** aparece con `waitingSince` reciente y `createdAt` antiguo, y queda **después** de otra que lleva más tiempo detenida. Es el escenario que distingue esta feature de ordenar por fecha de radicación
 
 ### Implementación de US2
 
-- [ ] T024 [US2] Agregar a `src/main/java/com/uniremington/api/tramita/repo/IRequestTransitionLogRepo.java` la consulta que devuelve el `occurredAt` **más reciente por solicitud** para un conjunto de ids, **en una sola consulta**. No una por solicitud
-- [ ] T025 [US2] Ampliar `InboxEntryResponse.java` con `waitingSince` de tipo **`OffsetDateTime`**, construido con `CampusTime.toCampus(...)` (`util/CampusTime.java`, la 006): es lo que hace verdadero «instante con offset» (research D4) y resuelve FR-006 sin cálculo propio. **`createdAt` se deja como está** (`LocalDateTime`, contrato de la 004): decidido el 2026-09-21, ver data-model. **No agregar días ni duración**: se expone el instante
-- [ ] T026 [US2] Resolver `waitingSince` en `RequestServiceImpl.java` combinando el resultado de T024 con `createdAt` como respaldo, convirtiéndolo con `CampusTime.toCampus`, y ordenar el resultado ascendente
+- [x] T024 [US2] Agregar a `src/main/java/com/uniremington/api/tramita/repo/IRequestTransitionLogRepo.java` la consulta que devuelve el `occurredAt` **más reciente por solicitud** para un conjunto de ids, **en una sola consulta**. No una por solicitud
+- [x] T025 [US2] Ampliar `InboxEntryResponse.java` con `waitingSince` de tipo **`OffsetDateTime`**, construido con `CampusTime.toCampus(...)` (`util/CampusTime.java`, la 006): es lo que hace verdadero «instante con offset» (research D4) y resuelve FR-006 sin cálculo propio. **`createdAt` se deja como está** (`LocalDateTime`, contrato de la 004): decidido el 2026-09-21, ver data-model. **No agregar días ni duración**: se expone el instante
+- [x] T026 [US2] Resolver `waitingSince` en `RequestServiceImpl.java` combinando el resultado de T024 con `createdAt` como respaldo, convirtiéndolo con `CampusTime.toCampus`, y ordenar el resultado ascendente
 
 ### Verificación de US2
 
-- [ ] T027 [US2] **(MUTANTE)** Reemplazar `waitingSince` por `createdAt` y comprobar que T020 y T023 se ponen **rojos**. Es el mutante más importante de la feature: es el error que el frontend ya comete hoy
-- [ ] T028 [US2] **(MUTANTE)** Invertir el orden a descendente y comprobar que T022 se pone **rojo**
-- [ ] T029 [US2] Comprobar que no hay N+1: contar las consultas emitidas para una bandeja con varias solicitudes —habilitando el log SQL de Hibernate en el test o con un contador— y verificar que el número **no crece** con la cantidad de resultados
+- [x] T027 [US2] **(MUTANTE)** Reemplazar `waitingSince` por `createdAt` y comprobar que T020 y T023 se ponen **rojos**. Es el mutante más importante de la feature: es el error que el frontend ya comete hoy
+- [x] T028 [US2] **(MUTANTE)** Invertir el orden a descendente y comprobar que T022 se pone **rojo**
+- [x] T029 [US2] Comprobar que no hay N+1: contar las consultas emitidas para una bandeja con varias solicitudes —habilitando el log SQL de Hibernate en el test o con un contador— y verificar que el número **no crece** con la cantidad de resultados
 
 **Checkpoint**: US1 y US2 funcionan, y de forma independiente entre sí.
 

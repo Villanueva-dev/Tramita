@@ -1,6 +1,7 @@
 package com.uniremington.api.tramita.dto;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
@@ -31,7 +32,20 @@ public record InboxEntryResponse(
         WorkflowDefinitionResponse definition,
         String studentName,
         StateResponse currentState,
+        /**
+         * Cuándo se radicó: la antigüedad del trámite, NO la de la espera. Sigue siendo
+         * {@link LocalDateTime} en UTC sin marcador, como lo fijó la 004 — decidido el
+         * 2026-09-21 dejarlo así (research.md D4): cambiarlo no es de la 007.
+         */
         LocalDateTime createdAt,
+        /**
+         * Desde cuándo espera (007, FR-004, research.md D3): el instante de su última
+         * transición, o el de su radicación si no tiene ninguna. Con el offset de la sede
+         * ({@code CampusTime}, D4/FR-006): un cliente que recibiera la hora sin marcador la
+         * leería como local. Es un instante y NO una duración: la resta la hace quien
+         * presenta, y así no hay «ahora» ni calendario congelados en la respuesta.
+         */
+        OffsetDateTime waitingSince,
         /** Redundante con el filtro pedido, y deliberado: la respuesta se lee sola. */
         String pendingResponsible,
         Origin origin) {

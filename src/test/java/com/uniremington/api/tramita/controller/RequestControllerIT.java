@@ -14,7 +14,15 @@ import com.uniremington.api.tramita.TramitaIntegrationTest;
 import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
+import jakarta.persistence.EntityManagerFactory;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.UUID;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +54,9 @@ class RequestControllerIT {
 
     @Autowired
     private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
 
     // --- US1: registrar ------------------------------------------------------------------
 
@@ -962,6 +973,99 @@ class RequestControllerIT {
         mockMvc.perform(get(INBOX).param("responsible", "NO_EXISTE").session(login()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isEmpty());
+    }
+
+    // --- US2 de la 007: desde cuándo espera ---------------------------------------------
+
+    @Test
+    @DisplayName("una solicitud antigua devuelta hoy espera desde la devolución: waitingSince reciente, createdAt antiguo, y va DESPUÉS de la que lleva más tiempo detenida (D3, D5)")
+    void anOldReturnedRequestWaitsSinceItsReturnNotSinceRegistration() throws Exception {
+        MockHttpSession session = login();
+        String stuck = registerAndGetId(session, "ADICION_CREDITOS",
+                "Bandeja Detenida Hace Rato", "SIN-DATO-REAL-211");
+        String returned = registerAndGetId(session, "ADICION_CREDITOS",
+                "Bandeja Antigua Devuelta", "SIN-DATO-REAL-212");
+        // Envejecer la radicación: created_at NO es inmutable (solo el timeline lo es, por
+        // trg_timeline_immutable), y es exactamente el dato que NO debe mandar en el orden.
+        jdbcTemplate.update("UPDATE request SET created_at = created_at - interval '60 days' WHERE id = ?",
+                UUID.fromString(returned));
+        mockMvc.perform(advanceRequest(returned, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(advanceRequest(returned, "DEVUELTA", "Falta la firma del estudiante")
+                        .session(session))
+                .andExpect(status().isOk());
+
+        String body = mockMvc.perform(get(INBOX)
+                        .param("responsible", "COORDINACION").param("limit", "200")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        // Orden: la detenida desde que nació va ANTES que la devuelta hace un instante,
+        // aunque la devuelta se radicó dos meses antes. Ordenar por radicación lo invertiría.
+        List<String> ids = com.jayway.jsonpath.JsonPath.read(body, "$[*].id");
+        assertThat(ids).contains(stuck, returned);
+        assertThat(ids.indexOf(stuck)).isLessThan(ids.indexOf(returned));
+
+        // La devuelta: createdAt antiguo (sin offset, contrato de la 004) y waitingSince
+        // reciente, con el offset de la sede (D4, FR-006).
+        String createdAtJson = com.jayway.jsonpath.JsonPath.<List<String>>read(body,
+                "$[?(@.id == '%s')].createdAt".formatted(returned)).get(0);
+        String waitingSinceJson = com.jayway.jsonpath.JsonPath.<List<String>>read(body,
+                "$[?(@.id == '%s')].waitingSince".formatted(returned)).get(0);
+        assertThat(waitingSinceJson).endsWith("-05:00");
+        OffsetDateTime waitingSince = OffsetDateTime.parse(waitingSinceJson);
+        LocalDateTime createdAt = LocalDateTime.parse(createdAtJson);
+        assertThat(waitingSince.toInstant())
+                .isAfter(createdAt.toInstant(ZoneOffset.UTC).plus(Duration.ofDays(59)));
+
+        // La detenida espera desde que nació: su waitingSince y su createdAt son el mismo
+        // instante, salvo microsegundos (la entrada de nacimiento se escribe al registrar).
+        String stuckWaiting = com.jayway.jsonpath.JsonPath.<List<String>>read(body,
+                "$[?(@.id == '%s')].waitingSince".formatted(stuck)).get(0);
+        String stuckCreated = com.jayway.jsonpath.JsonPath.<List<String>>read(body,
+                "$[?(@.id == '%s')].createdAt".formatted(stuck)).get(0);
+        assertThat(Duration.between(
+                LocalDateTime.parse(stuckCreated).toInstant(ZoneOffset.UTC),
+                OffsetDateTime.parse(stuckWaiting).toInstant()).abs())
+                .isLessThan(Duration.ofSeconds(5));
+    }
+
+    @Test
+    @DisplayName("la bandeja emite el mismo número de sentencias SQL con N y con N+3 solicitudes: sin N+1 (T029)")
+    void inboxStatementCountDoesNotGrowWithTheNumberOfEntries() throws Exception {
+        // Medición real, no opinión: estadísticas de Hibernate habilitadas en runtime para no
+        // tocar las properties compartidas de @TramitaIntegrationTest (cambiarlas invalidaría
+        // el caché de contexto de todos los IT).
+        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        statistics.setStatisticsEnabled(true);
+        try {
+            MockHttpSession session = login();
+            registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Conteo Uno", "SIN-DATO-REAL-221");
+            registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Conteo Dos", "SIN-DATO-REAL-222");
+            long withN = statementsIssuedBy(statistics, session);
+
+            registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Conteo Tres", "SIN-DATO-REAL-223");
+            registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Conteo Cuatro", "SIN-DATO-REAL-224");
+            registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Conteo Cinco", "SIN-DATO-REAL-225");
+            long withNPlusThree = statementsIssuedBy(statistics, session);
+
+            assertThat(withNPlusThree)
+                    .as("sentencias con N+3 pendientes frente a N: %d vs %d", withNPlusThree, withN)
+                    .isEqualTo(withN);
+        } finally {
+            statistics.setStatisticsEnabled(false);
+        }
+    }
+
+    /** Sentencias preparadas que cuesta UNA consulta de la bandeja de la Coordinación. */
+    private long statementsIssuedBy(Statistics statistics, MockHttpSession session) throws Exception {
+        statistics.clear();
+        mockMvc.perform(get(INBOX)
+                        .param("responsible", "COORDINACION").param("limit", "200")
+                        .session(session))
+                .andExpect(status().isOk());
+        return statistics.getPrepareStatementCount();
     }
 
     /**
