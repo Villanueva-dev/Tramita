@@ -5,6 +5,7 @@ import com.uniremington.api.tramita.dto.AvailableTransitionResponse;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
 import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.PublicRequestBody;
+import com.uniremington.api.tramita.dto.RequestOrigin;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
 import com.uniremington.api.tramita.dto.SubjectResponse;
@@ -436,13 +437,13 @@ public class RequestServiceImpl implements IRequestService {
      * persistir. Sin entrada de nacimiento no hay origen que afirmar: null, no un
      * valor inventado.
      */
-    private InboxEntryResponse.Origin originOf(List<RequestTransitionLog> timeline) {
+    private RequestOrigin originOf(List<RequestTransitionLog> timeline) {
         return timeline.stream()
                 .filter(entry -> entry.getFromState() == null)
                 .findFirst()
                 .map(entry -> PORTAL_ACTOR_EMAIL.equals(entry.getActor().getEmail())
-                        ? InboxEntryResponse.Origin.PUBLIC_LINK
-                        : InboxEntryResponse.Origin.COORDINATION)
+                        ? RequestOrigin.PUBLIC_LINK
+                        : RequestOrigin.COORDINATION)
                 .orElse(null);
     }
 

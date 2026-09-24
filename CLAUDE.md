@@ -94,11 +94,11 @@ Al citar literatura o normativa institucional, **incluir la referencia exacta** 
 
 <!-- SPECKIT START -->
 **Feature ACTIVA: `008-student-closure-notice`** — SP7 (issue `Tramita#13`), el aviso de cierre al
-estudiante. Fase: **planificada** (2026-09-24): spec aprobada en el gate `review-spec` y plan escrito; lo
-siguiente es el gate `review-plan` y, aprobado, `/speckit-tasks`. Rama **solo en local, sin pushear**.
+estudiante. Fase: **en implementación** desde el 2026-09-24 (plan `6507b7a`, tareas `d0f8b85`,
+verificaciones previas `32a6187`); el avance vive en `tasks.md`. Rama **solo en local, sin pushear**.
 Artefactos en `specs/008-student-closure-notice/`: `spec.md` (16 FR, 6 SC, 3 US), `plan.md`,
-`research.md` (D1–D9), `data-model.md`, `contracts/openapi.yaml`, `quickstart.md` y
-`checklists/requirements.md`. ⚠️ Este bloque lo reescribe **solo `/speckit-plan`** cuando corre
+`research.md` (D1–D9), `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`,
+`checklists/requirements.md` y **`tasks.md` (41 tareas, 6 fases)**. ⚠️ Este bloque lo reescribe **solo `/speckit-plan`** cuando corre
 (`.claude/skills/speckit-plan/SKILL.md`), y queda una fase atrás por construcción: revisarlo antes de
 creerle. ⚠️ `/speckit-tasks` regenera `tasks.md` DESDE PLANTILLA (`.claude/skills/speckit-tasks/SKILL.md:77`):
 se corre UNA vez; después `tasks.md` se edita a mano.
