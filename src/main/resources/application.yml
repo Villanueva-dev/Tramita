@@ -43,6 +43,10 @@ app:
     timeout-seconds: ${OPENROUTER_TIMEOUT_SECONDS:20}
     max-requests: ${OPENROUTER_MAX_REQUESTS:10}
     window-seconds: ${OPENROUTER_WINDOW_SECONDS:60}
+    # Segundo modelo si el principal falla tras los reintentos (vacío = sin fallback).
+    fallback-model: ${OPENROUTER_FALLBACK_MODEL:}
+    # Evita repetir la misma consulta al proveedor dentro de la ventana (0 = sin caché).
+    cache-ttl-seconds: ${OPENROUTER_CACHE_TTL_SECONDS:120}
 
   # Protección del canal público de captura del DO-FR-100 (004, FR-016 a FR-019).
   #

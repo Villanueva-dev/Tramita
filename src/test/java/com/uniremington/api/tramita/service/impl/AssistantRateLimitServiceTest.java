@@ -13,7 +13,7 @@ class AssistantRateLimitServiceTest {
 
     private final Clock clock = Clock.fixed(Instant.parse("2026-09-10T15:00:00Z"), ZoneOffset.UTC);
     private final AssistantRateLimitService service = new AssistantRateLimitService(
-            clock, new AiProperties(true, "key", "https://example.test", "model", 500, 20, 2, 60));
+            clock, new AiProperties(true, "key", "https://example.test", "model", 500, 20, 2, 60, "", 120));
 
     @Test
     void blocksTheThirdRequestFromTheSameUserWithinTheWindow() {

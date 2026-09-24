@@ -12,5 +12,9 @@ public record AiProperties(
         int maxTokens,
         int timeoutSeconds,
         int maxRequests,
-        int windowSeconds) {
+        int windowSeconds,
+        /** Modelo alterno si el principal falla tras los reintentos; vacío = sin fallback. */
+        String fallbackModel,
+        /** TTL de la caché de respuestas idénticas; 0 = caché desactivada. */
+        int cacheTtlSeconds) {
 }
