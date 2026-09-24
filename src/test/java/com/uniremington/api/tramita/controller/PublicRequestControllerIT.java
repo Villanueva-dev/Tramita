@@ -381,6 +381,54 @@ class PublicRequestControllerIT {
                 .andExpect(status().isCreated());
     }
 
+    // --- 008 / FR-008: el detalle expone el origen y el contacto declarado ----------------
+
+    @Test
+    @DisplayName("el detalle de una solicitud pública trae origin, correo y teléfono tal como los mandó el formato (008, FR-008)")
+    void publicRequestDetailExposesOriginAndDeclaredContact() throws Exception {
+        String studentName = "Estudiante Con Contacto Expuesto";
+        Map<String, Object> form = filledForm(studentName, "SIN-DATO-REAL-801");
+        mockMvc.perform(publicSubmission("203.0.113.180", PUBLIC_TRADE, form))
+                .andExpect(status().isCreated());
+        MockHttpSession session = login();
+        String requestId = findIdByName(session, studentName);
+
+        // Se leen del propio formulario, no de literales repetidos: lo que se afirma es
+        // que salen TAL COMO entraron (FR-011). En un estado intermedio los hechos ya
+        // viajan aunque el aviso no se ofrezca (spec US1, escenario 1): ofrecerlo o no
+        // lo decide el cliente con origin + isFinal (research.md D5).
+        mockMvc.perform(get("/api/requests/" + requestId).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.origin").value("PUBLIC_LINK"))
+                .andExpect(jsonPath("$.studentEmail").value(form.get("studentEmail")))
+                .andExpect(jsonPath("$.studentPhone").value(form.get("studentPhone")))
+                .andExpect(jsonPath("$.currentState.isFinal").value(false));
+    }
+
+    @Test
+    @DisplayName("la respuesta de la transición a un estado final ya trae origin, contacto e isFinal, sin otra consulta (008, US1 escenario 2)")
+    void transitionToFinalStateResponseCarriesEverythingTheNoticeNeeds() throws Exception {
+        String studentName = "Estudiante Cerrado Con Aviso";
+        Map<String, Object> form = filledForm(studentName, "SIN-DATO-REAL-802");
+        mockMvc.perform(publicSubmission("203.0.113.181", PUBLIC_TRADE, form))
+                .andExpect(status().isCreated());
+        MockHttpSession session = login();
+        String requestId = findIdByName(session, studentName);
+
+        // El camino más corto a un estado final del seed: EN_COORDINACION → EN_FACULTAD →
+        // RECHAZADA (V2.1.0). El rechazo también es final y el aviso se ofrece igual
+        // (FR-003, FR-005a): el mensaje nombra el estado, no presupone el resultado.
+        mockMvc.perform(advance(requestId, "EN_FACULTAD").session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(advance(requestId, "RECHAZADA").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.isFinal").value(true))
+                .andExpect(jsonPath("$.availableTransitions.length()").value(0))
+                .andExpect(jsonPath("$.origin").value("PUBLIC_LINK"))
+                .andExpect(jsonPath("$.studentEmail").value(form.get("studentEmail")))
+                .andExpect(jsonPath("$.studentPhone").value(form.get("studentPhone")));
+    }
+
     // --- helpers -------------------------------------------------------------------------
 
     /** El formato entero diligenciado: los once obligatorios más el código opcional. */
@@ -474,6 +522,14 @@ class PublicRequestControllerIT {
                         .session(session))
                 .andExpect(status().isNoContent());
         return session;
+    }
+
+    /** Como {@code RequestControllerIT.advanceRequest}: esta clase no avanzaba solicitudes hasta la 008. */
+    private MockHttpServletRequestBuilder advance(String id, String targetStateCode) {
+        return post("/api/requests/" + id + "/transitions")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"targetStateCode\":\"%s\"}".formatted(targetStateCode));
     }
 
     /** El recibo público no devuelve el id: localizar la solicitud exige la sesión. */

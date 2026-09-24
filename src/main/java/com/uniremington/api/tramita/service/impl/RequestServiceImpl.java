@@ -537,10 +537,29 @@ public class RequestServiceImpl implements IRequestService {
                 () -> new IllegalStateException("La sesión referencia un usuario inexistente"));
     }
 
-    /** Mapeo a mano (convención de 001): la entity nunca cruza la frontera de la API. */
+    /**
+     * Mapeo a mano (convención de 001): la entity nunca cruza la frontera de la API.
+     *
+     * Desde la 008 carga el timeline para derivar el origen (FR-008): un SELECT más por
+     * cada respuesta de detalle —register, advance y getById—, acotado por el largo del
+     * timeline (del orden de cinco a diez entradas). Es la misma consulta que ya paga
+     * {@code getTimeline}, y el cliente que hoy hacía las dos llamadas para saber el
+     * origen deja de necesitar la segunda. Se reusa {@code originOf} de la 007 a
+     * propósito: es la única forma de que «origen» signifique lo mismo en la bandeja y
+     * en el detalle. Se descartó un caso especial en {@code register} —donde el actor ya
+     * se conoce— porque serían dos formas de calcular el mismo dato, y una consulta
+     * dirigida a la entrada de nacimiento queda anotada como LA optimización si alguna
+     * vez una medición muestra que el detalle pesa; no se construye antes (research.md
+     * D2 de la 008).
+     *
+     * El correo y el teléfono se pasan sin transformarlos (FR-011): salen tal como se
+     * guardaron, y {@code RequestResponse} los omite cuando son nulos.
+     */
     private RequestResponse toResponse(Request request) {
         WorkflowDefinition definition = request.getDefinition();
         WorkflowState current = request.getCurrentState();
+        List<RequestTransitionLog> timeline =
+                logRepo.findByRequestIdOrderByOccurredAtAscIdAsc(request.getId());
         // De un estado final no sale ninguna transición: lista vacía = trámite cerrado
         var available = definition.getTransitions().stream()
                 .filter(t -> t.getFromState().getCode().equals(current.getCode()))
@@ -560,7 +579,10 @@ public class RequestServiceImpl implements IRequestService {
                 toSubjectResponses(request),
                 StateResponseMapper.toResponse(current),
                 available,
-                request.getCreatedAt());
+                request.getCreatedAt(),
+                originOf(timeline),
+                request.getStudentEmail(),
+                request.getStudentPhone());
     }
 
     private List<SubjectResponse> toSubjectResponses(Request request) {
