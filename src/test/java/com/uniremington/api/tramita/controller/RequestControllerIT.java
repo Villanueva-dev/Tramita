@@ -1338,6 +1338,38 @@ class RequestControllerIT {
                 .andExpect(jsonPath("$.length()").value(2));
     }
 
+    /**
+     * GUARDA, no RED (FR-011; spec US2, escenario 3): el teléfono sale TAL COMO se guardó. Se
+     * escribe por SQL y no por la API a propósito: representa las filas radicadas antes de la
+     * 008 —que no se reescriben— y es estable en cualquier orden de ejecución, porque antes de
+     * US3 el endpoint aceptaría este valor y después lo rechaza. Es legal: {@code request} no
+     * tiene trigger de inmutabilidad ni CHECK sobre la columna (V3.3.0 solo la agrega como
+     * VARCHAR(30)); {@code updatable = false} es una promesa de JPA, no de la base. Su valor es
+     * el mutante T023: normalizar en el servidor, que es lo que FR-011 prohíbe.
+     */
+    @Test
+    @DisplayName("un teléfono anterior a la feature sale verbatim en el detalle, sin normalizar (008, FR-011)")
+    void detailReturnsLegacyPhoneVerbatim() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Estudiante Con Telefono Viejo",
+                "SIN-DATO-REAL-235");
+        String legacyPhone = "300 123 4567";
+        assertThat(jdbcTemplate.update(
+                "UPDATE request SET student_phone = ? WHERE id = ?::uuid", legacyPhone, id))
+                .as("la fila existe y se pudo escribir el teléfono viejo por SQL")
+                .isEqualTo(1);
+
+        for (int lectura = 1; lectura <= 2; lectura++) {
+            mockMvc.perform(get("/api/requests/" + id).session(session))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.studentPhone").value(legacyPhone));
+        }
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT student_phone FROM request WHERE id = ?::uuid", String.class, id))
+                .as("consultar el detalle no reescribe la fila (FR-011)")
+                .isEqualTo(legacyPhone);
+    }
+
     // --- helpers -------------------------------------------------------------------------
 
     private String registerAndGetId(MockHttpSession session, String definitionCode,
