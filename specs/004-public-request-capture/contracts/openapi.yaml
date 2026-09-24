@@ -18,6 +18,12 @@ info:
     a la entidad. Que sean opcionales ahí y obligatorios en el canal público es
     deliberado: el formulario interno sigue aceptando el cuerpo mínimo de la 002.
 
+    ⚠️ **ENMENDADO POR LA 008** (2026-09-24), de forma NO aditiva: `studentPhone` pasa a
+    exigir exactamente diez dígitos (`[0-9]{10}`) en los DOS canales —obligatorio en el
+    público, opcional en el interno—. La forma vigente vive en
+    `specs/008-student-closure-notice/contracts/openapi.yaml`; lo de abajo es la forma
+    histórica de la 004.
+
     Lo no listado aquí se rige por `specs/003-request-form-rules/contracts/openapi.yaml` y,
     en lo que aquella no altera, por el de la 002.
 
@@ -250,6 +256,13 @@ components:
           description: |
             Número de contacto del formato. Se conserva porque el PDF formal del trámite
             (SP3) debe reproducir el formato oficial; ver la rectificación de FR-005a.
+
+            ⚠️ **ENMENDADO POR LA 008** (2026-09-24): deja de aceptar cualquier texto de hasta
+            30 caracteres y pasa a exigir **exactamente diez dígitos** (`^[0-9]{10}$`), sin
+            espacios, guiones ni prefijo internacional (FR-009 de la 008). Es un cambio **NO
+            aditivo**: `300 123 4567` pasa de 201 a 422 con `invalidFields: ["studentPhone"]`.
+            La forma vigente vive en `specs/008-student-closure-notice/contracts/openapi.yaml`;
+            el `maxLength: 30` de arriba es la forma histórica.
         studentCode:
           type: string
           maxLength: 30

@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-23
 
-**Status**: Borrador — pendiente del gate `review-spec`
+**Status**: Aprobada — gate `review-spec` superado el 2026-09-24, tras releer los 23 issues abiertos de los dos repositorios (ninguno la bloquea)
 
 **Input**: SP7 — issue [#13](https://github.com/Villanueva-dev/Tramita/issues/13), milestone «Sprint 3 — Operación diaria». Cubre la última parte del objetivo específico 5 del documento de grado: *«notificación de finalización al estudiante»*.
 
