@@ -1370,6 +1370,50 @@ class RequestControllerIT {
                 .isEqualTo(legacyPhone);
     }
 
+    /**
+     * FR-010: el canal interno mantiene el teléfono opcional y, si viene, con forma. Que sea
+     * 400 y no 422 es la convención del canal: un valor inválido es un defecto del contrato de
+     * entrada, no un formato que no se puede procesar (GlobalExceptionHandler vs.
+     * PublicCaptureExceptionHandler).
+     */
+    @Test
+    @DisplayName("canal interno: sin teléfono 201, y con diez dígitos 201 devuelto bajo su clave (008, FR-010)")
+    void internalChannelKeepsThePhoneOptional() throws Exception {
+        MockHttpSession session = login();
+        mockMvc.perform(createRequest("ADICION_CREDITOS", "Estudiante Sin Telefono Interno",
+                        "SIN-DATO-REAL-236").session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.studentPhone").doesNotExist());
+
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Con Telefono Interno",
+                          "studentDocument": "SIN-DATO-REAL-237",
+                          "studentPhone": "3000000001"
+                        }""").session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.studentPhone").value("3000000001"));
+    }
+
+    @Test
+    @DisplayName("canal interno: un teléfono que no son diez dígitos es 400 «Petición inválida» que nombra el campo (008, FR-010)")
+    void internalChannelRejectsMalformedPhoneNamingTheField() throws Exception {
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Telefono Interno Mal Escrito",
+                          "studentDocument": "SIN-DATO-REAL-238",
+                          "studentPhone": "300 123 4567"
+                        }""").session(login()))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.title").value("Petición inválida"))
+                .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                .andExpect(jsonPath("$.invalidFields[0]").value("studentPhone"))
+                .andExpect(jsonPath("$.missingFields.length()").value(0));
+    }
+
     // --- helpers -------------------------------------------------------------------------
 
     private String registerAndGetId(MockHttpSession session, String definitionCode,

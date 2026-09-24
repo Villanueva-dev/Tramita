@@ -429,6 +429,72 @@ class PublicRequestControllerIT {
                 .andExpect(jsonPath("$.studentPhone").value(form.get("studentPhone")));
     }
 
+    /**
+     * FR-009: el teléfono del formato tiene forma, no solo presencia. Cada valor viaja desde
+     * un origen distinto para no chocar con el límite de envíos por origen (004, US2).
+     */
+    @Test
+    @DisplayName("un teléfono que no son exactamente diez dígitos: 422 «Formato inválido» que nombra el campo y no repite el valor (008, FR-009)")
+    void phoneWithWrongShapeIsRejectedNamingTheFieldOnly() throws Exception {
+        List<String> malformed = List.of(
+                "300 123 4567", "+57 3001234567", "300123456", "30012345678", "abcdefghij");
+        long registeredBefore = requestRepo.count();
+        int originSuffix = 190;
+        for (String phone : malformed) {
+            Map<String, Object> body = filledForm("Estudiante Telefono Mal Escrito", "SIN-DATO-REAL-803");
+            body.put("studentPhone", phone);
+            String response = mockMvc.perform(
+                            publicSubmission("203.0.113." + originSuffix++, PUBLIC_TRADE, body))
+                    .andExpect(status().isUnprocessableContent())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.title").value("Formato inválido"))
+                    .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                    .andExpect(jsonPath("$.invalidFields[0]").value("studentPhone"))
+                    .andExpect(jsonPath("$.missingFields.length()").value(0))
+                    .andReturn().getResponse().getContentAsString();
+            // §III: se nombra el campo, nunca el valor que envió quien diligencia.
+            assertThat(response)
+                    .as("[%s] el valor rechazado no puede reflejarse de vuelta", phone)
+                    .doesNotContain(phone);
+        }
+        assertThat(requestRepo.count())
+                .as("ningún envío rechazado por el teléfono deja rastro")
+                .isEqualTo(registeredBefore);
+    }
+
+    /**
+     * Con {@code @NotBlank} y {@code @Pattern} sobre el mismo campo, un blanco viola las dos
+     * reglas a la vez; ValidationFields hace que la ausencia domine y el campo se liste UNA
+     * vez, como faltante. Verde antes del @Pattern; se fija para que el @Pattern no lo cambie.
+     */
+    @Test
+    @DisplayName("un teléfono en blanco es «Formato incompleto» y va en missingFields, no en las dos listas (008, FR-009)")
+    void blankPhoneIsReportedAsMissingNotInvalid() throws Exception {
+        Map<String, Object> body = filledForm("Estudiante Sin Telefono", "SIN-DATO-REAL-804");
+        body.put("studentPhone", "   ");
+
+        mockMvc.perform(publicSubmission("203.0.113.196", PUBLIC_TRADE, body))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.title").value("Formato incompleto"))
+                .andExpect(jsonPath("$.missingFields.length()").value(1))
+                .andExpect(jsonPath("$.missingFields[0]").value("studentPhone"))
+                .andExpect(jsonPath("$.invalidFields.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("diez dígitos se aceptan, móvil o fijo: un fijo es contacto válido aunque no habilite WhatsApp (008, FR-012)")
+    void tenDigitPhonesAreAcceptedWhetherMobileOrLandline() throws Exception {
+        Map<String, Object> mobile = filledForm("Estudiante Con Movil", "SIN-DATO-REAL-805");
+        mobile.put("studentPhone", "3000000001");
+        mockMvc.perform(publicSubmission("203.0.113.197", PUBLIC_TRADE, mobile))
+                .andExpect(status().isCreated());
+
+        Map<String, Object> landline = filledForm("Estudiante Con Fijo", "SIN-DATO-REAL-806");
+        landline.put("studentPhone", "6020000001");
+        mockMvc.perform(publicSubmission("203.0.113.198", PUBLIC_TRADE, landline))
+                .andExpect(status().isCreated());
+    }
+
     // --- helpers -------------------------------------------------------------------------
 
     /** El formato entero diligenciado: los once obligatorios más el código opcional. */
@@ -437,7 +503,8 @@ class PublicRequestControllerIT {
         form.put("studentName", studentName);
         form.put("studentDocument", studentDocument);
         form.put("studentEmail", "estudiante.de.prueba@ejemplo.test");
-        form.put("studentPhone", "000 000 0000");
+        // Sintético a simple vista (auditoría del 2026-09-24, M4): cumple [0-9]{10} sin parecer real.
+        form.put("studentPhone", "3000000001");
         form.put("studentCode", "COD-PRUEBA");
         form.put("program", "Ingeniería de Sistemas");
         form.put("campus", "Cali");

@@ -153,7 +153,7 @@ class PublicCaptureExceptionHandlerTest {
                     "Estudiante De Prueba",
                     "SIN-DATO-REAL-U01",
                     email,
-                    "000 000 0000",
+                    "3000000001",
                     "COD-PRUEBA",
                     "Ingeniería de Sistemas",
                     campus,
