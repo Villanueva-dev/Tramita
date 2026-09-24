@@ -204,7 +204,7 @@ components:
         **Lo que sigue sin salir en ningún listado**: `studentEmail` y `studentPhone` NO
         entran en `RequestSummaryResponse` (búsqueda) ni en `InboxEntryResponse` (bandeja).
         Es el mismo criterio con que la bandeja nunca lleva el documento.
-      required: [id, definition, studentName, studentDocument, currentState, availableTransitions, createdAt, origin]
+      required: [id, definition, studentName, studentDocument, currentState, availableTransitions, createdAt]
       properties:
         id:
           type: string
@@ -242,17 +242,20 @@ components:
           description: |
             Sin cambios: UTC sin marcador, como en la 002 (issue #36 lo rastrea).
         origin:
-          type: [string, "null"]
-          enum: [COORDINATION, PUBLIC_LINK, null]
+          type: string
+          enum: [COORDINATION, PUBLIC_LINK]
           description: |
             **Campo nuevo.** Ver `RequestOrigin`. Es la mitad de la condición del aviso: se
             ofrece solo si es `PUBLIC_LINK` (FR-001, FR-004); la otra mitad es
             `currentState.isFinal` (FR-003).
 
-            `null` solo si la solicitud no tiene entrada de nacimiento, que `register` escribe
-            siempre: es una anomalía de datos declarada, no un tercer origen (007, review M3),
-            y se trata como «no pública»: sin aviso (FR-004). La clave sigue siendo requerida:
-            viaja con valor nulo, nunca ausente.
+            **Ausente** —no `null`— solo si la solicitud no tiene entrada de nacimiento, que
+            `register` escribe siempre: es una anomalía de datos declarada, no un tercer origen
+            (007, review M3), y el cliente la trata como «no pública»: sin aviso (FR-004). Se
+            omite en vez de viajar nula porque `RequestResponse` descarta los nulos (`NON_NULL`)
+            desde la 003; la bandeja de la 007 (`InboxEntryResponse`) no los descarta, y por eso
+            allá sí viaja como `null` y es requerida. Corregido el 2026-09-24 (`/speckit-analyze`,
+            I1): la versión anterior prometía «nunca ausente», y el código no lo cumpliría.
         studentEmail:
           type: string
           format: email
@@ -333,7 +336,8 @@ components:
             que ser exactamente diez dígitos: sin espacios, guiones ni `+57`. Ya no lleva
             `maxLength: 30`: el patrón fija la longitud.
 
-            **Solo números colombianos** (decisión del usuario): fijos y móviles tienen diez
+            **Formato nacional colombiano** (decisión del usuario; el sistema **no verifica la
+            nacionalidad** del número, solo la forma): fijos y móviles tienen diez
             dígitos desde el cambio de marcación de la CRC
             (https://www.crcom.gov.co/es/noticias/comunicado-prensa/desde-1-septiembre-cambia-forma-hacer-llamadas-en-colombia).
             No se exige que sea móvil (FR-012).

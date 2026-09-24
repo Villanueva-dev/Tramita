@@ -129,7 +129,7 @@ docker start tramita-postgres && ./mvnw clean verify
 
 ### Implementación de US3
 
-- [ ] T028 [US3] En `src/main/java/com/uniremington/api/tramita/dto/PublicRequestBody.java:31`: `studentPhone` pasa de `@NotBlank @Size(max = 30)` a `@NotBlank @Pattern(regexp = "[0-9]{10}")`. Importar `jakarta.validation.constraints.Pattern`. Actualizar el javadoc del record donde enumera el campo: diez dígitos, solo números colombianos, sin espacios ni prefijo (FR-009; research D3 cita por qué `[0-9]` y no `\d`, y por qué se quita el `@Size`)
+- [ ] T028 [US3] En `src/main/java/com/uniremington/api/tramita/dto/PublicRequestBody.java:31`: `studentPhone` pasa de `@NotBlank @Size(max = 30)` a `@NotBlank @Pattern(regexp = "[0-9]{10}")`. Importar `jakarta.validation.constraints.Pattern`. Actualizar el javadoc del record donde enumera el campo: diez dígitos en formato nacional colombiano, sin espacios ni prefijo; el sistema no verifica la nacionalidad del número (FR-009; research D3 cita por qué `[0-9]` y no `\d`, y por qué se quita el `@Size`)
 - [ ] T029 [P] [US3] En `src/main/java/com/uniremington/api/tramita/dto/CreateRequestBody.java:39`: `studentPhone` pasa de `@Size(max = 30)` a `@Pattern(regexp = "[0-9]{10}")`. Sigue opcional: `@Pattern` considera válido `null`. Dejar escrito en el javadoc que `""` cuenta como «vino e inválido» (400) y que para no declarar teléfono se omite el campo (FR-010, research D3)
 
 ### Verificación de US3
