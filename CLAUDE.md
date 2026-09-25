@@ -95,8 +95,9 @@ Al citar literatura o normativa institucional, **incluir la referencia exacta** 
 <!-- SPECKIT START -->
 **Feature ACTIVA: `008-student-closure-notice`** — SP7 (issue `Tramita#13`), el aviso de cierre al
 estudiante. Fase: **implementada y revisada** (2026-09-24; implementación `82e5aaf`…`813113d`, cierre
-documental `26f2200`/`8032c9b`, review con agente limpio aplicado en `99630ee`…HEAD); lo siguiente es la
-PR (T041), que **espera el OK del usuario**. Rama **solo en local, sin pushear**.
+documental `26f2200`/`8032c9b`, review con agente limpio aplicado en `99630ee`…`c5c299e`; `3e9ffd4` cierra
+las 41 tareas con el cuerpo de la PR preparado). Si la PR ya se abrió o se mergeó no se escribe acá: se
+deriva con `gh pr list --head 008-student-closure-notice --state all`.
 Artefactos en `specs/008-student-closure-notice/`: `spec.md` (16 FR, 6 SC, 3 US), `plan.md`,
 `research.md` (D1–D9), `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`,
 `checklists/requirements.md` y **`tasks.md` (41 tareas, 6 fases)**. ⚠️ Este bloque lo reescribe **solo `/speckit-plan`** cuando corre
@@ -116,8 +117,9 @@ existentes) y los números extranjeros.
 también. `RequestSummaryResponse` e `InboxEntryResponse` NUNCA llevan correo ni teléfono (§III).
 🔑 **Teléfono `[0-9]{10}` validado en el API** (D3): obligatorio en `PublicRequestBody`, opcional en
 `CreateRequestBody`; NO se normaliza ni se reescriben filas. Es enmienda **NO aditiva** del contrato de
-la 004 y del interno (FR-013, precedente 007). Rompe el fixture `"000 000 0000"` de
-`PublicRequestControllerIT:392`. El filtro de dígitos del front debe desplegarse antes o a la vez.
+la 004 y del interno (FR-013, precedente 007). Rompía DOS fixtures `"000 000 0000"`
+(`PublicRequestControllerIT:392` y `PublicCaptureExceptionHandlerTest:156`, corregidos en `813113d`). El
+filtro de dígitos del front (tramita-frontend PR #57) debe desplegarse antes o a la vez.
 🔑 **Sin migración**: la última sigue siendo `V4.1.0`. El origen se deriva del timeline con el `originOf`
 de la 007 (un SELECT más por respuesta, D2) y el enum pasa a `dto/RequestOrigin` (D1; el JSON no cambia).
 El estado final se lee de `StateResponse.isFinal` (§VI): el `git grep` de la tesis sigue en UNA línea.
