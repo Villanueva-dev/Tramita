@@ -53,8 +53,11 @@ agente, y recibe su parte como brief en la sección «Reparto con el frontend» 
 **Performance Goals**: no hay objetivo de rendimiento. El volumen documentado es de **30–40
 solicitudes por semestre** para el trámite más frecuente.
 
-**Constraints**: el detalle de una solicitud hace **un SELECT más** —el timeline— para derivar
-el origen, en las tres acciones que lo devuelven (research D2). A este volumen es irrelevante;
+**Constraints**: el detalle de una solicitud hace **una consulta más** —el timeline con el actor
+en el mismo JOIN, `findTimelinesOf`— para derivar el origen, en las tres acciones que lo
+devuelven (research D2). ⚠️ Con la consulta sin fetch de `getTimeline`, que fue la primera
+implementación, el review con agente limpio midió **dos** consultas en `getById` por la carga
+perezosa del actor; se corrigió reusando la consulta de la bandeja. A este volumen es irrelevante;
 la optimización, si algún día una medición la pide, está anotada y no se construye antes. El
 `git grep` que prueba la tesis del §VI debe seguir devolviendo **una sola línea** (research D7).
 

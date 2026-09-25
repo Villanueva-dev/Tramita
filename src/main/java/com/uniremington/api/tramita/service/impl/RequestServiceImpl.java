@@ -35,6 +35,7 @@ import com.uniremington.api.tramita.shared.exception.UnprocessableRequestExcepti
 import com.uniremington.api.tramita.util.CampusTime;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -540,11 +541,17 @@ public class RequestServiceImpl implements IRequestService {
     /**
      * Mapeo a mano (convención de 001): la entity nunca cruza la frontera de la API.
      *
-     * Desde la 008 carga el timeline para derivar el origen (FR-008): un SELECT más por
-     * cada respuesta de detalle —register, advance y getById—, acotado por el largo del
-     * timeline (del orden de cinco a diez entradas). Es la misma consulta que ya paga
-     * {@code getTimeline}, y el cliente que hoy hacía las dos llamadas para saber el
-     * origen deja de necesitar la segunda. Se reusa {@code originOf} de la 007 a
+     * Desde la 008 carga el timeline para derivar el origen (FR-008): una consulta más por
+     * cada respuesta de detalle —register, advance y getById—, acotada por el largo del
+     * timeline (del orden de cinco a diez entradas), y CON EL ACTOR EN EL MISMO JOIN:
+     * {@code findTimelinesOf}, la consulta en lote de la bandeja, para un solo id. No es
+     * la de {@code getTimeline}: esa no trae al actor, que es perezoso, y {@code originOf}
+     * lo lee. El review con agente limpio de la 008 midió con Statistics de Hibernate que
+     * con la consulta sin fetch el detalle costaba DOS consultas en getById —el timeline y
+     * la carga perezosa del actor— y una en register y advance, donde el usuario ya estaba
+     * en la sesión; con el join fetch queda en una en los tres caminos. El cliente que
+     * hacía dos llamadas para saber el origen deja de necesitar la segunda. Se reusa
+     * {@code originOf} de la 007 a
      * propósito: es la única forma de que «origen» signifique lo mismo en la bandeja y
      * en el detalle. Se descartó un caso especial en {@code register} —donde el actor ya
      * se conoce— porque serían dos formas de calcular el mismo dato, y una consulta
@@ -558,8 +565,10 @@ public class RequestServiceImpl implements IRequestService {
     private RequestResponse toResponse(Request request) {
         WorkflowDefinition definition = request.getDefinition();
         WorkflowState current = request.getCurrentState();
+        // singletonList y no List.of: los unitarios mapean entidades sin persistir, con id nulo,
+        // y List.of(null) lanza NPE antes de llegar al mock del repositorio.
         List<RequestTransitionLog> timeline =
-                logRepo.findByRequestIdOrderByOccurredAtAscIdAsc(request.getId());
+                logRepo.findTimelinesOf(Collections.singletonList(request.getId()));
         // De un estado final no sale ninguna transición: lista vacía = trámite cerrado
         var available = definition.getTransitions().stream()
                 .filter(t -> t.getFromState().getCode().equals(current.getCode()))

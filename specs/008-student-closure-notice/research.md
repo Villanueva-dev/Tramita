@@ -53,8 +53,8 @@ en `RequestServiceImpl`. A cambio, ningún DTO importa a otro por un tipo compar
 ## D2 — `toResponse` carga el timeline y reusa `originOf` de la 007
 
 **Decisión**: el mapeo a `RequestResponse` carga el timeline de la solicitud con
-`logRepo.findByRequestIdOrderByOccurredAtAscIdAsc(id)` —el método que ya usa `getTimeline`,
-`IRequestTransitionLogRepo:19`— y deriva el origen con el `originOf(List<RequestTransitionLog>)`
+`logRepo.findTimelinesOf(Collections.singletonList(id))` —la consulta en lote de la bandeja, con `join fetch
+l.actor`, `IRequestTransitionLogRepo:34-38`— y deriva el origen con el `originOf(List<RequestTransitionLog>)`
 que la 007 dejó en `RequestServiceImpl:439`, cambiando solo su tipo de retorno a `RequestOrigin`
 (D1). Vale para las tres acciones que devuelven el detalle: `register`, `advance` y `getById`
 (FR-008).
@@ -76,11 +76,20 @@ siete estados —`V2.1.0:68-73`— y cada devolución suma dos).
   a este volumen no cuestan nada. Queda anotada como **la** optimización si algún día una
   medición muestra que el detalle pesa; no se construye antes.
 
-**Costo aceptado**: **un SELECT más por cada respuesta de detalle**, acotado por la longitud del
-timeline. El spike lo midió así (`git diff --stat main..spike/008-wa`: +20/−4 líneas de
-producción, suite en verde con 163 unitarios + 114 IT). Es el mismo costo que ya paga
-`GET /requests/{id}/timeline`, y el cliente que hoy hace las dos llamadas deja de necesitar la
-segunda para saber el origen.
+**Costo aceptado**: **una consulta más por cada respuesta de detalle**, acotada por la longitud
+del timeline, con el actor traído en el mismo JOIN. El spike lo midió así (`git diff --stat
+main..spike/008-wa`: +20/−4 líneas de producción, suite en verde con 163 unitarios + 114 IT).
+El cliente que hoy hace las dos llamadas deja de necesitar la segunda para saber el origen.
+
+⚠️ **Corregido el 2026-09-24 tras el review con agente limpio (B1).** La primera
+implementación usó `findByRequestIdOrderByOccurredAtAscIdAsc`, la consulta de `getTimeline`,
+y esta decisión decía «la misma consulta que ya paga `getTimeline`». Esa consulta no trae al
+actor, que es perezoso (`RequestTransitionLog.actor`), y `originOf` lo lee: el review midió
+con `Statistics` de Hibernate que en `getById` costaba **dos** consultas (timeline + actor) y
+una en `register` y `advance`, donde el usuario ya estaba en la sesión. Se reusa
+`findTimelinesOf`, que ya existía con `join fetch l.actor`, en vez de crear una consulta
+nueva (§I); la medición es del review, no se repitió acá. La decisión no cambia: una
+consulta más, ahora de verdad.
 
 ---
 
