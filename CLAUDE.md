@@ -94,8 +94,9 @@ Al citar literatura o normativa institucional, **incluir la referencia exacta** 
 
 <!-- SPECKIT START -->
 **Feature ACTIVA: `008-student-closure-notice`** — SP7 (issue `Tramita#13`), el aviso de cierre al
-estudiante. Fase: **en implementación** desde el 2026-09-24 (plan `6507b7a`, tareas `d0f8b85`,
-verificaciones previas `32a6187`); el avance vive en `tasks.md`. Rama **solo en local, sin pushear**.
+estudiante. Fase: **implementada y revisada** (2026-09-24; implementación `82e5aaf`…`813113d`, cierre
+documental `26f2200`/`8032c9b`, review con agente limpio aplicado en `99630ee`…HEAD); lo siguiente es la
+PR (T041), que **espera el OK del usuario**. Rama **solo en local, sin pushear**.
 Artefactos en `specs/008-student-closure-notice/`: `spec.md` (16 FR, 6 SC, 3 US), `plan.md`,
 `research.md` (D1–D9), `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`,
 `checklists/requirements.md` y **`tasks.md` (41 tareas, 6 fases)**. ⚠️ Este bloque lo reescribe **solo `/speckit-plan`** cuando corre
@@ -123,9 +124,9 @@ El estado final se lee de `StateResponse.isFinal` (§VI): el `git grep` de la te
 🔑 `spike/008-wa` (`a58561d`) es **referencia, no base**; los spikes `008-a/-b/-b2/-c` son de B′ y están
 obsoletos (5 worktrees en `../Tramita-worktrees/`; se borran con el OK del usuario).
 📎 Al abrir la PR: `Closes #13` en texto plano; enmendar sus criterios («puerto como interfaz», «solo en
-FINALIZADO») y decidir `#38`/`#39`; enmendar el árbol (`:134`, `:164`, `:216`) como hizo la PR #44;
-pasarle a Codex el reparto del front (`plan.md`, «Reparto con el frontend»). Suite base: 163 unitarios +
-112 IT (`cb85fd6`); se re-mide al arrancar, no se cita de memoria.
+FINALIZADO») y decidir `#38`/`#39`; pasarle a Codex el reparto del front (`plan.md`, «Reparto con el
+frontend»). El árbol ya está enmendado (`26f2200`, cuatro líneas: `:134`, `:164`, `:181`, `:216`). Suite
+final: **163 unitarios + 127 IT** (`ca5decf`); base 163 + 112 (`cb85fd6`); se re-mide, no se cita de memoria.
 Última feature cerrada: `007-coordination-inbox` — SP5 (`#12`, CERRADO) + `#22`, PR #47 (`412a5e0`).
 ⛔ Nada de la 007 se re-agenda. Sus decisiones vivas: la bandeja lee el responsable que la configuración
 declara, **sin roles** (filtra, no impide); se **mide** la antigüedad desde la ÚLTIMA transición y no se

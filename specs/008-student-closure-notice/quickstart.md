@@ -244,8 +244,11 @@ echo "$ANTES → $DESPUES"
 
 Es la tesis del §VI sobre esta feature. La suite lo prueba con el trámite `DEMO` que
 `WorkflowGenericityIT` carga por SQL en runtime (`:112-130`, precedente de la 007): una
-solicitud DEMO llevada a su estado final devuelve `currentState.isFinal = true` y, si nació por
-el enlace público, `origin = PUBLIC_LINK`, sin que el código sepa que DEMO existe.
+solicitud DEMO registrada por el canal interno y llevada a su estado final devuelve
+`currentState.isFinal = true` y `origin = COORDINATION`, sin que el código sepa que DEMO existe.
+Que el origen no dependa del trámite se sostiene por composición —`originOf` lee el actor de la
+entrada de nacimiento, no la definición—, no por un test con DEMO por el enlace público (review
+con agente limpio, B6).
 
 Contra el servidor real basta con comprobar que el código **no** nombra ningún estado:
 
