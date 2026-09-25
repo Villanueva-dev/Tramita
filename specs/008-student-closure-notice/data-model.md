@@ -10,7 +10,7 @@ Todo lo que el aviso necesita ya está persistido:
 | Dato que la feature necesita | Dónde vive hoy | Desde |
 |---|---|---|
 | Si el estado actual es un cierre | `workflow_state.is_final` | `V2.0.0` |
-| Cómo nació la solicitud | `request_transition_log.actor` de la entrada de nacimiento (el portal público actúa con una cuenta propia) | `V3.3.0` |
+| Cómo nació la solicitud | `request_transition_log.actor` de la entrada de nacimiento (el portal público actúa con una cuenta propia) | `V2.0.0` la entrada de nacimiento; `V3.3.0` la cuenta del portal que la distingue |
 | Correo declarado por el estudiante | `request.student_email` | `V3.3.0` |
 | Teléfono declarado por el estudiante | `request.student_phone` (`VARCHAR(30)`) | `V3.3.0` |
 | Nombre del estudiante, del trámite y del estado (el texto del aviso) | `request.student_name`, `workflow_definition.name`, `workflow_state.name` | `V2.0.0` |

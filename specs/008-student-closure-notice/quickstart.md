@@ -5,6 +5,11 @@ cableado, que es lo que los tests con mocks no ven. Y demuestra lo central del d
 lo que el backend devuelve, **el aviso se arma sin una segunda consulta y sin que el servidor
 sepa que existe**.
 
+**Recorrido completo el 2026-09-24 contra Tomcat real, sobre `813113d`**: los diez pasos dieron
+las salidas que figuran abajo. La única corrección fue de este documento: los identificadores
+`SIN-DATO-REAL-<teléfono>` tenían 24 caracteres y `studentDocument` admite 20
+(`PublicRequestBody:39`), así que el paso 1 respondía 422 por el documento y no por el teléfono.
+
 ## 0. Levantar
 
 ```bash
@@ -21,7 +26,7 @@ curl -s -o /dev/null -c /tmp/tramita.jar http://localhost:8080/api/auth/me   # 4
 XSRF="$(grep XSRF /tmp/tramita.jar | awk '{print $7}')"
 curl -s -b /tmp/tramita.jar -c /tmp/tramita.jar -X POST http://localhost:8080/api/auth/login \
   -H 'Content-Type: application/json' -H "X-XSRF-TOKEN: $XSRF" \
-  -d '{"email":"coordinacion.cali@uniremington.edu.co","password":"<la del entorno>"}'
+  -d "{\"email\":\"$SEED_COORD_EMAIL\",\"password\":\"$SEED_COORD_PASSWORD\"}"   # las dos salen del .env ya cargado
 # → 204
 ```
 
@@ -65,28 +70,30 @@ Y en blanco cae en `missingFields`, **solo ahí** (la ausencia domina, `Validati
 ```
 
 Después lo que acepta: un móvil **y también un fijo** (FR-012). Se radican dos solicitudes que
-sirven para los pasos siguientes:
+sirven para los pasos siguientes. Los números son sintéticos a simple vista (`3000000001`,
+`6020000001`: cumplen la forma y no son de nadie) y los documentos cortos, porque
+`studentDocument` admite 20 caracteres:
 
 ```bash
-for TEL in 3001234567 6025551234; do
-  curl -s -o /dev/null -w "$TEL → %{http_code}\n" -X POST http://localhost:8080/api/public/requests/ADICION_CREDITOS \
+for PAR in 3000000001:M08 6020000001:F08; do TEL=${PAR%:*}; DOC=SIN-DATO-REAL-${PAR#*:}
+  curl -s -o /dev/null -w "$TEL ($DOC) → %{http_code}\n" -X POST http://localhost:8080/api/public/requests/ADICION_CREDITOS \
     -H 'Content-Type: application/json' \
-    -d "{\"studentName\":\"Estudiante Tel $TEL\",\"studentDocument\":\"SIN-DATO-REAL-$TEL\",
+    -d "{\"studentName\":\"Estudiante Tel $TEL\",\"studentDocument\":\"$DOC\",
          \"studentEmail\":\"estudiante.$TEL@ejemplo.test\",\"studentPhone\":\"$TEL\",
          \"program\":\"Ingeniería de Sistemas\",\"campus\":\"Cali\",\"faculty\":\"Facultad de Ingeniería\",
          \"modality\":\"Distancia\",\"semester\":\"5\",
          \"reason\":\"Necesito adicionar una asignatura del siguiente nivel.\",
          \"signature\":\"data:image/png;base64,iVBORw0KGgo=\"}"
 done
-# 3001234567 → 201
-# 6025551234 → 201
+# 3000000001 (SIN-DATO-REAL-M08) → 201
+# 6020000001 (SIN-DATO-REAL-F08) → 201
 ```
 
 El canal público no devuelve el identificador (004): se localizan por documento con la sesión.
 
 ```bash
-ID_MOVIL=$(curl -s -b /tmp/tramita.jar 'http://localhost:8080/api/requests?search=SIN-DATO-REAL-3001234567' | jq -r '.[0].id')
-ID_FIJO=$(curl -s -b /tmp/tramita.jar 'http://localhost:8080/api/requests?search=SIN-DATO-REAL-6025551234' | jq -r '.[0].id')
+ID_MOVIL=$(curl -s -b /tmp/tramita.jar 'http://localhost:8080/api/requests?search=SIN-DATO-REAL-M08' | jq -r '.[0].id')
+ID_FIJO=$(curl -s -b /tmp/tramita.jar 'http://localhost:8080/api/requests?search=SIN-DATO-REAL-F08' | jq -r '.[0].id')
 ```
 
 ---
@@ -96,7 +103,7 @@ ID_FIJO=$(curl -s -b /tmp/tramita.jar 'http://localhost:8080/api/requests?search
 ```bash
 curl -s -b /tmp/tramita.jar http://localhost:8080/api/requests/$ID_MOVIL \
   | jq '{origin, isFinal: .currentState.isFinal, studentEmail, studentPhone}'
-# { "origin": "PUBLIC_LINK", "isFinal": false, "studentEmail": "estudiante.3001234567@ejemplo.test", "studentPhone": "3001234567" }
+# {"origin":"PUBLIC_LINK","isFinal":false,"studentEmail":"estudiante.3000000001@ejemplo.test","studentPhone":"3000000001"}
 ```
 
 `origin` es `PUBLIC_LINK` porque la radicó la cuenta del portal; `isFinal` es `false` porque
@@ -118,8 +125,8 @@ curl -s -o /dev/null -b /tmp/tramita.jar -X POST http://localhost:8080/api/reque
 curl -s -b /tmp/tramita.jar -X POST http://localhost:8080/api/requests/$ID_MOVIL/transitions \
   -H 'Content-Type: application/json' -H "X-XSRF-TOKEN: $XSRF" -d '{"targetStateCode":"RECHAZADA"}' \
   | jq '{origin, state: .currentState.name, isFinal: .currentState.isFinal, studentEmail, studentPhone, availableTransitions}'
-# { "origin": "PUBLIC_LINK", "state": "Rechazada", "isFinal": true,
-#   "studentEmail": "estudiante.3001234567@ejemplo.test", "studentPhone": "3001234567", "availableTransitions": [] }
+# {"origin":"PUBLIC_LINK","state":"Rechazada","isFinal":true,
+#  "studentEmail":"estudiante.3000000001@ejemplo.test","studentPhone":"3000000001","availableTransitions":[]}
 ```
 
 Si para saber el origen hiciera falta un segundo `GET`, FR-008 no se cumple.
@@ -143,8 +150,8 @@ ENLACES=$(curl -s -b /tmp/tramita.jar http://localhost:8080/api/requests/$ID_MOV
        else "sin WhatsApp: el teléfono no es un móvil colombiano" end)
   end')
 echo "$ENLACES"
-# mailto:estudiante.3001234567@ejemplo.test?subject=Tr%C3%A1mite%20Adici%C3%B3n%20de%20cr%C3%A9ditos&body=Hola%20...%0D%0ASu%20tr%C3%A1mite%20...
-# https://wa.me/573001234567?text=Hola%20...%0D%0ASu%20tr%C3%A1mite%20...
+# mailto:estudiante.3000000001@ejemplo.test?subject=Tr%C3%A1mite%20Adici%C3%B3n%20de%20cr%C3%A9ditos&body=Hola%20Estudiante%20Tel%203000000001.%0D%0ASu%20tr%C3%A1mite%20%C2%ABAdici%C3%B3n%20de%20cr%C3%A9ditos%C2%BB%20qued%C3%B3%20en%20estado%3A%20Rechazada.
+# https://wa.me/573000000001?text=Hola%20Estudiante%20Tel%203000000001.%0D%0ASu%20tr%C3%A1mite%20%C2%ABAdici%C3%B3n%20de%20cr%C3%A9ditos%C2%BB%20qued%C3%B3%20en%20estado%3A%20Rechazada.
 ```
 
 **Lo que hay que mirar**:
@@ -166,7 +173,7 @@ echo "$ENLACES" | grep -c "$DOC"
 Llevar `$ID_FIJO` a `RECHAZADA` igual que en el paso 3 y repetir el `jq` del paso 4:
 
 ```
-mailto:estudiante.6025551234@ejemplo.test?subject=...&body=...
+mailto:estudiante.6020000001@ejemplo.test?subject=Tr%C3%A1mite%20...&body=Hola%20Estudiante%20Tel%206020000001.%0D%0A...Rechazada.
 sin WhatsApp: el teléfono no es un móvil colombiano
 ```
 

@@ -190,7 +190,7 @@ lee `Request.java:37-40`: un dato de contacto se expone cuando tiene quien lo us
 feature es ese consumidor.
 
 **Un test existente pasa a rojo por diseño, y se invierte a conciencia.**
-`RequestControllerIT.java:251-283` —`registerPersistsStudentEmailButNeverReturnsIt`, «el correo del
+`RequestControllerIT.java:251-283` —`registerPersistsStudentEmailButNeverReturnsIt`, hoy `registerPersistsAndReturnsStudentEmail` (T010), «el correo del
 estudiante se conserva pero NUNCA sale en la respuesta (FR-005a)»— registra una solicitud con correo y
 afirma que la respuesta **no** lo trae (`jsonPath("$.studentEmail").doesNotExist()` y que el cuerpo no contenga el
 valor). Ese test defendía exactamente el invariante que esta feature retira. No se «adapta»
@@ -295,7 +295,10 @@ git grep -nE '"(FINALIZADA|DEVUELTA|ADICION_CREDITOS|NOVEDAD_NOTAS)"' HEAD -- 's
 **SC-005 se prueba como en la 007**: con el trámite `DEMO` que `WorkflowGenericityIT` carga por
 SQL en runtime (`:112-130`). Una solicitud DEMO llevada a su estado final debe devolver
 `currentState.isFinal = true` y, si nació por el canal público, `origin = PUBLIC_LINK`, sin que
-el código sepa que DEMO existe.
+el código sepa que DEMO existe. ✅ Al implementar (T015) se afirmó `origin = COORDINATION`, porque
+`insertDefinition` no siembra `PUBLIC_CAPTURE_ENABLED` y sembrarlo sumaría un camino que SC-005 no
+necesita; y el test avanza «por la única transición disponible hasta que la configuración diga
+final», sin nombrar `CERRADO`: tampoco el test conoce el camino, que es más fuerte todavía.
 
 **Alternativa considerada**: ninguna que valga la pena escribir. Reconocer `FINALIZADA` por
 código es el literal que el issue #13 ya advirtió no cosechar de `router-ia`.
@@ -312,7 +315,7 @@ fija `/speckit-tasks`; esto es el mapa.
 | Qué se prueba | Dónde | Por qué ahí |
 |---|---|---|
 | `origin`, `studentEmail`, `studentPhone` en `POST /requests`, `POST …/transitions` y `GET /requests/{id}`; `COORDINATION` sin contacto no los devuelve (`NON_NULL`) | `RequestControllerIT` | El mapeo y la derivación del origen atraviesan el servicio y la base; un unitario con el repo mockeado no ve el JSON servido |
-| El test que hoy afirma que el correo NO sale se invierte (D4) | `RequestControllerIT:251` (`registerPersistsStudentEmailButNeverReturnsIt`) | Es el RED de FR-008 |
+| El test que hoy afirma que el correo NO sale se invierte (D4) | `RequestControllerIT:251` (`registerPersistsStudentEmailButNeverReturnsIt` → `registerPersistsAndReturnsStudentEmail`) | Es el RED de FR-008 |
 | 422 público por formato, con el campo nombrado y sin eco del valor; 201 con fijo y móvil; blanco → `missingFields` | `PublicRequestControllerIT` | Es el contrato del canal (FR-009) |
 | 400 interno con teléfono inválido; 201 sin teléfono | `RequestControllerIT` | FR-010 |
 | La búsqueda y la bandeja no llevan correo ni teléfono | `RequestControllerIT`, precedente `:1098` | Guarda de §III sobre el JSON servido |
@@ -330,7 +333,10 @@ fija `/speckit-tasks`; esto es el mapa.
 
 **Suite base**: 163 unitarios + 112 IT, medidos en `cb85fd6` (la punta de la 007 que mergeó como
 `412a5e0`). ⚠️ Se **re-mide** al arrancar la implementación, no se cita de memoria: es la regla
-del repo desde que un conteo de la 007 se citó mal dos veces.
+del repo desde que un conteo de la 007 se citó mal dos veces. ✅ Re-medida en T001 (163 + 112,
+idéntica) y al cerrar en T036 (**163 + 125** sobre `813113d`): +7 IT de US1, +1 de US2, +5 de US3.
+Los seis mutantes mordieron; el de `NON_NULL` (T020a) confirmó que `jsonPath(...).doesNotExist()`
+pasa con la clave presente en `null`, y que la aserción sobre el cuerpo crudo era necesaria.
 
 **Alternativa considerada**: *un test unitario de `RequestServiceImpl` con el repo mockeado para
 el origen*. Rechazado como prueba principal: el origen depende de qué actor escribió la entrada

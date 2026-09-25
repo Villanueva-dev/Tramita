@@ -41,7 +41,9 @@ mergeó como `412a5e0`). ⚠️ Se re-mide con `./mvnw clean verify` al arrancar
 el conteo no se cita de memoria. Un test existente pasa a rojo **por diseño** y se invierte a
 conciencia (research D4); dos fixtures rompen por la regla del teléfono y se corrigen; los cuatro
 fixtures del renderer **no se tocan**, porque uno de ellos es un canario con SHA-256 literal
-(research D3).
+(research D3). ✅ **Medido al cerrar** (T036, sobre `813113d`): **163 unitarios + 125 IT**, +13 IT sobre la
+base; el test invertido se llama ahora `registerPersistsAndReturnsStudentEmail`; los dos fixtures
+corregidos son `PublicRequestControllerIT.filledForm` y `PublicCaptureExceptionHandlerTest.FormBuilder`.
 
 **Target Platform**: servicio HTTP, despliegue en Linux.
 
@@ -169,6 +171,9 @@ contrato de esta feature. En orden de despliegue:
 3. **Los dos botones en el detalle**, solo cuando `origin === 'PUBLIC_LINK' && currentState.isFinal`:
    - **Correo** (P1), siempre que haya `studentEmail`: `mailto:<correo>?subject=…&body=…`, con los
      saltos de línea codificados como `%0D%0A` (RFC 6068 §5) y el texto percent-encoded en UTF-8.
+     Asunto sugerido: **«Su proceso ha sido completado»**, que es lo más cercano a un texto dictado
+     por ella (*«su proceso ha sido completa[do]»*, Sesión 2 parte B, `material-coord/parte2-entrevista3.md`,
+     byte 2380); para un rechazo, el estado manda (FR-005a).
    - **WhatsApp** (P2), solo si `/^3\d{9}$/.test(studentPhone)`:
      `https://wa.me/57<tel>?text=<encodeURIComponent(texto)>`.
    - **El mismo texto en los dos**, y solo con nombre, trámite y estado, tal como vienen en
@@ -183,7 +188,7 @@ contrato de esta feature. En orden de despliegue:
 Y al abrir la PR del back, con `Closes #13` en texto plano: enmendar los dos criterios de cierre
 del issue («puerto como interfaz» y «solo en FINALIZADO»), decidir el destino de `#38` y `#39` —que
 describen el puerto de `router-ia`, que no se construye—, y enmendar el árbol de problemas
-(`:134`, `:164`, `:216`) como hizo la PR #44. Todo esto ya está declarado en la spec; acá solo se
+(`:134`, `:164`, `:181`, `:216`; ✅ hecho el 2026-09-24) como hizo la PR #44. Todo esto ya está declarado en la spec; acá solo se
 recuerda dónde toca.
 
 ## Lo que este plan deja explícitamente fuera
