@@ -1414,6 +1414,85 @@ class RequestControllerIT {
                 .andExpect(jsonPath("$.missingFields.length()").value(0));
     }
 
+    /**
+     * FR-010 dice «la misma regla» que el canal público, y hasta el review con agente limpio
+     * el canal interno solo probaba un valor con espacios: cualquier regex sin espacios lo
+     * rechaza, así que tres mutantes sobre el patrón —{@code [0-9]{9,10}}, {@code .{10}} y
+     * {@code ([0-9]{10})?}— sobrevivían con la suite en verde. Esta matriz es la del canal
+     * público (FR-009), incluido el vacío: en el interno {@code ""} es «vino e inválido» y
+     * responde 400, porque para no declarar teléfono se omite la clave.
+     */
+    @Test
+    @DisplayName("canal interno: toda forma que no sean diez dígitos —9, 11, letras, vacío— es 400 que nombra el campo (008, FR-010)")
+    void internalChannelRejectsEveryPhoneShapeThatIsNotTenDigits() throws Exception {
+        MockHttpSession session = login();
+        java.util.List<String> malformed = java.util.List.of(
+                "300123456", "30012345678", "abcdefghij", "");
+        for (String phone : malformed) {
+            String response = mockMvc.perform(createRequestWithForm("""
+                            {
+                              "definitionCode": "ADICION_CREDITOS",
+                              "studentName": "Estudiante Telefono Interno Forma Invalida",
+                              "studentDocument": "SIN-DATO-REAL-239",
+                              "studentPhone": "%s"
+                            }""".formatted(phone)).session(session))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                    .andExpect(jsonPath("$.title").value("Petición inválida"))
+                    .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                    .andExpect(jsonPath("$.invalidFields[0]").value("studentPhone"))
+                    .andExpect(jsonPath("$.missingFields.length()").value(0))
+                    .andReturn().getResponse().getContentAsString();
+            if (!phone.isEmpty()) {
+                assertThat(response)
+                        .as("[%s] el valor rechazado no se refleja de vuelta", phone)
+                        .doesNotContain(phone);
+            }
+        }
+    }
+
+    /**
+     * El contrato de la 008 promete que sin entrada de nacimiento {@code origin} va AUSENTE,
+     * nunca {@code null}: es una anomalía de datos, no un tercer origen, y el cliente la trata
+     * como «no pública» (FR-004). Ningún test lo fijaba en el detalle —solo el unitario de la
+     * bandeja cubre {@code originOf}— y dos mutantes sobrevivían: un {@code COORDINATION} por
+     * defecto en {@code toResponse} y un {@code @JsonInclude(ALWAYS)} sobre el campo. El
+     * review con agente limpio reprodujo el caso con esta misma sonda: se inserta la fila de
+     * {@code request} por SQL, sin escribir el timeline, que es lo único que el trigger
+     * protege. Se afirma sobre el cuerpo crudo además del jsonPath porque
+     * {@code doesNotExist()} acepta una clave presente con valor {@code null}.
+     */
+    @Test
+    @DisplayName("sin entrada de nacimiento, el detalle omite origin: ausente, no null (008, contrato FR-004)")
+    void detailOmitsOriginWhenTheBirthEntryIsMissing() throws Exception {
+        MockHttpSession session = login();
+        String template = registerAndGetId(session, "ADICION_CREDITOS",
+                "Estudiante Con Nacimiento", "SIN-DATO-REAL-240");
+        String orphan = java.util.UUID.randomUUID().toString();
+        assertThat(jdbcTemplate.update("""
+                INSERT INTO request (id, definition_id, current_state_id, student_name,
+                                     student_document, version, created_at)
+                SELECT ?::uuid, definition_id, current_state_id, 'Estudiante Sin Nacimiento',
+                       'SIN-DATO-REAL-241', 0, created_at
+                FROM request WHERE id = ?::uuid
+                """, orphan, template))
+                .as("la fila huérfana se insertó copiando definición y estado de una real")
+                .isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM request_transition_log WHERE request_id = ?::uuid",
+                Long.class, orphan))
+                .as("la huérfana no tiene entrada de nacimiento")
+                .isZero();
+
+        String body = mockMvc.perform(get("/api/requests/" + orphan).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.origin").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(body)
+                .as("origin va ausente, no como clave con null")
+                .doesNotContain("\"origin\"");
+    }
+
     // --- helpers -------------------------------------------------------------------------
 
     private String registerAndGetId(MockHttpSession session, String definitionCode,
