@@ -194,6 +194,45 @@ class WorkflowGenericityIT {
                 .isEmpty();
     }
 
+    // --- 008 (SC-005): el aviso se ofrece igual en un trámite que el código no conoce -------
+
+    @Test
+    @DisplayName("un trámite cargado por SQL expone isFinal y origin al cerrarse, sin que el código sepa que existe (008, SC-005)")
+    void liveLoadedDefinitionExposesTheFactsOfTheNoticeWhenClosed() throws Exception {
+        MockHttpSession session = login();
+        insertDemoV1();
+        String id = registerAndGetId(session, "DEMO", "Demostración Con Aviso", "608");
+
+        // El test tampoco conoce el camino: avanza por la única transición disponible
+        // hasta que la configuración diga «final». Vale para la v1 (ABIERTO → CERRADO) y
+        // para la v2 (pasa por REVISION), según cuál esté vigente al registrar: la
+        // solicitud queda atada a la versión con la que nació (FR-009 de la 002).
+        String current = mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        org.springframework.test.web.servlet.ResultActions last = null;
+        for (int step = 0; step < 5 && !isFinal(current); step++) {
+            String next = com.jayway.jsonpath.JsonPath.read(current, "$.availableTransitions[0].targetState.code");
+            last = mockMvc.perform(advanceRequest(id, next, null).session(session))
+                    .andExpect(status().isOk());
+            current = last.andReturn().getResponse().getContentAsString();
+        }
+        assertThat(last).as("la solicitud DEMO debió llegar a un estado final").isNotNull();
+
+        // La respuesta de la transición de cierre trae los hechos del aviso (FR-008):
+        // origin es COORDINATION porque DEMO no habilita captura pública y se registró con
+        // sesión; lo que SC-005 demuestra es que «final» y «origen» salen de la
+        // configuración y del timeline, no de que el código reconozca a DEMO.
+        last.andExpect(jsonPath("$.currentState.isFinal").value(true))
+                .andExpect(jsonPath("$.availableTransitions.length()").value(0))
+                .andExpect(jsonPath("$.origin").value("COORDINATION"));
+    }
+
+    private static boolean isFinal(String detailBody) {
+        return Boolean.TRUE.equals(
+                com.jayway.jsonpath.JsonPath.read(detailBody, "$.currentState.isFinal"));
+    }
+
     // --- helpers -------------------------------------------------------------------------
 
     // --- T040: SC-005 aplicado a la bandeja (007) ---------------------------------------

@@ -93,58 +93,55 @@ issue por SP1–SP7), no en un archivo. Se cierra con `Closes #N` en el cuerpo d
 Al citar literatura o normativa institucional, **incluir la referencia exacta** en cada afirmación — alineado con la regla general #4 del CLAUDE.md global.
 
 <!-- SPECKIT START -->
-**Feature ACTIVA: `007-coordination-inbox`** — SP5 (issue `Tramita#12`), la bandeja de trabajo de la
-Coordinación, y con ella la decisión acoplada del issue `#22`. Fase: **implementada** (T001–T044,
-commits desde `659f666`, ver `git log`), **revisada por agente limpio el 2026-09-21 con sus
-correcciones aplicadas**, **sin pushear**; lo siguiente es la PR con `Closes #12` y `Closes #22` en
-texto plano. Artefactos en `specs/007-coordination-inbox/`:
-`spec.md` (20 FR), `plan.md`, `research.md` (D1–D8), `data-model.md`, `contracts/openapi.yaml`,
-`quickstart.md`, `checklists/requirements.md` y **`tasks.md` (44 tareas, 6 fases)**.
-⛔ **NO volver a correr `/speckit-tasks`**: regenera `tasks.md` DESDE PLANTILLA
-(`.claude/skills/speckit-tasks/SKILL.md:77`) y pisaría las 44 tareas curadas —10 RED, 5 mutantes, 2 guardas de
-test, 1 invariante y las dos guardas de proceso T002/T041, medido el 2026-09-21 tras la auditoría;
-el «13 RED, 7 mutantes» que decía antes nunca fue exacto: en `1b1fbd6` eran 12 y 6—. ⚠️ La rama está **solo en local, sin pushear**: el único respaldo de ese
-archivo es el disco. Este bloque lo escribió `/speckit-plan` en el commit del plan, así que **queda
-una fase atrás por construcción** cada vez que corre: revisarlo antes de creerle.
-🔑 **La feature NO lleva migración Flyway**: todo lo que necesita ya está persistido desde `V2.0.0`
-—`workflow_transition.responsible`, `workflow_state.is_initial/is_final`,
-`request_transition_log.occurred_at`—. La última migración del repo sigue siendo **`V4.1.0`**.
-⛔ **Tres decisiones de la spec que NO se reabren**: (1) la bandeja lee el responsable que la
-configuración declara, **sin roles de usuario** — filtra pero **no impide**, y eso es trabajo futuro
-declarado, no un olvido; (2) se **mide** la antigüedad y **no** se dictamina vencimiento, porque no
-hay plazo institucional citable (el árbol lo registra como «documento pendiente de obtener») — de
-paso evita modelar los festivos de Colombia; (3) el catálogo expone los estados con `isInitial` e
-`isFinal` pero **sin orden lineal**: el flujo admite devoluciones y rechazos, así que no es una
-secuencia y un «paso N de M» sería una ficción.
-🔑 **El responsable viaja como PARÁMETRO de la consulta, nunca como literal en el código**: es lo que
-mantiene en una sola línea el `git grep` que prueba la tesis del §VI. Hardcodear `COORDINACION`
-agregaría una segunda.
-🔑 **La espera se cuenta desde la ÚLTIMA TRANSICIÓN, no desde la radicación** (research D3): una
-solicitud radicada hace dos meses y devuelta ayer lleva **un día** esperando. Medir desde `createdAt`
-invierte justo la priorización que la feature viene a dar. Y se expone el **instante**, no un número
-de días: así no hay zona horaria ni «ahora» congelado en la respuesta (D4).
-⚠️ **`GET /requests/inbox` se REUSA y eso ENMIENDA el contrato de la 004 de forma NO aditiva**: pasa
-de «las 50 más recientes, sin criterio» a «las que esperan a un responsable». Se apoya en un hecho
-medido: **ningún cliente lo consume**. `GET /workflow-definitions`, en cambio, cambia de forma
-**aditiva**.
-⚠️ **NO ampliar `WorkflowDefinitionResponse`**: se construye en CUATRO sitios porque se anida en cada
-respuesta de solicitud. Los estados van en un DTO propio, `WorkflowDefinitionDetailResponse`.
-Medido con un spike descartable: 5 archivos + 1 nuevo, +16/−9 líneas, suite verde sin tocar un test.
-⚠️ **`InboxEntryResponse` NUNCA lleva documento de identidad** — es el invariante del DTO desde la
-004 y la garantía de minimización del §III. El `quickstart.md` lo verifica explícitamente.
-Suite base sobre `29acf33`: 157 unitarios + 96 IT; al cerrar la implementación (`d221b69`): 160
-unitarios + 108 IT; tras las correcciones del review (`cb85fd6`): **163 unitarios + 112 IT, sin
-fallos**. Como siempre en este repo, se
-re-mide, no se cita de memoria.
-Última feature cerrada: `006-verifiable-document-seal` — SP4 (issue `Tramita#11`, **CERRADO**), PR #41
-(`789faea`). ⛔ Nada de la 006 se re-agenda. Sus decisiones vivas: el sello compara contra la **huella
-guardada** sin regenerar el documento; el canal público `GET /public/seals/{code}` solo afirma que el
-sello existe; el `/ID` del trailer se fija derivado del trámite para que el PDF sea reproducible.
-Antes: `005-formal-document` (SP3, PR #31), `004-public-request-capture` y `003-request-form-rules`.
+**Feature ACTIVA: `008-student-closure-notice`** — SP7 (issue `Tramita#13`), el aviso de cierre al
+estudiante. Fase: **implementada y revisada** (2026-09-24; implementación `82e5aaf`…`813113d`, cierre
+documental `26f2200`/`8032c9b`, review con agente limpio aplicado en `99630ee`…`c5c299e`; `3e9ffd4` cierra
+las 41 tareas con el cuerpo de la PR preparado). Si la PR ya se abrió o se mergeó no se escribe acá: se
+deriva con `gh pr list --head 008-student-closure-notice --state all`.
+Artefactos en `specs/008-student-closure-notice/`: `spec.md` (16 FR, 6 SC, 3 US), `plan.md`,
+`research.md` (D1–D9), `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`,
+`checklists/requirements.md` y **`tasks.md` (41 tareas, 6 fases)**. ⚠️ Este bloque lo reescribe **solo `/speckit-plan`** cuando corre
+(`.claude/skills/speckit-plan/SKILL.md`), y queda una fase atrás por construcción: revisarlo antes de
+creerle. ⚠️ `/speckit-tasks` regenera `tasks.md` DESDE PLANTILLA (`.claude/skills/speckit-tasks/SKILL.md:77`):
+se corre UNA vez; después `tasks.md` se edita a mano.
+🔑 **Qué ES la 008**: DOS acciones manuales de la Coordinación, solo para solicitudes del enlace público
+en un estado final —correo prellenado `mailto:` (P1, lo que pidió la Coordinación: Sesión 2 parte B,
+Q22–Q23) y `wa.me` (P2, decisión del equipo, solo con móvil `^3\d{9}$`)—. El sistema **no envía nada ni
+registra «avisado»** (FR-006/FR-007). ⛔ **NO reabrir**: el correo automático (sin SMTP institucional no
+hay correo oficial; un proveedor entrega datos a un tercero), B′ (evento + listener + puerto + tabla),
+`is_success`, acortar `student_phone` a `VARCHAR(10)` (medido: cuenta caracteres y choca con filas
+existentes) y los números extranjeros.
+🔑 **El back expone HECHOS y el front decide** (research D5): `RequestResponse` suma `origin`,
+`studentEmail` y `studentPhone` (aditivo, `NON_NULL`); la regla «ofrecer el aviso» es del cliente
+(`origin === 'PUBLIC_LINK' && currentState.isFinal`) y el texto (nombre + trámite + estado, nada más)
+también. `RequestSummaryResponse` e `InboxEntryResponse` NUNCA llevan correo ni teléfono (§III).
+🔑 **Teléfono `[0-9]{10}` validado en el API** (D3): obligatorio en `PublicRequestBody`, opcional en
+`CreateRequestBody`; NO se normaliza ni se reescriben filas. Es enmienda **NO aditiva** del contrato de
+la 004 y del interno (FR-013, precedente 007). Rompía DOS fixtures `"000 000 0000"`
+(`PublicRequestControllerIT:392` y `PublicCaptureExceptionHandlerTest:156`, corregidos en `813113d`). El
+filtro de dígitos del front (tramita-frontend PR #57) debe desplegarse antes o a la vez.
+🔑 **Sin migración**: la última sigue siendo `V4.1.0`. El origen se deriva del timeline con el `originOf`
+de la 007 (un SELECT más por respuesta, D2) y el enum pasa a `dto/RequestOrigin` (D1; el JSON no cambia).
+El estado final se lee de `StateResponse.isFinal` (§VI): el `git grep` de la tesis sigue en UNA línea.
+🔑 `spike/008-wa` (`a58561d`) es **referencia, no base**; los spikes `008-a/-b/-b2/-c` son de B′ y están
+obsoletos (5 worktrees en `../Tramita-worktrees/`; se borran con el OK del usuario).
+📎 Al abrir la PR: `Closes #13` en texto plano; enmendar sus criterios («puerto como interfaz», «solo en
+FINALIZADO») y decidir `#38`/`#39`; pasarle a Codex el reparto del front (`plan.md`, «Reparto con el
+frontend»). El árbol ya está enmendado (`26f2200`, cuatro líneas: `:134`, `:164`, `:181`, `:216`). Suite
+final: **163 unitarios + 127 IT** (`ca5decf`); base 163 + 112 (`cb85fd6`); se re-mide, no se cita de memoria.
+Última feature cerrada: `007-coordination-inbox` — SP5 (`#12`, CERRADO) + `#22`, PR #47 (`412a5e0`).
+⛔ Nada de la 007 se re-agenda. Sus decisiones vivas: la bandeja lee el responsable que la configuración
+declara, **sin roles** (filtra, no impide); se **mide** la antigüedad desde la ÚLTIMA transición y no se
+dictamina vencimiento; el catálogo expone `isInitial`/`isFinal` **sin orden lineal**; el responsable viaja
+como PARÁMETRO, nunca como literal; `GET /requests/inbox` se reusó enmendando la 004 de forma no aditiva;
+`WorkflowDefinitionResponse` NO se amplía (los estados van en `WorkflowDefinitionDetailResponse`).
+Antes: `006-verifiable-document-seal` (SP4, PR #41: huella guardada sin regenerar; `GET /public/seals/{code}`
+solo afirma que el sello existe; `/ID` derivado del trámite), `005-formal-document` (SP3, PR #31),
+`004-public-request-capture` y `003-request-form-rules`.
 Stack: Java 21 · Spring Boot 4.0.7 (Security 7, Data JPA, Validation, WebMVC) · PostgreSQL + Flyway
 (validate) · PDFBox 3 · BCrypt · Lombok · Testcontainers (test).
 Paquete `com.uniremington.api.tramita`, estructura **package-by-layer**: `controller/`,
 `dto/`, `model/`, `repo/`, `security/`, `service/` (contratos) + `service/impl/`, `util/`
 y `shared/` (`config/`, `exception/`, `seed/`). Interfaces con prefijo `I`.
-Para más contexto de tecnologías, estructura y comandos, leer `specs/007-coordination-inbox/plan.md`.
+Para más contexto de tecnologías, estructura y comandos, leer `specs/008-student-closure-notice/plan.md`.
 <!-- SPECKIT END -->

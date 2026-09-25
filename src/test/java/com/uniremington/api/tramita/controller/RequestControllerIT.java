@@ -248,22 +248,21 @@ class RequestControllerIT {
     }
 
     @Test
-    @DisplayName("el correo del estudiante se conserva pero NUNCA sale en la respuesta (FR-005a)")
-    void registerPersistsStudentEmailButNeverReturnsIt() throws Exception {
-        // ⚠️ ESTE TEST AFIRMABA LO CONTRARIO HASTA EL 2026-09-16. Se llamaba
-        // «registerNeverPersistsNorReturnsStudentContactData» y su comentario decía que
-        // «el sistema no tiene dónde guardarlo: el campo se ignora». Dejó de ser cierto
-        // cuando la 004 agregó student_email a la tabla, y el test siguió en verde
-        // porque solo miraba la respuesta HTTP, nunca la fila. Lo encontró un review
-        // independiente (A-2).
+    @DisplayName("el correo del estudiante se conserva Y sale en la respuesta del registro (008, FR-008)")
+    void registerPersistsAndReturnsStudentEmail() throws Exception {
+        // ⚠️ ESTE TEST SE INVIRTIÓ A CONCIENCIA EL 2026-09-24 (008, FR-008; research.md D4).
+        // Hasta entonces se llamaba «registerPersistsStudentEmailButNeverReturnsIt» y
+        // afirmaba que el correo se guardaba pero NUNCA salía. Y antes, hasta el 2026-09-16,
+        // se llamaba «registerNeverPersistsNorReturnsStudentContactData» y afirmaba que ni
+        // siquiera se guardaba. Cada versión defendió el invariante de su feature: la 003
+        // no lo almacenaba «hasta que exista quien lo use» (su FR-020), la 004 lo almacenó
+        // para el PDF formal (FR-005a) sin exponerlo porque nadie lo consumía.
         //
-        // El FR-020 que citaba era el de la 003 —«MUST NOT almacenar el correo»— que el
-        // FR-005a de la 004 revoca explícitamente: el consumidor apareció (el PDF formal
-        // del SP3). En la 004, FR-020 significa otra cosa: no escribirlo en las bitácoras.
-        //
-        // Lo que sigue siendo cierto, y es lo que este test defiende: el dato se guarda,
-        // pero este endpoint NO lo devuelve. Son dos garantías distintas y ahora se
-        // asertan las dos.
+        // La 008 es ese consumidor: la Coordinación necesita el correo en el detalle para
+        // armar el aviso de cierre. Por eso ahora se afirma que SALE bajo su clave. La
+        // segunda mitad —que la fila lo guarda— no cambia: son dos garantías distintas y
+        // se asertan las dos. Invertir una aserción verde cambia una conducta entregada;
+        // se hizo con la spec delante, no con la suite en rojo.
         String email = "contacto.de.prueba@ejemplo.test";
         String studentName = "Estudiante Con Correo";
 
@@ -275,11 +274,8 @@ class RequestControllerIT {
                           "studentEmail": "%s"
                         }""".formatted(studentName, email)).session(login()))
                 .andExpect(status().isCreated())
-                // No sale: ni bajo su clave, ni bajo ninguna otra
-                .andExpect(jsonPath("$.studentEmail").doesNotExist())
-                .andExpect(content().string(
-                        org.hamcrest.Matchers.not(
-                                org.hamcrest.Matchers.containsString(email))));
+                // Sale bajo su clave: es lo que el cliente lee para armar el mailto (FR-008)
+                .andExpect(jsonPath("$.studentEmail").value(email));
 
         // Y sí se conserva: la aserción que faltaba y que dejaba pasar la contradicción
         Request saved = requestRepo.findAll().stream()
@@ -1223,6 +1219,278 @@ class RequestControllerIT {
 
         mockMvc.perform(get("/api/requests/no-es-un-uuid/seals").session(session))
                 .andExpect(status().isBadRequest());
+    }
+
+    // --- 008 / FR-008: el detalle expone el origen y el contacto en las tres acciones ------
+
+    @Test
+    @DisplayName("registrar con correo y teléfono los devuelve bajo su clave con origin COORDINATION, y el detalle repite lo mismo (008, FR-008)")
+    void registerAndDetailExposeContactAndCoordinationOrigin() throws Exception {
+        MockHttpSession session = login();
+        String email = "contacto.expuesto@ejemplo.test";
+        // Sintético a simple vista, como los documentos SIN-DATO-REAL (auditoría del
+        // 2026-09-24, M4): cumple [0-9]{10} y ^3\\d{9}$ sin parecer un número real.
+        String phone = "3000000001";
+        String body = mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Con Contacto Interno",
+                          "studentDocument": "SIN-DATO-REAL-231",
+                          "studentEmail": "%s",
+                          "studentPhone": "%s"
+                        }""".formatted(email, phone)).session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.origin").value("COORDINATION"))
+                .andExpect(jsonPath("$.studentEmail").value(email))
+                .andExpect(jsonPath("$.studentPhone").value(phone))
+                .andReturn().getResponse().getContentAsString();
+        String id = com.jayway.jsonpath.JsonPath.read(body, "$.id");
+
+        mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.origin").value("COORDINATION"))
+                .andExpect(jsonPath("$.studentEmail").value(email))
+                .andExpect(jsonPath("$.studentPhone").value(phone));
+    }
+
+    @Test
+    @DisplayName("sin contacto declarado, la respuesta trae origin COORDINATION y NO trae las claves del contacto (008, NON_NULL)")
+    void registerWithoutContactOmitsTheContactKeys() throws Exception {
+        MockHttpSession session = login();
+
+        mockMvc.perform(createRequest("ADICION_CREDITOS", "Estudiante Sin Contacto", "SIN-DATO-REAL-232")
+                        .session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.origin").value("COORDINATION"))
+                // También sobre el cuerpo crudo: sobre una clave presente con valor null,
+                // jsonPath(...).doesNotExist() pasa igual y no detectaría que alguien quitó
+                // el NON_NULL del record (mutante T020a). Es lo que ya hace el test del
+                // correo con el valor, aplicado acá a la clave.
+                .andExpect(jsonPath("$.studentEmail").doesNotExist())
+                .andExpect(jsonPath("$.studentPhone").doesNotExist())
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("\"studentEmail\""))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("\"studentPhone\""))));
+    }
+
+    /**
+     * GUARDA, no RED: ni la búsqueda ni la bandeja llevan el contacto hoy. Se fija para que
+     * exponerlo en el detalle (T016) no lo filtre por accidente en los listados (§III); su
+     * mutante es T020(b). Precedente: {@code inboxNeverExposesStudentDocument}.
+     */
+    @Test
+    @DisplayName("la búsqueda y la bandeja nunca exponen correo ni teléfono, aunque la solicitud los tenga (008, §III)")
+    void searchAndInboxNeverExposeContact() throws Exception {
+        MockHttpSession session = login();
+        String studentName = "Estudiante Listado Sin Contacto";
+        String email = "listado.sin.contacto@ejemplo.test";
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "%s",
+                          "studentDocument": "SIN-DATO-REAL-233",
+                          "studentEmail": "%s",
+                          "studentPhone": "3000000002"
+                        }""".formatted(studentName, email)).session(session))
+                .andExpect(status().isCreated());
+
+        String search = mockMvc.perform(get("/api/requests").param("search", studentName).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[*].studentEmail").doesNotExist())
+                .andExpect(jsonPath("$[*].studentPhone").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        String inbox = mockMvc.perform(get(INBOX)
+                        .param("responsible", "COORDINACION").param("limit", "200")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].studentEmail").doesNotExist())
+                .andExpect(jsonPath("$[*].studentPhone").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+
+        // Sobre el JSON servido: lo que se promete es que el dato no SALE por ninguna clave.
+        assertThat(search).doesNotContain("\"studentEmail\"", "\"studentPhone\"", email, "3000000002");
+        assertThat(inbox).doesNotContain("\"studentEmail\"", "\"studentPhone\"", email, "3000000002");
+    }
+
+    /**
+     * GUARDA, no RED (SC-006): consultar los hechos del aviso no escribe. Se fija porque
+     * desde T017 el detalle LEE el timeline para derivar el origen, y una lectura que
+     * escribiera sería exactamente el error que este test detecta.
+     */
+    @Test
+    @DisplayName("consultar el detalle no agrega entradas al timeline (008, SC-006)")
+    void readingTheDetailWritesNothingToTheTimeline() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Consulta Sin Rastro", "SIN-DATO-REAL-234");
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/requests/" + id + "/timeline").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+
+        mockMvc.perform(get("/api/requests/" + id).session(session)).andExpect(status().isOk());
+        mockMvc.perform(get("/api/requests/" + id).session(session)).andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/requests/" + id + "/timeline").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+    }
+
+    /**
+     * GUARDA, no RED (FR-011; spec US2, escenario 3): el teléfono sale TAL COMO se guardó. Se
+     * escribe por SQL y no por la API a propósito: representa las filas radicadas antes de la
+     * 008 —que no se reescriben— y es estable en cualquier orden de ejecución, porque antes de
+     * US3 el endpoint aceptaría este valor y después lo rechaza. Es legal: {@code request} no
+     * tiene trigger de inmutabilidad ni CHECK sobre la columna (V3.3.0 solo la agrega como
+     * VARCHAR(30)); {@code updatable = false} es una promesa de JPA, no de la base. Su valor es
+     * el mutante T023: normalizar en el servidor, que es lo que FR-011 prohíbe.
+     */
+    @Test
+    @DisplayName("un teléfono anterior a la feature sale verbatim en el detalle, sin normalizar (008, FR-011)")
+    void detailReturnsLegacyPhoneVerbatim() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Estudiante Con Telefono Viejo",
+                "SIN-DATO-REAL-235");
+        String legacyPhone = "300 123 4567";
+        assertThat(jdbcTemplate.update(
+                "UPDATE request SET student_phone = ? WHERE id = ?::uuid", legacyPhone, id))
+                .as("la fila existe y se pudo escribir el teléfono viejo por SQL")
+                .isEqualTo(1);
+
+        for (int lectura = 1; lectura <= 2; lectura++) {
+            mockMvc.perform(get("/api/requests/" + id).session(session))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.studentPhone").value(legacyPhone));
+        }
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT student_phone FROM request WHERE id = ?::uuid", String.class, id))
+                .as("consultar el detalle no reescribe la fila (FR-011)")
+                .isEqualTo(legacyPhone);
+    }
+
+    /**
+     * FR-010: el canal interno mantiene el teléfono opcional y, si viene, con forma. Que sea
+     * 400 y no 422 es la convención del canal: un valor inválido es un defecto del contrato de
+     * entrada, no un formato que no se puede procesar (GlobalExceptionHandler vs.
+     * PublicCaptureExceptionHandler).
+     */
+    @Test
+    @DisplayName("canal interno: sin teléfono 201, y con diez dígitos 201 devuelto bajo su clave (008, FR-010)")
+    void internalChannelKeepsThePhoneOptional() throws Exception {
+        MockHttpSession session = login();
+        mockMvc.perform(createRequest("ADICION_CREDITOS", "Estudiante Sin Telefono Interno",
+                        "SIN-DATO-REAL-236").session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.studentPhone").doesNotExist());
+
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Con Telefono Interno",
+                          "studentDocument": "SIN-DATO-REAL-237",
+                          "studentPhone": "3000000001"
+                        }""").session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.studentPhone").value("3000000001"));
+    }
+
+    @Test
+    @DisplayName("canal interno: un teléfono que no son diez dígitos es 400 «Petición inválida» que nombra el campo (008, FR-010)")
+    void internalChannelRejectsMalformedPhoneNamingTheField() throws Exception {
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Telefono Interno Mal Escrito",
+                          "studentDocument": "SIN-DATO-REAL-238",
+                          "studentPhone": "300 123 4567"
+                        }""").session(login()))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.title").value("Petición inválida"))
+                .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                .andExpect(jsonPath("$.invalidFields[0]").value("studentPhone"))
+                .andExpect(jsonPath("$.missingFields.length()").value(0));
+    }
+
+    /**
+     * FR-010 dice «la misma regla» que el canal público, y hasta el review con agente limpio
+     * el canal interno solo probaba un valor con espacios: cualquier regex sin espacios lo
+     * rechaza, así que tres mutantes sobre el patrón —{@code [0-9]{9,10}}, {@code .{10}} y
+     * {@code ([0-9]{10})?}— sobrevivían con la suite en verde. Esta matriz es la del canal
+     * público (FR-009), incluido el vacío: en el interno {@code ""} es «vino e inválido» y
+     * responde 400, porque para no declarar teléfono se omite la clave.
+     */
+    @Test
+    @DisplayName("canal interno: toda forma que no sean diez dígitos —9, 11, letras, vacío— es 400 que nombra el campo (008, FR-010)")
+    void internalChannelRejectsEveryPhoneShapeThatIsNotTenDigits() throws Exception {
+        MockHttpSession session = login();
+        java.util.List<String> malformed = java.util.List.of(
+                "300123456", "30012345678", "abcdefghij", "");
+        for (String phone : malformed) {
+            String response = mockMvc.perform(createRequestWithForm("""
+                            {
+                              "definitionCode": "ADICION_CREDITOS",
+                              "studentName": "Estudiante Telefono Interno Forma Invalida",
+                              "studentDocument": "SIN-DATO-REAL-239",
+                              "studentPhone": "%s"
+                            }""".formatted(phone)).session(session))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                    .andExpect(jsonPath("$.title").value("Petición inválida"))
+                    .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                    .andExpect(jsonPath("$.invalidFields[0]").value("studentPhone"))
+                    .andExpect(jsonPath("$.missingFields.length()").value(0))
+                    .andReturn().getResponse().getContentAsString();
+            if (!phone.isEmpty()) {
+                assertThat(response)
+                        .as("[%s] el valor rechazado no se refleja de vuelta", phone)
+                        .doesNotContain(phone);
+            }
+        }
+    }
+
+    /**
+     * El contrato de la 008 promete que sin entrada de nacimiento {@code origin} va AUSENTE,
+     * nunca {@code null}: es una anomalía de datos, no un tercer origen, y el cliente la trata
+     * como «no pública» (FR-004). Ningún test lo fijaba en el detalle —solo el unitario de la
+     * bandeja cubre {@code originOf}— y dos mutantes sobrevivían: un {@code COORDINATION} por
+     * defecto en {@code toResponse} y un {@code @JsonInclude(ALWAYS)} sobre el campo. El
+     * review con agente limpio reprodujo el caso con esta misma sonda: se inserta la fila de
+     * {@code request} por SQL, sin escribir el timeline, que es lo único que el trigger
+     * protege. Se afirma sobre el cuerpo crudo además del jsonPath porque
+     * {@code doesNotExist()} acepta una clave presente con valor {@code null}.
+     */
+    @Test
+    @DisplayName("sin entrada de nacimiento, el detalle omite origin: ausente, no null (008, contrato FR-004)")
+    void detailOmitsOriginWhenTheBirthEntryIsMissing() throws Exception {
+        MockHttpSession session = login();
+        String template = registerAndGetId(session, "ADICION_CREDITOS",
+                "Estudiante Con Nacimiento", "SIN-DATO-REAL-240");
+        String orphan = java.util.UUID.randomUUID().toString();
+        assertThat(jdbcTemplate.update("""
+                INSERT INTO request (id, definition_id, current_state_id, student_name,
+                                     student_document, version, created_at)
+                SELECT ?::uuid, definition_id, current_state_id, 'Estudiante Sin Nacimiento',
+                       'SIN-DATO-REAL-241', 0, created_at
+                FROM request WHERE id = ?::uuid
+                """, orphan, template))
+                .as("la fila huérfana se insertó copiando definición y estado de una real")
+                .isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM request_transition_log WHERE request_id = ?::uuid",
+                Long.class, orphan))
+                .as("la huérfana no tiene entrada de nacimiento")
+                .isZero();
+
+        String body = mockMvc.perform(get("/api/requests/" + orphan).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.origin").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(body)
+                .as("origin va ausente, no como clave con null")
+                .doesNotContain("\"origin\"");
     }
 
     // --- helpers -------------------------------------------------------------------------

@@ -50,19 +50,10 @@ public record InboxEntryResponse(
         OffsetDateTime waitingSince,
         /** Redundante con el filtro pedido, y deliberado: la respuesta se lee sola. */
         String pendingResponsible,
-        Origin origin) {
-
-    /**
-     * Cómo nació la solicitud (007, FR-007). Se deriva del actor de su entrada de
-     * nacimiento: el canal público actúa con una cuenta propia desde la 004, así que
-     * no hay nada nuevo que persistir. Importa porque cambia qué se verificó antes de
-     * que llegara: lo que entra por el enlace público lo diligenció el estudiante.
-     *
-     * {@code COORDINATION} significa «cualquier cuenta autenticada» mientras no haya
-     * roles —hoy hay una sola, la de la Coordinación—; NO es una comprobación de rol.
-     */
-    public enum Origin {
-        COORDINATION,
-        PUBLIC_LINK
-    }
+        /**
+         * Cómo nació la solicitud (007, FR-007): ver {@link RequestOrigin}. Vivía acá como
+         * enum anidado hasta la 008, que lo llevó a primer nivel porque el detalle también
+         * lo expone (research.md D1 de la 008). Sin cambio en el JSON.
+         */
+        RequestOrigin origin) {
 }

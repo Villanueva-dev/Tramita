@@ -5,6 +5,7 @@ import com.uniremington.api.tramita.dto.AvailableTransitionResponse;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
 import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.PublicRequestBody;
+import com.uniremington.api.tramita.dto.RequestOrigin;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
 import com.uniremington.api.tramita.dto.SubjectResponse;
@@ -34,6 +35,7 @@ import com.uniremington.api.tramita.shared.exception.UnprocessableRequestExcepti
 import com.uniremington.api.tramita.util.CampusTime;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -436,13 +438,13 @@ public class RequestServiceImpl implements IRequestService {
      * persistir. Sin entrada de nacimiento no hay origen que afirmar: null, no un
      * valor inventado.
      */
-    private InboxEntryResponse.Origin originOf(List<RequestTransitionLog> timeline) {
+    private RequestOrigin originOf(List<RequestTransitionLog> timeline) {
         return timeline.stream()
                 .filter(entry -> entry.getFromState() == null)
                 .findFirst()
                 .map(entry -> PORTAL_ACTOR_EMAIL.equals(entry.getActor().getEmail())
-                        ? InboxEntryResponse.Origin.PUBLIC_LINK
-                        : InboxEntryResponse.Origin.COORDINATION)
+                        ? RequestOrigin.PUBLIC_LINK
+                        : RequestOrigin.COORDINATION)
                 .orElse(null);
     }
 
@@ -536,10 +538,37 @@ public class RequestServiceImpl implements IRequestService {
                 () -> new IllegalStateException("La sesión referencia un usuario inexistente"));
     }
 
-    /** Mapeo a mano (convención de 001): la entity nunca cruza la frontera de la API. */
+    /**
+     * Mapeo a mano (convención de 001): la entity nunca cruza la frontera de la API.
+     *
+     * Desde la 008 carga el timeline para derivar el origen (FR-008): una consulta más por
+     * cada respuesta de detalle —register, advance y getById—, acotada por el largo del
+     * timeline (del orden de cinco a diez entradas), y CON EL ACTOR EN EL MISMO JOIN:
+     * {@code findTimelinesOf}, la consulta en lote de la bandeja, para un solo id. No es
+     * la de {@code getTimeline}: esa no trae al actor, que es perezoso, y {@code originOf}
+     * lo lee. El review con agente limpio de la 008 midió con Statistics de Hibernate que
+     * con la consulta sin fetch el detalle costaba DOS consultas en getById —el timeline y
+     * la carga perezosa del actor— y una en register y advance, donde el usuario ya estaba
+     * en la sesión; con el join fetch queda en una en los tres caminos. El cliente que
+     * hacía dos llamadas para saber el origen deja de necesitar la segunda. Se reusa
+     * {@code originOf} de la 007 a
+     * propósito: es la única forma de que «origen» signifique lo mismo en la bandeja y
+     * en el detalle. Se descartó un caso especial en {@code register} —donde el actor ya
+     * se conoce— porque serían dos formas de calcular el mismo dato, y una consulta
+     * dirigida a la entrada de nacimiento queda anotada como LA optimización si alguna
+     * vez una medición muestra que el detalle pesa; no se construye antes (research.md
+     * D2 de la 008).
+     *
+     * El correo y el teléfono se pasan sin transformarlos (FR-011): salen tal como se
+     * guardaron, y {@code RequestResponse} los omite cuando son nulos.
+     */
     private RequestResponse toResponse(Request request) {
         WorkflowDefinition definition = request.getDefinition();
         WorkflowState current = request.getCurrentState();
+        // singletonList y no List.of: los unitarios mapean entidades sin persistir, con id nulo,
+        // y List.of(null) lanza NPE antes de llegar al mock del repositorio.
+        List<RequestTransitionLog> timeline =
+                logRepo.findTimelinesOf(Collections.singletonList(request.getId()));
         // De un estado final no sale ninguna transición: lista vacía = trámite cerrado
         var available = definition.getTransitions().stream()
                 .filter(t -> t.getFromState().getCode().equals(current.getCode()))
@@ -559,7 +588,10 @@ public class RequestServiceImpl implements IRequestService {
                 toSubjectResponses(request),
                 StateResponseMapper.toResponse(current),
                 available,
-                request.getCreatedAt());
+                request.getCreatedAt(),
+                originOf(timeline),
+                request.getStudentEmail(),
+                request.getStudentPhone());
     }
 
     private List<SubjectResponse> toSubjectResponses(Request request) {
