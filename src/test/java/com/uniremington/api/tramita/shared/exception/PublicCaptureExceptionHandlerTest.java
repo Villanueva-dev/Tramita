@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.uniremington.api.tramita.controller.PublicRequestController;
 import com.uniremington.api.tramita.dto.PublicRequestBody;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
@@ -93,6 +94,23 @@ class PublicCaptureExceptionHandlerTest {
         assertThat(missingFields(problem)).containsExactly("studentEmail");
         assertThat(invalidFields(problem)).isEmpty();
         assertThat(problem.getTitle()).isEqualTo("Formato incompleto");
+    }
+
+    // --- InvalidFieldValueException (009, FR-002): mismo 422 que Bean Validation ----------
+
+    @Test
+    @DisplayName("catálogo de programas: mismo 422 «Formato inválido» que un valor inválido de Bean Validation")
+    void invalidFieldValueMapsToTheSame422AsBeanValidation() {
+        ProblemDetail problem = handler.handleInvalidFieldValue(
+                new InvalidFieldValueException(List.of("program")));
+
+        assertThat(problem.getStatus()).isEqualTo(422);
+        assertThat(problem.getTitle()).isEqualTo("Formato inválido");
+        assertThat(problem.getDetail()).isEqualTo(
+                "El formato tiene campos con un valor que no se puede procesar. "
+                        + "Revise estos campos: program");
+        assertThat(missingFields(problem)).isEmpty();
+        assertThat(invalidFields(problem)).containsExactly("program");
     }
 
     // --- helpers -------------------------------------------------------------------------

@@ -1,17 +1,24 @@
 package com.uniremington.api.tramita.service.impl;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.uniremington.api.tramita.dto.CreateRequestBody;
 import com.uniremington.api.tramita.dto.SubjectRequestBody;
 import com.uniremington.api.tramita.model.WorkflowDefinition;
 import com.uniremington.api.tramita.model.WorkflowParameter;
+import com.uniremington.api.tramita.repo.IAcademicProgramRepo;
 import com.uniremington.api.tramita.repo.IWorkflowParameterRepo;
 import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationException;
+import com.uniremington.api.tramita.shared.exception.InvalidFieldValueException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
 import java.math.BigDecimal;
 import java.util.List;
@@ -39,7 +46,9 @@ class RequestBusinessRulesImplTest {
     private static final UUID DEFINITION_ID = UUID.randomUUID();
 
     private final IWorkflowParameterRepo parameterRepo = mock(IWorkflowParameterRepo.class);
-    private final RequestBusinessRulesImpl rules = new RequestBusinessRulesImpl(parameterRepo);
+    private final IAcademicProgramRepo programRepo = mock(IAcademicProgramRepo.class);
+    private final RequestBusinessRulesImpl rules =
+            new RequestBusinessRulesImpl(parameterRepo, programRepo);
 
     private final WorkflowDefinition definition = WorkflowDefinition.builder()
             .id(DEFINITION_ID)
@@ -185,6 +194,58 @@ class RequestBusinessRulesImplTest {
                 .isInstanceOf(IncompleteConfigurationException.class);
     }
 
+    // --- Catálogo de programas (FR-004, research.md D4, 009) -------------------------------
+
+    @Test
+    @DisplayName("programa null: no se valida contra el catálogo")
+    void nullProgramDoesNotValidateAgainstCatalog() {
+        // program es opcional (CreateRequestBody): ausente no es lo mismo que fuera
+        // de catálogo, y no debe ni siquiera consultar el repositorio.
+        assertThatCode(() -> rules.validate(definition, body(List.of())))
+                .doesNotThrowAnyException();
+
+        verify(programRepo, never()).existsByName(any());
+    }
+
+    @Test
+    @DisplayName("programa del catálogo: no lanza")
+    void catalogProgramDoesNotThrow() {
+        when(programRepo.existsByName("Ingeniería de Sistemas")).thenReturn(true);
+
+        assertThatCode(() -> rules.validate(
+                        definition, bodyWithProgram("Ingeniería de Sistemas")))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("programa fuera del catálogo: InvalidFieldValueException sin el valor rechazado (§III)")
+    void programOutsideCatalogThrowsInvalidFieldValue() {
+        when(programRepo.existsByName("Psicología")).thenReturn(false);
+
+        assertThatExceptionOfType(InvalidFieldValueException.class)
+                .isThrownBy(() -> rules.validate(definition, bodyWithProgram("Psicología")))
+                .satisfies(exception -> {
+                    assertThat(exception.getInvalidFields()).isEqualTo(List.of("program"));
+                    // Nunca el valor rechazado en el mensaje: viaja al log, no al cliente.
+                    assertThat(exception.getMessage()).doesNotContain("Psicología");
+                });
+    }
+
+    @Test
+    @DisplayName("catálogo antes que créditos: gana aunque el mismo cuerpo también exceda el máximo (research.md D4)")
+    void catalogValidationPrecedesCreditsValidation() {
+        stub("CAPTURES_CREDITS", "true");
+        stub("MAX_CREDITS", "21");
+        when(programRepo.existsByName("Psicología")).thenReturn(false);
+
+        // 22 créditos (por encima del tope) Y un programa fuera de catálogo a la vez:
+        // si validate comprobara los créditos primero, esto lanzaría
+        // UnprocessableRequestException en lugar de InvalidFieldValueException.
+        assertThatExceptionOfType(InvalidFieldValueException.class)
+                .isThrownBy(() -> rules.validate(
+                        definition, bodyWithProgramAndCredits("Psicología", 12, 10)));
+    }
+
     // --- Rango de notas (FR-012) ----------------------------------------------------------
 
     @Test
@@ -259,6 +320,17 @@ class RequestBusinessRulesImplTest {
 
     private CreateRequestBody bodyWithGrades(String current, String proposed) {
         return body(List.of(subject(null, current, proposed)));
+    }
+
+    private CreateRequestBody bodyWithProgram(String program) {
+        return new CreateRequestBody("ADICION_CREDITOS", "Estudiante De Prueba", "DOC-TEST-0001",
+                null, program, null, null, List.of());
+    }
+
+    private CreateRequestBody bodyWithProgramAndCredits(String program, int first, int second) {
+        return new CreateRequestBody("ADICION_CREDITOS", "Estudiante De Prueba", "DOC-TEST-0001",
+                null, program, null, null,
+                List.of(subject(first, null, null), subject(second, null, null)));
     }
 
     private SubjectRequestBody subject(Integer credits, String current, String proposed) {

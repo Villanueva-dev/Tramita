@@ -10,8 +10,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Verificación abierta por posesión del código impreso en el documento (006, FR-014,
- * FR-014b). TERCER Y ÚLTIMO endpoint sin sesión del sistema, después del login y de la
- * captura pública (004).
+ * FR-014b). TERCER endpoint sin sesión del sistema, después del login y de la captura
+ * pública (004); el cuarto es el catálogo de programas (009, {@code PublicProgramController}).
  *
  * LA POSESIÓN DEL DOCUMENTO ES LA AUTORIZACIÓN (research.md D9): el código tiene 64 bits de
  * entropía, así que recorrer el espacio no es viable y este canal no necesita límite de tasa

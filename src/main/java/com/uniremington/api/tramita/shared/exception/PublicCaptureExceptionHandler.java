@@ -47,9 +47,22 @@ public class PublicCaptureExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ProblemDetail handleIncompleteForm(MethodArgumentNotValidException ex) {
         List<FieldError> fieldErrors = ex.getBindingResult().getFieldErrors();
-        List<String> missingFields = ValidationFields.missing(fieldErrors);
-        List<String> invalidFields = ValidationFields.invalid(fieldErrors);
+        return buildProblem(ValidationFields.missing(fieldErrors), ValidationFields.invalid(fieldErrors));
+    }
 
+    /**
+     * Un campo inválido contra configuración persistida, no contra Bean Validation (009,
+     * FR-002; research.md D4) —el catálogo de programas—. Mismo 422 y misma forma de
+     * respuesta que {@link #handleIncompleteForm}: el cliente público no necesita
+     * distinguir de dónde salió el rechazo, solo qué campo revisar.
+     */
+    @ExceptionHandler(InvalidFieldValueException.class)
+    ProblemDetail handleInvalidFieldValue(InvalidFieldValueException ex) {
+        return buildProblem(List.of(), ex.getInvalidFields());
+    }
+
+    /** Arma el mismo {@link ProblemDetail} para las dos causas del 422 (Bean Validation y catálogo). */
+    private static ProblemDetail buildProblem(List<String> missingFields, List<String> invalidFields) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.UNPROCESSABLE_CONTENT, detailFor(missingFields, invalidFields));
         problem.setTitle(missingFields.isEmpty() ? "Formato inválido" : "Formato incompleto");

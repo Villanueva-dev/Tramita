@@ -54,9 +54,21 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     ProblemDetail invalidBody(MethodArgumentNotValidException ex) {
         List<FieldError> fieldErrors = ex.getBindingResult().getFieldErrors();
-        List<String> missing = ValidationFields.missing(fieldErrors);
-        List<String> invalid = ValidationFields.invalid(fieldErrors);
+        return buildProblem(ValidationFields.missing(fieldErrors), ValidationFields.invalid(fieldErrors));
+    }
 
+    /**
+     * Un campo inválido contra configuración persistida, no contra Bean Validation (009,
+     * FR-003; research.md D4) —el catálogo de programas—. Mismo 400 y misma forma de
+     * respuesta que {@link #invalidBody}.
+     */
+    @ExceptionHandler(InvalidFieldValueException.class)
+    ProblemDetail handleInvalidFieldValue(InvalidFieldValueException ex) {
+        return buildProblem(List.of(), ex.getInvalidFields());
+    }
+
+    /** Arma el mismo {@link ProblemDetail} para las dos causas del 400 (Bean Validation y catálogo). */
+    private static ProblemDetail buildProblem(List<String> missing, List<String> invalid) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.BAD_REQUEST, detailFor(missing, invalid));
         problem.setTitle(missing.isEmpty() ? "Petición inválida" : "Petición incompleta");

@@ -480,12 +480,16 @@ class RequestControllerIT {
     @DisplayName("consultar una solicitud sin sesión: 401 y no se filtra su contenido (FR-021)")
     void readingARequestWithoutSessionLeaksNothing() throws Exception {
         MockHttpSession session = login();
+        // T014 (009): "program" pasa a un nombre DEL CATÁLOGO —antes "Programa Reservado"
+        // no lo era, y con la 009 este registro pasaría a 400 en vez de 201—. El
+        // centinela de no filtración se muda a "Estudiante Reservado" (ya usado arriba):
+        // un nombre del catálogo es texto común y dejaría de ser distintivo.
         String id = mockMvc.perform(createRequestWithForm("""
                         {
                           "definitionCode": "ADICION_CREDITOS",
                           "studentName": "Estudiante Reservado",
                           "studentDocument": "DOC-TEST-0005",
-                          "program": "Programa Reservado"
+                          "program": "Ingeniería de Sistemas"
                         }""").session(session))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString()
@@ -495,7 +499,66 @@ class RequestControllerIT {
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().string(
                         org.hamcrest.Matchers.not(
-                                org.hamcrest.Matchers.containsString("Programa Reservado"))));
+                                org.hamcrest.Matchers.containsString("Estudiante Reservado"))));
+    }
+
+    // --- 009 / FR-003, US1: el canal interno exige el catálogo SOLO si el campo viene ----
+
+    @Test
+    @DisplayName("canal interno: programa fuera del catálogo es 400 «Petición inválida» que lo nombra, sin eco (009, FR-003)")
+    void internalChannelRejectsProgramOutsideCatalog() throws Exception {
+        String response = mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Interno Programa Fuera De Catalogo",
+                          "studentDocument": "SIN-DATO-REAL-904",
+                          "program": "Psicología"
+                        }""").session(login()))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.title").value("Petición inválida"))
+                .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                .andExpect(jsonPath("$.invalidFields[0]").value("program"))
+                .andExpect(jsonPath("$.missingFields.length()").value(0))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(response)
+                .as("el programa rechazado no puede reflejarse de vuelta al cliente (§III)")
+                .doesNotContain("Psicología");
+    }
+
+    @Test
+    @DisplayName("canal interno: programa vacío «vino e inválido», 400 que lo nombra (009, FR-003, D4)")
+    void internalChannelRejectsBlankProgramAsInvalidNotMissing() throws Exception {
+        // "" es «vino e inválido» y no «ausente»: mismo criterio que el teléfono de la
+        // 008 (research.md D4). Solo OMITIR la clave cuenta como ausencia (ver abajo).
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Interno Programa Vacio",
+                          "studentDocument": "SIN-DATO-REAL-905",
+                          "program": ""
+                        }""").session(login()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Petición inválida"))
+                .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                .andExpect(jsonPath("$.invalidFields[0]").value("program"))
+                .andExpect(jsonPath("$.missingFields.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("canal interno: sin la clave program es 201 —la ausencia no se valida (009, FR-003, US1 escenario 5)")
+    void internalChannelAcceptsRequestWithoutProgramKey() throws Exception {
+        // GUARDA, no RED: hoy ya es 201 (program es opcional en CreateRequestBody), y la
+        // 009 no le agrega validación a la ausencia. Vigila el mutante de T028 que
+        // validara también cuando la clave no viene.
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Interno Sin Programa",
+                          "studentDocument": "SIN-DATO-REAL-906"
+                        }""").session(login()))
+                .andExpect(status().isCreated());
     }
 
     // --- US2: avanzar (el motor sobre la semilla real) -----------------------------------
@@ -1368,6 +1431,39 @@ class RequestControllerIT {
                 "SELECT student_phone FROM request WHERE id = ?::uuid", String.class, id))
                 .as("consultar el detalle no reescribe la fila (FR-011)")
                 .isEqualTo(legacyPhone);
+    }
+
+    /**
+     * GUARDA, no RED (009, FR-005; US1 escenario 7): mismo criterio que
+     * {@link #detailReturnsLegacyPhoneVerbatim()} arriba, pero para el programa. Se
+     * escribe por SQL y no por la API a propósito: después de la 009 la API rechazaría
+     * "Ing" al radicar, así que el test es estable en cualquier orden de ejecución. Es
+     * legal: {@code request} no tiene trigger ni CHECK sobre {@code program}
+     * (V2.3.0__Persist_request_form_data.sql:9 solo la agrega como VARCHAR(120)). Su
+     * valor es el mutante de T028 «validar también al avanzar».
+     */
+    @Test
+    @DisplayName("un programa anterior a la 009 sigue leyéndose y avanzando, sin validarse (009, FR-005)")
+    void legacyProgramOutsideCatalogSurvivesReadAndAdvance() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS",
+                "Estudiante Con Programa Legado", "SIN-DATO-REAL-907");
+        assertThat(jdbcTemplate.update(
+                "UPDATE request SET program = ? WHERE id = ?::uuid", "Ing", id))
+                .as("la fila existe y se pudo escribir el programa legado por SQL")
+                .isEqualTo(1);
+
+        mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.program").value("Ing"));
+
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT program FROM request WHERE id = ?::uuid", String.class, id))
+                .as("avanzar no valida ni reescribe el programa de una fila anterior a la 009")
+                .isEqualTo("Ing");
     }
 
     /**

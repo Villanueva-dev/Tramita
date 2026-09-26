@@ -74,6 +74,18 @@ public class SecurityConfig {
                     .matcher(HttpMethod.GET, "/api/public/seals/*");
 
     /**
+     * El catálogo público de programas, declarada UNA vez por la misma razón que
+     * {@link #PUBLIC_SEAL_LOOKUP}: el {@code permitAll} y esta ruta deben referirse a
+     * exactamente lo mismo (009, FR-001).
+     *
+     * SIN EXCLUSIÓN DE CSRF, igual que {@link #PUBLIC_SEAL_LOOKUP}: es un {@code GET} y
+     * CSRF no protege operaciones que no cambian estado.
+     */
+    private static final PathPatternRequestMatcher PUBLIC_PROGRAMS =
+            PathPatternRequestMatcher.withDefaults()
+                    .matcher(HttpMethod.GET, "/api/public/programs");
+
+    /**
      * DelegatingPasswordEncoder con BCrypt por defecto (research.md D6): el hash se
      * persiste con prefijo {bcrypt}, desacoplando los datos de un futuro cambio de
      * algoritmo (una migración a {argon2} no invalidaría los hashes existentes).
@@ -151,9 +163,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         // Segundo endpoint abierto del sistema (004, FR-001)
                         .requestMatchers(PUBLIC_CAPTURE).permitAll()
-                        // Tercer y último endpoint abierto: verificación por posesión del
-                        // código impreso (006, FR-014, research.md D9)
+                        // Tercer endpoint abierto: verificación por posesión del código
+                        // impreso (006, FR-014, research.md D9)
                         .requestMatchers(PUBLIC_SEAL_LOOKUP).permitAll()
+                        // Cuarto endpoint abierto: catálogo de programas (009, FR-001)
+                        .requestMatchers(PUBLIC_PROGRAMS).permitAll()
                         .anyRequest().authenticated())
                 // sin sesión → 401 problem+json (RFC 9457, D10)
                 .exceptionHandling(ex -> ex

@@ -172,4 +172,21 @@ class GlobalExceptionHandlerTest {
         assertThat(problem.getDetail()).doesNotContain(cedulaRechazada);
         assertThat(problem.getProperties().values().toString()).doesNotContain(cedulaRechazada);
     }
+
+    // --- InvalidFieldValueException (009, FR-003): mismo 400 que Bean Validation ----------
+
+    @Test
+    @DisplayName("catálogo de programas: mismo 400 «Petición inválida» que un valor inválido de Bean Validation")
+    void invalidFieldValueMapsToTheSame400AsBeanValidation() {
+        ProblemDetail problem = handler.handleInvalidFieldValue(
+                new InvalidFieldValueException(List.of("program")));
+
+        assertThat(problem.getStatus()).isEqualTo(400);
+        assertThat(problem.getTitle()).isEqualTo("Petición inválida");
+        assertThat(problem.getDetail()).isEqualTo(
+                "El cuerpo de la petición tiene campos con un valor inválido. "
+                        + "Campos: program");
+        assertThat(missingFields(problem)).isEmpty();
+        assertThat(invalidFields(problem)).containsExactly("program");
+    }
 }
