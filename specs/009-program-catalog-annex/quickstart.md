@@ -5,10 +5,9 @@ cableado —la seguridad del endpoint abierto, la resolución entre los dos mane
 siembra real— que los tests con mocks no ven. Y demuestra lo central del diseño: que **un programa
 y una regla nuevos entran por SQL, sin reiniciar ni desplegar**.
 
-⚠️ **Estado de este documento**: se escribe en la fase de plan, **antes de que exista el código**.
-Las salidas que figuran abajo son **expectativas** derivadas del contrato
-(`contracts/openapi.yaml`) y de los builders de error vigentes, no observaciones. Se recorre contra
-Tomcat real al cerrar la implementación y se corrige lo que difiera, como hizo la 008.
+✅ **Recorrido contra Tomcat real el 2026-09-26 sobre `5849039`.** Las salidas de abajo son
+observaciones, no expectativas: los once pasos coincidieron con lo escrito, y solo el paso 9 tuvo
+una corrección (el nombre real del constraint de la FK, que se había dejado como placeholder).
 
 ## 0. Levantar
 
@@ -268,7 +267,9 @@ quitar su programa falla:
 
 ```sql
 DELETE FROM academic_program WHERE name = 'Enfermería';
--- ERROR:  update or delete on table "academic_program" violates foreign key constraint "…" on table "workflow_annex_rule"
+-- ERROR:  update or delete on table "academic_program" violates foreign key constraint
+--         "workflow_annex_rule_program_id_fkey" on table "workflow_annex_rule"
+-- DETAIL:  Key (id)=(...) is still referenced from table "workflow_annex_rule".
 ```
 
 Limpieza, en orden —primero la regla, después el programa de demostración—:
@@ -326,3 +327,10 @@ docker stop tramita-postgres      # solo si lo levantaste vos
 Las solicitudes de prueba quedan en la base de desarrollo: son imborrables por el trigger del
 timeline (§VII), y por eso llevan documentos `SIN-DATO-REAL-*` y correos `@ejemplo.test`. La regla y
 el programa de demostración del paso 9 **sí** se borran: son configuración, sin trigger.
+
+---
+
+> ✅ Recorrido contra el servidor `dev` el 2026-09-26 sobre `5849039`: doce bloques (0–11 y «Al
+> terminar»), uno con corrección al documento (el nombre real del constraint del paso 9). El
+> servidor de prueba corrió en el puerto 8090 con `SERVER_PORT=8090`; el comportamiento no depende
+> del puerto.

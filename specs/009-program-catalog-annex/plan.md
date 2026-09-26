@@ -47,7 +47,7 @@ existente cambia**: `request.program` sigue en `VARCHAR(120)` desde `V2.3.0`, si
 al arrancar la implementación, y ese es el número que vale. Un test pasa a rojo **por diseño**
 con **dos** aserciones atadas a «Programa Reservado» —`RequestControllerIT.java:490` (el 201, que pasa
 a 400) y `:498` (el centinela de filtración)—, y dos constructores cambian y rompen la compilación de
-sus tests unitarios (research D10). Siete mutantes previstos.
+sus tests unitarios (research D10). Trece mutantes en cinco tareas (T027 3, T028 4, T029 1, T039 3, T040 2); el plan decía «siete» y `tasks.md` los desglosó en trece, todos muertos el 2026-09-26.
 
 **Target Platform**: servicio HTTP, despliegue en Linux.
 
@@ -81,7 +81,7 @@ campo `program` de los dos cuerpos de captura (`POST /api/public/requests/{defin
 | **II — Arquitectura por capas** | ✅ Pasa | Cada pieza cae en su capa: `model/`, `repo/`, `dto/`, `controller/`, `service/` + `service/impl/`, `shared/exception/`, `shared/config/`. El controller nuevo inyecta una interfaz (`constitution.md:226`, `:358`). La validación que necesita el repositorio vive en el servicio, no en una anotación de `dto/`, precisamente para no acoplar `dto/` con `repo/` (D4). |
 | **III — Seguridad y minimización** | ✅ Pasa, con una tensión declarada | El endpoint abierto expone **solo nombres de programas**: ningún dato personal ni derivado de solicitudes (FR-001, SC-004), sin escritura, y un IT fija que cada elemento tiene solo `name`. La validación es **autoritativa en el backend** (`constitution.md:250`); el selector del cliente es solo UX. Los errores nombran campos, **nunca valores** (FR-002; los builders existentes ya lo garantizan). El anexo —la hoja de vida académica contiene todas las notas del estudiante— **no se recibe ni se almacena** (FR-012). Los fixtures usan documentos `SIN-DATO-REAL-*`. La tensión: un **cuarto** endpoint abierto, donde tres sitios dicen «tercero y último» (ver abajo). |
 | **IV — Decisiones trazables** | ✅ Pasa | Once decisiones en `research.md`, cada una con su alternativa descartada, su costo aceptado y su comando o línea. Las fuentes técnicas se verificaron vía Context7 (documentación de PostgreSQL 16: `RESTRICT` frente a `NO ACTION`, comparación de las intercalaciones deterministas). La lista de programas carece de documento institucional y se **siembra marcada como provisional y no auditada**, como exige `constitution.md:288-291` y con el precedente de `V3.0.0:32-44` (D7). |
-| **V — Testing del comportamiento sensible** | ✅ Pasa | Lo sensible es **qué entra** (un programa fuera del catálogo no se registra: sin eso, la regla de anexo falla en silencio) y **qué sale** (el requisito donde debe y solo ahí). Por eso los tests principales son de integración sobre el JSON servido, con siete mutantes previstos; las variantes del escenario 4 son **una por dimensión**, porque la de la spec difiere en dos a la vez y dejaría vivo un mutante (D10). |
+| **V — Testing del comportamiento sensible** | ✅ Pasa | Lo sensible es **qué entra** (un programa fuera del catálogo no se registra: sin eso, la regla de anexo falla en silencio) y **qué sale** (el requisito donde debe y solo ahí). Por eso los tests principales son de integración sobre el JSON servido, con trece mutantes (el plan decía «siete»; `tasks.md` los desglosó y los trece murieron); las variantes del escenario 4 son **una por dimensión**, porque la de la spec difiere en dos a la vez y dejaría vivo un mutante (D10). |
 | **VI — Workflow configurable por dato** | ✅ Pasa, y es el eje de SC-003 | El catálogo y la regla son filas; incorporar otro programa con otro anexo, u otro trámite con esta regla, es un `INSERT` (FR-011). El requisito no reconoce estados (FR-010). La tesis sigue en una línea: `git grep -nE '"(FINALIZADA\|DEVUELTA\|ADICION_CREDITOS\|NOVEDAD_NOTAS)"' HEAD -- 'src/main/java/*.java'` → `DoFr100Renderer.java:166`, el rótulo impreso del papel (D7). `WorkflowGenericityIT` lo demuestra con el trámite `DEMO` cargado por SQL en caliente. |
 | **VII — Trazabilidad inmutable** | ✅ Pasa | **Nada escribe el timeline**: ni validar, ni derivar el requisito, ni consultar el detalle. El requisito **se deriva y no se almacena**, así que no deja rastro en el historial (spec, *Key Entities*). El catálogo y las reglas son **configuración**, como `workflow_parameter`, y quedan **fuera** de la garantía de inmutabilidad, que protege el historial de la solicitud (`constitution.md:329-335`): corregirlas es su caso de uso. Consecuencia declarada: si se corrige o quita una regla, el detalle de las solicitudes ya radicadas cambia con ella (D6). Se acepta porque el requisito es un recordatorio, no un hecho histórico. |
 
@@ -240,8 +240,9 @@ contratos previos, igual que en la 006, la 007 y la 008.
 Esta entrega deja el contrato listo. Lo que sigue va al repositorio del front
 (`Villanueva-dev/tramita-frontend`), que lleva Codex, y se le pasa junto con la spec y el contrato
 de esta feature, con el precedente del brief de la 008 (`tramita-frontend#59`). Las líneas se
-verificaron sobre la referencia local `origin/main` = **`ff4b6ab`**, sin `git fetch`; se re-verifican
-al escribir el brief. En orden de despliegue:
+verificaron sobre la referencia local `origin/main` = **`ff4b6ab`**, sin `git fetch`; se re-verificaron
+el 2026-09-26 sobre **`0650548`** (research D11, «Re-medido»): la condición sigue sin cumplirse y el
+`TextField` pasó a `sections.tsx:161`. En orden de despliegue:
 
 1. **Primero, el selector del formulario público** (condición de despliegue, research D11). El
    programa hoy es un `TextField` (`components/do-fr-100/sections.tsx:164`) inicializado en `''`

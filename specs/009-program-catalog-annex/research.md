@@ -705,6 +705,13 @@ formulario). El `TextField` del programa pasó de `sections.tsx:112` a `:164`; l
 citadas se verificaron sobre `ff4b6ab` con `git -C ../tramita-frontend show origin/main:<ruta>`. Se
 re-verifican al escribir el brief.
 
+🔁 **Re-medido el 2026-09-26 al cerrar la implementación**, con `git fetch`: `origin/main` del front ya es
+**`0650548`** (PRs #70, «asistente cableado», y #71, README). La condición sigue sin cumplirse: el
+`TextField` del programa vive en `sections.tsx:161`; `PROGRAMS` sigue en `lib/ui-constants.ts:33` y en
+`app/requests/new/page.tsx:29`, `:61`, `:298`; sin `normalize(`; nadie consume `/api/public/programs`;
+`INITIAL_VALUES` en `app/solicitud/creditos-adicionales/page.tsx:36` (`program: ''` en `:41`) y
+`fieldErrorsFromProblem` en `:70`. El brief (T048) y el cuerpo de la PR (T047) citan estas líneas.
+
 **Alternativas descartadas**:
 
 - *Desplegar el backend primero y aceptar el 422 transitorio*: el costo lo paga un estudiante en el

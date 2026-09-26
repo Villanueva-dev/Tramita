@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-25
 
-**Status**: Aprobada — gate `review-spec` superado y auditada contra las fuentes el 2026-09-25
+**Status**: Implementada — gate `review-spec` superado el 2026-09-25; implementada el 2026-09-26 (`f350a3c`, `c3e53a2`, `5849039`), 171 unitarios + 144 IT en verde, quickstart recorrido contra el servidor `dev`
 
 **Input**: issue [#40](https://github.com/Villanueva-dev/Tramita/issues/40), milestone «Sprint 3 — Operación diaria», más el issue [#50](https://github.com/Villanueva-dev/Tramita/issues/50) del catálogo de programas, abierto con esta spec. Dos decisiones del usuario la enmarcan: la regla del anexo es **por programa**, no por facultad (2026-09-21), y el programa deja de escribirse a mano y **se elige de una lista cerrada** que el sistema ofrece (2026-09-25).
 

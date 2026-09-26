@@ -94,57 +94,48 @@ Al citar literatura o normativa institucional, **incluir la referencia exacta** 
 
 <!-- SPECKIT START -->
 **Feature ACTIVA: `009-program-catalog-annex`** — Sprint 3, issues `Tramita#40` (la hoja de vida académica que
-exige Ingeniería de Sistemas al reenviar) y `Tramita#50` (el programa entra como texto libre). Fase: **planificada, con tareas**
-(2026-09-25; spec `202d594`, gate `review-spec` superado en `ef4d61a`, gate `review-plan` superado la misma noche
-con 15 mediciones contra código y BD: ninguna premisa bloqueaba; la lista sale por la intercalación de la base
-(`en_US.utf8` medida en el contenedor y en la imagen de Testcontainers; el `Collator` queda como nota) y el
-contrato de la 006 lleva nota por dejar de ser «el tercer y último» endpoint abierto). ✅ **`tasks.md`
-generado el 26-sep (madrugada): 48 tareas en 5 fases** (10 RED, 4 guardas, 1 fixture, 5 de mutantes; US1 = T010–T029
-es el MVP; US2 = T030–T040; cierre T041–T048). ⛔ `/speckit-tasks` NO se vuelve a correr (regenera DESDE PLANTILLA,
-`.claude/skills/speckit-tasks/SKILL.md:77`): `tasks.md` se edita A MANO. Siguiente: **implementación** T001→T048,
-cada RED observado con `./mvnw clean …` (nunca incremental) y los RED de IT ANTES que los unitarios, que rompen la
-compilación. Si la PR ya
-se abrió o se mergeó no se escribe acá: se deriva con `gh pr list --head 009-program-catalog-annex --state all`.
-Artefactos en `specs/009-program-catalog-annex/`: `spec.md` (13 FR, 6 SC, 2 US), `checklists/requirements.md`
-(16/16 + las tres decisiones del gate), `plan.md`, `research.md` (D1–D11), `data-model.md`,
-`contracts/openapi.yaml`, `quickstart.md` y **`tasks.md`**. ⚠️ Este bloque lo reescribe **solo `/speckit-plan`** cuando corre
-(`.claude/skills/speckit-plan/SKILL.md`) y queda una fase atrás por construcción: revisarlo antes de creerle.
+exige Ingeniería de Sistemas al reenviar) y `Tramita#50` (el programa entra como texto libre). Fase: **IMPLEMENTADA
+el 2026-09-26, sin push y sin PR** (spec `202d594` → gate `review-spec` `ef4d61a` → plan `a57b136` → tareas `d11482f`
+→ Fase 2 `f350a3c` → US1 `c3e53a2` (con `BREAKING CHANGE:`) → US2 `5849039` → review `188f093` + `8c03742`
+→ docs, el commit de cierre). Las 48 tareas de `tasks.md` están marcadas con lo observado (RED, verde, mutante, commit);
+`tasks.md` se edita A MANO y ⛔ `/speckit-tasks` NO se vuelve a correr (regenera desde plantilla,
+`.claude/skills/speckit-tasks/SKILL.md:77`). Suite final: **171 unitarios + 151 IT** (línea base `163 + 127` en `d11482f`);
+**19 mutantes** muertos (13 de `tasks.md` + 6 del review), cada uno por el test que su tarea nombra.
+Si la PR ya se abrió o se mergeó no se escribe acá: `gh pr list --head 009-program-catalog-annex --state all`.
+Artefactos en `specs/009-program-catalog-annex/`: `spec.md` («Implementada»), `plan.md`, `research.md` (D1–D11),
+`data-model.md`, `contracts/openapi.yaml`, `quickstart.md` (**recorrido contra el servidor `dev` el 2026-09-26**: doce
+bloques, una corrección) y `tasks.md`. ⚠️ Este bloque lo reescribe **solo `/speckit-plan`** cuando corre
+(`.claude/skills/speckit-plan/SKILL.md`); fuera de eso se corrige a mano, y así se hizo en el commit de cierre de la 009.
 🔑 **Qué ES la 009**: el programa se ELIGE de un catálogo de 13 programas de la Sede Cali (dato: tabla
-`academic_program`; lista PROVISIONAL dictada por el usuario el 25-sep, sin confirmación escrita de la
-Coordinación, §IV) por los dos canales, con coincidencia EXACTA (FR-004); y el detalle expone `annexRequirement`
-(aditivo, `NON_NULL`) cuando la configuración del trámite declara un anexo POR PROGRAMA (tabla
-`workflow_annex_rule`, FK al catálogo): hoy solo ADICION_CREDITOS × Ingeniería de Sistemas → hoja de vida
-académica (evidencia `:184`, `:553`, `:762`). Se muestra SIEMPRE, desde el registro y en cualquier estado
-(FR-009/FR-010, §VI); bandeja y resumen NO lo llevan (§III).
-⛔ **NO reabrir** (decidido en spec, gate y plan): la regla por facultad (es por programa, 21-sep); derivar la
-facultad del programa (no hay mapa); los tres anexos universales de la novedad de notas (FUERA, gate del 25-sep:
-una regla «para todos» es aditiva después); `program_id` en `request` (D3: se guarda el NOMBRE y lo radicado no se
-toca, FR-005); normalizar mayúsculas o tildes (D8); administrar el catálogo por pantalla (§I); una constraint de
-Bean Validation que consulte la BD (D4: la pertenencia se valida en `RequestBusinessRulesImpl`, precedente 003);
-recibir archivos (FR-012, 006).
-🔑 **Enmienda NO aditiva** de `program` en `POST /public/requests/{code}` y `POST /requests` (FR-013, precedente
-008): un programa fuera del catálogo se reporta EXACTAMENTE como un campo inválido de cada canal (422 «Formato
-inválido» público / 400 «Petición inválida» interno, `invalidFields:["program"]`, sin eco del valor) vía
-`InvalidFieldValueException`. El front (Codex) debe desplegar el desplegable alimentado por
-`GET /api/public/programs` ANTES o A LA VEZ (plan, «Reparto con el frontend»; brief como issue, precedente
-front#59). Medido: el formulario interno del front tiene 4 de sus 5 programas EN la lista (solo Psicología fuera);
-el riesgo real es el formulario público, que hoy manda texto libre.
-🔑 **Migraciones** `V5.0.0` (schema) + `V5.1.0` (siembra: 13 programas + 1 regla), las primeras desde la `V4.1.0`
-de la 006. El literal `ADICION_CREDITOS` va en SQL: el `git grep` de la tesis sigue en UNA línea
-(`DoFr100Renderer.java:166`). Rompe UN fixture por diseño: `RequestControllerIT.java:488` («Programa Reservado»
-→ 400) y dos constructores de tests unitarios (`RequestBusinessRulesImplTest:42`, `RequestServiceImplTest:636`).
-La nota «ENMENDADO POR LA 009» va en el contrato de la 004 (`:270-272`) Y en el de la 003 (`:159`), donde
-`CreateRequestBody.program` sí está declarado. El front se midió sobre `ff4b6ab` (`sections.tsx:164`); se
-re-verifica al escribir el brief, porque el front avanza en paralelo.
-📎 Al abrir la PR: `Closes #40` y `Closes #50` en texto plano (el #40 YA está rectificado el 25-sep con la
-convención del #42: no re-enmendar); brief al front como issue. Suite base: **163 unitarios + 127 IT**
-(`ca5decf`); se re-mide con `./mvnw clean verify` al arrancar la implementación, no se cita de memoria.
+`academic_program`, siembra `V5.1.0`; lista PROVISIONAL dictada el 25-sep sin confirmación escrita de la Coordinación,
+§IV) por los dos canales, con coincidencia EXACTA (FR-004) validada en `RequestBusinessRulesImpl` ANTES que los
+créditos; un programa fuera del catálogo es 422 «Formato inválido» (público) / 400 «Petición inválida» (interno) con
+`invalidFields:["program"]`, sin eco (`InvalidFieldValueException`, un `@ExceptionHandler` por advice). La lista se
+publica en **`GET /api/public/programs`** (cuarto endpoint abierto, solo `name`, sin caché, orden de la intercalación
+`en_US.utf8`). El detalle expone `annexRequirement {documentName, sourceHint}` (aditivo, `NON_NULL`) cuando
+`workflow_annex_rule` lo declara para la VERSIÓN con que nació la solicitud × su programa; hoy solo ADICION_CREDITOS v1
+× Ingeniería de Sistemas → hoja de vida académica (evidencia `:184`, `:553`, `:762`). Se deriva al leer, NO se guarda,
+NO mira el estado (FR-009/FR-010, §VI); bandeja y resumen NO lo llevan (§III). Lo radicado no se toca (FR-005).
+⛔ **NO reabrir** (spec, gates, plan e implementación): la regla por facultad (es por programa); derivar la facultad del
+programa; los tres anexos universales de la novedad de notas (FUERA; una regla «para todos» es aditiva después);
+`program_id` en `request` (D3: se guarda el NOMBRE); normalizar mayúsculas, tildes o espacios (D8: tres mutantes lo
+vigilan); administrar el catálogo por pantalla (§I); Bean Validation con BD (D4); recibir archivos (FR-012, 006);
+guardar el requisito en vez de derivarlo (D6: un mutante lo vigila).
+🔑 **Condición de despliegue (D11), re-medida el 2026-09-26 sobre `origin/main` del front = `0650548`**: el formulario
+público sigue mandando texto libre (`components/do-fr-100/sections.tsx:161`, `TextField`) y nada consume
+`/api/public/programs`; el interno usa la constante `PROGRAMS` (`lib/ui-constants.ts:33`) y preselecciona
+`PROGRAMS[0]`. **Sin el desplegable del front, cualquier programa escrito a mano recibe 422.** El selector entra ANTES o
+A LA VEZ que la PR del back; el brief al front va como issue (precedente front#59). El front avanza en paralelo:
+re-medir su punta antes de escribir cualquier número.
+📎 Al abrir la PR (solo con OK del usuario): `Closes #40` y `Closes #50` en texto plano, sin `--milestone`; el
+`BREAKING CHANGE` de `c3e53a2`; la lista provisional; el enlace al brief. Los contratos históricos de la 003 (`:159`) y la
+004 (`:27-35`, `:283`) ya llevan la nota «ENMENDADO POR LA 009». Review con agente limpio hecho (T045): sin críticos ni
+altos; sus 5 hallazgos se confirmaron con comandos propios antes de aplicarse (`188f093`, `8c03742`).
 Última feature cerrada: `008-student-closure-notice` — SP7 (`#13`, CERRADO), PR #49 (`0cf3fa3`, 25-sep).
 ⛔ Nada de la 008 se re-agenda. Sus decisiones vivas: DOS acciones manuales (`mailto:` P1 y `wa.me` P2, esta solo
 con móvil `^3\d{9}$`); el sistema no envía nada ni registra «avisado»; el back expone `origin`, `studentEmail` y
 `studentPhone` y el front decide; teléfono `[0-9]{10}` validado en el API, sin normalizar; sin migración.
-Antes: `007-coordination-inbox` (SP5 + `#22`, PR #47: bandeja sin roles, antigüedad medida sin dictaminar
-vencimiento, catálogo de estados sin orden lineal), `006-verifiable-document-seal` (SP4, PR #41),
+Antes: `007-coordination-inbox` (SP5 + `#22`, PR #47), `006-verifiable-document-seal` (SP4, PR #41),
 `005-formal-document` (SP3, PR #31), `004-public-request-capture` y `003-request-form-rules`.
 Stack: Java 21 · Spring Boot 4.0.7 (Security 7, Data JPA, Validation, WebMVC) · PostgreSQL + Flyway
 (validate) · PDFBox 3 · BCrypt · Lombok · Testcontainers (test).
