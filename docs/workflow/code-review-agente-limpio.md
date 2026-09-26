@@ -30,7 +30,7 @@ lugar donde es más caro.
 |---|---|---|
 | Tipo de agente | `general-purpose` | Arranca sin el contexto de la sesión |
 | Modelo | `opus` | El trabajo es analítico y adversarial |
-| Ejecución | En segundo plano | Consume ~170k tokens; no bloquea |
+| Ejecución | En segundo plano, **con tope** | Consume entre ~170k y ~300k tokens y puede tardar **horas** (la 009: 307k, ~5 h, sin terminar solo). Pasada una hora, mandarle «cerrá con lo verificado; lo no verificado en una sección aparte, sin severidad» |
 
 **Nunca** un fork del agente actual: heredaría exactamente el contexto que lo invalida.
 
@@ -143,6 +143,8 @@ Agregar cada vez que una cueste tiempo.
 | `rm -rf .next` con `pnpm dev` vivo | Todo responde **HTTP 500**, `ENOENT ... routes-manifest.json`. El proceso no muere | Que no lo corra en el repo real; si necesita `tsc` limpio, sobre su copia |
 | Rutas con corchetes en zsh | `app/requests/[id]/...` se expande como glob; el filtro no matchea y la corrida mide otra cosa | Entre comillas, o correr la suite completa |
 | `pnpm lint` | Declara `eslint .` sin ESLint instalado | No es criterio de verificación de nada |
+| Maven en el repo real con un servidor `dev` vivo | Un `clean` ajeno borra `target/` bajo la JVM: `NoClassDefFoundError` y «falta el recurso» que no son defectos | Que clone el repo a una copia descartable y corra Maven solo ahí (Testcontainers trae su Postgres) |
+| El revisor no termina | Sigue abriendo sondas y mutantes pasadas las horas | Fijar un tope y pedirle que cierre con lo verificado (ver «Ejecución») |
 
 ## Lo que estos reviews encontraron y una lectura no habría encontrado
 

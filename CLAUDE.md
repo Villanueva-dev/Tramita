@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> Trabajo de grado en curso — Ingeniería de Sistemas, Universidad Remington (modalidad Distancia, SNIES 53112, Resolución 015939 del 1 de septiembre de 2023). Equipo de dos personas, plazo ≈ 2,5 meses. **Estado**: **seis features cerradas y mergeadas a `main`** (`001-auth-login` … `006-verifiable-document-seal`): autenticación, motor de workflow, formularios y reglas configurables, captura pública del formato, PDF formal y sello verificable (panorama técnico y arranque en `README.md`). El estado vigente NO se lleva en un documento: vive en los **milestones e issues de GitHub**, donde cada sub-problema SP1–SP7 es un issue y cada sprint un milestone cuyo avance calcula GitHub. El chasis Spring Boot 4 / Java 21 se hereda de `../convenia/`.
+> Trabajo de grado en curso — Ingeniería de Sistemas, Universidad Remington (modalidad Distancia, SNIES 53112, Resolución 015939 del 1 de septiembre de 2023). Equipo de dos personas, plazo ≈ 2,5 meses. **Estado**: **nueve features cerradas y mergeadas a `main`** (`001-auth-login` … `009-program-catalog-annex`): autenticación, motor de workflow, formularios y reglas configurables, captura pública del formato, PDF formal, sello verificable, bandeja de la Coordinación, aviso de cierre al estudiante y catálogo de programas con anexo por programa (panorama técnico y arranque en `README.md`). Los tres sprints del árbol de problemas están completos; lo abierto vive en el milestone «Deuda técnica y decisiones diferidas». El estado vigente NO se lleva en un documento: vive en los **milestones e issues de GitHub**, donde cada sub-problema SP1–SP7 es un issue y cada sprint un milestone cuyo avance calcula GitHub. El chasis Spring Boot 4 / Java 21 se hereda de `../convenia/`.
 
 ## Qué se está construyendo
 
@@ -88,24 +88,26 @@ issue por SP1–SP7), no en un archivo. Se cierra con `Closes #N` en el cuerpo d
 - **Gestión**: Scrum, 3 sprints (S1: SP1+SP2+SP6 → S2: SP3+SP4 → S3: SP5+SP7).
 - **Requisitos** (pendiente): **ISO/IEC/IEEE 29148:2018**, estructura del SRS según su cláusula 9.6. Sustituye a IEEE 830-1998, que figura como *superseded* en el catálogo del IEEE Standards Association. Se descartó IEEE 1016-2009 (*inactive-reserved*): el diseño se documenta con C4 + 4+1.
 - **Arquitectura** (pendiente): C4 + 4+1.
-- **Ciclo de vida**: ISO/IEC/IEEE 12207:2017 (edición vigente).
+- **Ciclo de vida**: **ISO/IEC/IEEE 12207:2026** (segunda edición, aprobada el 2026-02-12 y publicada el 2026-04-15; «cancels and replaces» la 12207:2017, que IEEE SA marca *Superseded*). DOI 10.1109/IEEESTD.2026.11481698. En `main`, `docs/BASE_DOCUMENTO_TRAMITA.md` (tres citas), el `.docx` y `docs/CICLO_DE_VIDA_DEL_SOFTWARE_TRAMITA.md` siguen en la 2017: la migración del borrador markdown existe solo en un working tree sin commitear (25-sep).
 
 Al citar literatura o normativa institucional, **incluir la referencia exacta** en cada afirmación — alineado con la regla general #4 del CLAUDE.md global.
 
 <!-- SPECKIT START -->
-**Feature ACTIVA: `009-program-catalog-annex`** — Sprint 3, issues `Tramita#40` (la hoja de vida académica que
-exige Ingeniería de Sistemas al reenviar) y `Tramita#50` (el programa entra como texto libre). Fase: **IMPLEMENTADA
-el 2026-09-26, sin push y sin PR** (spec `202d594` → gate `review-spec` `ef4d61a` → plan `a57b136` → tareas `d11482f`
-→ Fase 2 `f350a3c` → US1 `c3e53a2` (con `BREAKING CHANGE:`) → US2 `5849039` → review `188f093` + `8c03742`
-→ docs, el commit de cierre). Las 48 tareas de `tasks.md` están marcadas con lo observado (RED, verde, mutante, commit);
-`tasks.md` se edita A MANO y ⛔ `/speckit-tasks` NO se vuelve a correr (regenera desde plantilla,
-`.claude/skills/speckit-tasks/SKILL.md:77`). Suite final: **171 unitarios + 151 IT** (línea base `163 + 127` en `d11482f`);
-**19 mutantes** muertos (13 de `tasks.md` + 6 del review), cada uno por el test que su tarea nombra.
-Si la PR ya se abrió o se mergeó no se escribe acá: `gh pr list --head 009-program-catalog-annex --state all`.
+**No hay feature activa.** La última cerrada es **`009-program-catalog-annex`** — Sprint 3, issues `Tramita#40` (la hoja
+de vida académica que exige Ingeniería de Sistemas al reenviar) y `Tramita#50` (el programa entraba como texto libre),
+**MERGEADA el 2026-09-26 por la PR #52 (`d8e031d`)**; los dos issues cerraron con el merge y el milestone Sprint 3
+quedó en 0 abiertos / 8 cerrados. Recorrido: spec `202d594` → gate `review-spec` `ef4d61a` → plan `a57b136` → tareas
+`d11482f` → Fase 2 `f350a3c` → US1 `c3e53a2` (con `BREAKING CHANGE:`) → US2 `5849039` → review `188f093` + `8c03742`
+→ cierre `69da251`. Las 48 tareas de `tasks.md` están marcadas con lo observado (RED, verde, mutante, commit); suite
+final **171 unitarios + 151 IT** (línea base `163 + 127`); **19 mutantes** muertos (13 de `tasks.md` + 6 del review).
+⛔ `/speckit-tasks` NO se vuelve a correr sobre una feature con `tasks.md` escrito (regenera desde plantilla,
+`.claude/skills/speckit-tasks/SKILL.md:77`): se edita a mano. La siguiente feature arranca con `/speckit-specify`, que
+reescribe `.specify/feature.json` (hoy apunta a la 009, como la 008 apuntó hasta que nació la 009). El estado de una
+PR no se escribe acá: `gh pr list --head <rama> --state all`.
 Artefactos en `specs/009-program-catalog-annex/`: `spec.md` («Implementada»), `plan.md`, `research.md` (D1–D11),
-`data-model.md`, `contracts/openapi.yaml`, `quickstart.md` (**recorrido contra el servidor `dev` el 2026-09-26**: doce
+`data-model.md`, `contracts/openapi.yaml`, `quickstart.md` (recorrido contra el servidor `dev` el 2026-09-26: doce
 bloques, una corrección) y `tasks.md`. ⚠️ Este bloque lo reescribe **solo `/speckit-plan`** cuando corre
-(`.claude/skills/speckit-plan/SKILL.md`); fuera de eso se corrige a mano, y así se hizo en el commit de cierre de la 009.
+(`.claude/skills/speckit-plan/SKILL.md`); fuera de eso se corrige a mano (última vez: tras el merge de la 009).
 🔑 **Qué ES la 009**: el programa se ELIGE de un catálogo de 13 programas de la Sede Cali (dato: tabla
 `academic_program`, siembra `V5.1.0`; lista PROVISIONAL dictada el 25-sep sin confirmación escrita de la Coordinación,
 §IV) por los dos canales, con coincidencia EXACTA (FR-004) validada en `RequestBusinessRulesImpl` ANTES que los
@@ -121,22 +123,22 @@ programa; los tres anexos universales de la novedad de notas (FUERA; una regla �
 `program_id` en `request` (D3: se guarda el NOMBRE); normalizar mayúsculas, tildes o espacios (D8: tres mutantes lo
 vigilan); administrar el catálogo por pantalla (§I); Bean Validation con BD (D4); recibir archivos (FR-012, 006);
 guardar el requisito en vez de derivarlo (D6: un mutante lo vigila).
-🔑 **Condición de despliegue (D11), re-medida el 2026-09-26 sobre `origin/main` del front = `0650548`**: el formulario
-público sigue mandando texto libre (`components/do-fr-100/sections.tsx:161`, `TextField`) y nada consume
-`/api/public/programs`; el interno usa la constante `PROGRAMS` (`lib/ui-constants.ts:33`) y preselecciona
-`PROGRAMS[0]`. **Sin el desplegable del front, cualquier programa escrito a mano recibe 422.** El selector entra ANTES o
-A LA VEZ que la PR del back; el brief al front va como issue (precedente front#59). El front avanza en paralelo:
+⚠️ **LO ÚNICO VIVO DE LA 009 ESTÁ EN EL FRONT: `tramita-frontend#74`** (brief, precedente front#59). El backend ya
+rechaza con 422 cualquier programa fuera del catálogo, y el formulario público del front, medido el 2026-09-26 sobre
+`origin/main` = `06a0f8c` (PR #73), sigue mandando texto libre (`components/do-fr-100/sections.tsx:172`, `TextField`) sin
+consumir `/api/public/programs`; el interno usa la constante `PROGRAMS` (`lib/ui-constants.ts:33`) y preselecciona
+`PROGRAMS[0]`. El brief front#74 cita las líneas de `0650548`, que el front ya movió: sus enlaces son permanentes.
+Hasta que entre el selector, **un estudiante que escriba el programa a mano recibe 422**. El front avanza en paralelo:
 re-medir su punta antes de escribir cualquier número.
-📎 Al abrir la PR (solo con OK del usuario): `Closes #40` y `Closes #50` en texto plano, sin `--milestone`; el
-`BREAKING CHANGE` de `c3e53a2`; la lista provisional; el enlace al brief. Los contratos históricos de la 003 (`:159`) y la
-004 (`:27-35`, `:283`) ya llevan la nota «ENMENDADO POR LA 009». Review con agente limpio hecho (T045): sin críticos ni
-altos; sus 5 hallazgos se confirmaron con comandos propios antes de aplicarse (`188f093`, `8c03742`).
-Última feature cerrada: `008-student-closure-notice` — SP7 (`#13`, CERRADO), PR #49 (`0cf3fa3`, 25-sep).
-⛔ Nada de la 008 se re-agenda. Sus decisiones vivas: DOS acciones manuales (`mailto:` P1 y `wa.me` P2, esta solo
-con móvil `^3\d{9}$`); el sistema no envía nada ni registra «avisado»; el back expone `origin`, `studentEmail` y
-`studentPhone` y el front decide; teléfono `[0-9]{10}` validado en el API, sin normalizar; sin migración.
-Antes: `007-coordination-inbox` (SP5 + `#22`, PR #47), `006-verifiable-document-seal` (SP4, PR #41),
-`005-formal-document` (SP3, PR #31), `004-public-request-capture` y `003-request-form-rules`.
+📎 Cómo se cerró (precedente para la próxima): PR con `Closes #40` y `Closes #50` en texto plano y sin `--milestone`
+(los dos cerraron al merge, verificado); `BREAKING CHANGE` en el commit de US1; brief al front como issue; contratos
+históricos de la 003 (`:159`) y la 004 (`:27-35`, `:283`) con la nota «ENMENDADO POR LA 009»; review con agente limpio
+sobre el rango (sin críticos ni altos; sus 5 hallazgos se confirmaron con comandos propios antes de aplicarse).
+Antes: `008-student-closure-notice` (SP7 `#13`, PR #49: dos acciones manuales `mailto:`/`wa.me`, el sistema no envía nada
+ni registra «avisado», teléfono `[0-9]{10}` validado en el API sin normalizar), `007-coordination-inbox` (SP5 `#12` +
+`#22`, PR #47: bandeja sin roles, antigüedad medida sin dictaminar vencimiento), `006-verifiable-document-seal` (SP4,
+PR #41), `005-formal-document` (SP3, PR #31), `004-public-request-capture` y `003-request-form-rules`. ⛔ Nada de eso se
+re-agenda.
 Stack: Java 21 · Spring Boot 4.0.7 (Security 7, Data JPA, Validation, WebMVC) · PostgreSQL + Flyway
 (validate) · PDFBox 3 · BCrypt · Lombok · Testcontainers (test).
 Paquete `com.uniremington.api.tramita`, estructura **package-by-layer**: `controller/`,
