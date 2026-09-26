@@ -443,6 +443,122 @@ class WorkflowGenericityIT {
                 .andExpect(jsonPath("$.length()").value(1));
     }
 
+    /**
+     * G-1 (review M-1, research.md D2): la regla de anexo se busca por la VERSIÓN
+     * CONCRETA con la que nació la solicitud ({@code definition_id}), no por el código
+     * del trámite. Programa NUEVO y exclusivo de este test —no "Programa De
+     * Genericidad"— porque @Order(9) ya le siembra una regla a ese programa en la
+     * versión de nacimiento; reusarlo haría que el código REAL también encontrara esa
+     * otra regla y la aserción "doesNotExist" cayera incluso sin mutar nada.
+     */
+    @Test
+    @Order(10)
+    @DisplayName("la regla de anexo de otra versión de la misma definición no aplica (review M-1, research D2)")
+    void annexRuleFromAnotherVersionOfTheSameDefinitionDoesNotApply() throws Exception {
+        MockHttpSession session = login();
+        insertDemoV1();
+        insertDemoV2();
+        String program = "Programa De Versión Exclusiva";
+        insertProgramIfMissing(program);
+
+        String body = registerWithProgramAndGetBody(session, "DEMO", "Version De Nacimiento",
+                "618", program);
+        String id = com.jayway.jsonpath.JsonPath.read(body, "$.id");
+
+        // DEMO ya tiene v1 y v2 sembradas (@Order(1)/@Order(2)): la solicitud nace en la
+        // versión vigente, que se lee de la base en vez de asumirse.
+        Integer bornVersion = jdbcTemplate.queryForObject(
+                "SELECT d.version FROM request r JOIN workflow_definition d ON d.id = r.definition_id "
+                        + "WHERE r.id = ?::uuid",
+                Integer.class, id);
+
+        // La regla se siembra en la OTRA versión: si el motor la buscara por código en
+        // vez de por definition_id, la encontraría igual (el mutante de IWorkflowAnnexRuleRepo).
+        int otherVersion = bornVersion == 1 ? 2 : 1;
+        insertAnnexRule(definitionIdOf("DEMO", otherVersion), program,
+                "Solo en la otra versión", "Solo para WorkflowGenericityIT");
+
+        String detail = mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.annexRequirement").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(detail)
+                .as("la regla vive en la versión %d de DEMO; esta solicitud nació en la %d (research.md D2)"
+                        .formatted(otherVersion, bornVersion))
+                .doesNotContain("\"annexRequirement\"");
+    }
+
+    /**
+     * G-4b (review B-1, FR-006, research.md D5): el catálogo público no se memoriza. La
+     * primera lectura, ANTES de insertar el programa, "calienta" cualquier caché que
+     * existiera en el bean; solo si la segunda lectura vuelve a consultar la base
+     * aparece el nombre nuevo. Nombre exclusivo de este test —no "Programa De
+     * Genericidad"— porque ese ya existe desde @Order(9) y no serviría para medir la
+     * diferencia entre la lectura de "antes" y la de "después".
+     */
+    @Test
+    @Order(11)
+    @DisplayName("el catálogo público no se memoriza: un programa insertado después de la primera lectura aparece en la segunda (009, FR-006, research D5)")
+    void publicProgramCatalogIsNeverCached() throws Exception {
+        String program = "Programa De Catálogo En Caliente";
+
+        String before = mockMvc.perform(get("/api/public/programs"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(before)
+                .as("el programa todavía no existe: la primera lectura no debe traerlo")
+                .doesNotContain(program);
+
+        insertProgramIfMissing(program);
+
+        String after = mockMvc.perform(get("/api/public/programs"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(after)
+                .as("sin caché, la segunda lectura vuelve a consultar la base (research.md D5)")
+                .contains(program);
+    }
+
+    /** Programa sembrado en caliente, sin regla asociada. Idempotente por nombre (009). */
+    private void insertProgramIfMissing(String name) {
+        Integer exists = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM academic_program WHERE name = ?", Integer.class, name);
+        if (exists != null && exists > 0) {
+            return;
+        }
+        jdbcTemplate.update(
+                "INSERT INTO academic_program (id, name) VALUES (gen_random_uuid(), ?)", name);
+    }
+
+    /**
+     * Regla de anexo para una definición y un programa concretos, idempotente por el
+     * mismo criterio que {@code uq_workflow_annex_rule_definition_program} (V5.0.0).
+     * Generaliza {@link #insertGenericityAnnexRule} a un programa y un texto arbitrarios.
+     */
+    private void insertAnnexRule(String definitionId, String programName, String documentName,
+            String sourceHint) {
+        Integer exists = jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM workflow_annex_rule
+                WHERE definition_id = ?::uuid
+                  AND program_id = (SELECT id FROM academic_program WHERE name = ?)
+                """, Integer.class, definitionId, programName);
+        if (exists != null && exists > 0) {
+            return;
+        }
+        jdbcTemplate.update("""
+                INSERT INTO workflow_annex_rule (id, definition_id, program_id, document_name, source_hint)
+                SELECT gen_random_uuid(), ?::uuid, p.id, ?, ?
+                FROM academic_program p WHERE p.name = ?
+                """, definitionId, documentName, sourceHint, programName);
+    }
+
+    /** El id de una definición concreta por código y versión, ya sembrada. */
+    private String definitionIdOf(String code, int version) {
+        return jdbcTemplate.queryForObject(
+                "SELECT id FROM workflow_definition WHERE code = ? AND version = ?",
+                String.class, code, version);
+    }
+
     /** La bandeja de un responsable con la cota máxima: la base es compartida entre IT. */
     private String inboxOf(MockHttpSession session, String responsible) throws Exception {
         return inboxOf(session, responsible, 200);

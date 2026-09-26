@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.uniremington.api.tramita.TramitaIntegrationTest;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,5 +55,54 @@ class PublicProgramControllerIT {
         assertThat(response)
                 .as("el catálogo público no expone identificadores internos (SC-004)")
                 .doesNotContain("\"id\"");
+    }
+
+    /**
+     * G-2 (review M-2, SC-004): el test anterior solo comprueba la AUSENCIA de "id"; este
+     * comprueba el conjunto COMPLETO de claves de cada elemento, para que agregar un campo
+     * nuevo al DTO —por ejemplo un conteo— también caiga, no solo exponer el id interno.
+     */
+    @Test
+    @DisplayName("cada elemento del catálogo público trae EXACTAMENTE la clave name, ninguna otra (009, SC-004)")
+    void publicProgramsExposeOnlyTheNameKey() throws Exception {
+        String response = mockMvc.perform(get("/api/public/programs"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        List<Map<String, Object>> programs = com.jayway.jsonpath.JsonPath.read(response, "$");
+        assertThat(programs)
+                .as("la siembra V5.1.0 no deja el catálogo vacío")
+                .isNotEmpty();
+        assertThat(programs)
+                .as("ningún elemento debe traer una clave distinta de name (SC-004)")
+                .allSatisfy(program -> assertThat(program.keySet()).containsExactly("name"));
+    }
+
+    /**
+     * G-4a (review B-1, FR-006, research.md D5): orden PARCIAL, sin depender de la
+     * intercalación exacta de cada entorno — solo que la base decide el orden, no un
+     * criterio distinto de Java. La siembra V5.1.0 declara "Administración de Negocios"
+     * antes que "Administración de Empresas" en el VALUES; el orden alfabético de
+     * {@code en_US.utf8} los invierte.
+     */
+    @Test
+    @DisplayName("el catálogo público respeta el orden de intercalación de la base: Empresas antes que Negocios (009, FR-006, research D5)")
+    void publicProgramsPreserveDatabaseCollationOrder() throws Exception {
+        String response = mockMvc.perform(get("/api/public/programs"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        List<String> names = com.jayway.jsonpath.JsonPath.read(response, "$[*].name");
+        int empresas = names.indexOf("Administración de Empresas");
+        int negocios = names.indexOf("Administración de Negocios");
+        assertThat(empresas)
+                .as("Administración de Empresas debe estar en el catálogo (siembra V5.1.0)")
+                .isNotNegative();
+        assertThat(negocios)
+                .as("Administración de Negocios debe estar en el catálogo (siembra V5.1.0)")
+                .isNotNegative();
+        assertThat(empresas)
+                .as("orden de intercalación en_US.utf8: Empresas antes que Negocios (research.md D5)")
+                .isLessThan(negocios);
     }
 }
