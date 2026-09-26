@@ -83,7 +83,7 @@ public class RequestServiceImpl implements IRequestService {
     private final IUserRepo userRepo;
     private final IRequestBusinessRules businessRules;
     private final IWorkflowParameterRepo parameterRepo;
-    /** El anexo por programa (009, FR-012). Se consulta solo cuando la solicitud tiene programa. */
+    /** El anexo por programa (009, FR-009). Se consulta solo cuando la solicitud tiene programa. */
     private final IWorkflowAnnexRuleRepo annexRuleRepo;
 
     /**
@@ -566,7 +566,7 @@ public class RequestServiceImpl implements IRequestService {
      * El correo y el teléfono se pasan sin transformarlos (FR-011): salen tal como se
      * guardaron, y {@code RequestResponse} los omite cuando son nulos.
      *
-     * DESDE LA 009 RESUELVE EL ANEXO POR PROGRAMA (FR-012): el costo declarado es una
+     * DESDE LA 009 RESUELVE EL ANEXO POR PROGRAMA (FR-009): el costo declarado es una
      * consulta más al detalle cuando la solicitud tiene programa, ninguna cuando no lo
      * tiene (research.md D6). La decisión de si hay que resolverlo NO mira el estado
      * actual de la solicitud —ni su code ni si es final—: el anexo se debe «en cualquier
@@ -607,7 +607,7 @@ public class RequestServiceImpl implements IRequestService {
     }
 
     /**
-     * El anexo vigente para el programa de la solicitud (009, FR-012, research.md D6).
+     * El anexo vigente para el programa de la solicitud (009, FR-009, research.md D6).
      * Sin programa, {@code null} SIN CONSULTAR: la ausencia de programa nunca es una
      * regla de anexo por resolver, y una solicitud de un trámite sin anexos configurados
      * —como novedad de notas, US2 escenario 4— tampoco encuentra ninguna.

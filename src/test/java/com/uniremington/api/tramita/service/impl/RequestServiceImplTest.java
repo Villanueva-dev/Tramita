@@ -632,9 +632,11 @@ class RequestServiceImplTest {
     }
 
     /**
-     * T033 (009, US2). Fija el cableado de los argumentos: la definición en memoria de
-     * {@code definition} (arriba) se construye sin {@code id}, así que la consulta debe
-     * llevar {@code null} de definición y el programa exacto de la solicitud.
+     * T033 (009, US2). Fija que la consulta lleva el programa EXACTO de la solicitud y que
+     * el DTO copia la regla tal cual. La definición del fixture ({@code definition}, arriba)
+     * no tiene {@code id}, así que el primer argumento solo puede compararse con
+     * {@code isNull()}: que el servicio pase {@code definition.getId()} y no otra cosa lo
+     * fija el IT de US2 ({@code adicionAnnexRequirementFollowsTheRequestFromRegistrationToFinalState}).
      */
     @Test
     @DisplayName("detalle: con programa, el anexo de la regla vigente viaja tal cual al DTO (009, US2)")

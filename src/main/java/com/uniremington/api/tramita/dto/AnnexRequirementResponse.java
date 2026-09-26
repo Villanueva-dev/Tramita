@@ -1,15 +1,16 @@
 package com.uniremington.api.tramita.dto;
 
 /**
- * El anexo que la configuración vigente exige para el programa de la solicitud
- * (FR-012, research.md D6).
+ * El anexo que la configuración exige para el programa de la solicitud
+ * (FR-009, research.md D6).
  *
- * Es un HECHO DERIVADO, no almacenado: {@code RequestResponse} lo calcula en cada
- * lectura del detalle contra la regla de anexo vigente ({@code WorkflowAnnexRule}),
- * nunca contra la que regía el día del registro —al revés que el resto de la
- * solicitud, que queda atada a la versión con la que nació (FR-009). Que estos dos
+ * Es un HECHO DERIVADO, no almacenado: {@code RequestServiceImpl} lo calcula en cada
+ * lectura del detalle a partir de la regla ({@code WorkflowAnnexRule}) configurada para
+ * el programa de la solicitud en la versión del trámite con la que nació. Lo que
+ * refleja es el texto VIGENTE de esa regla —si se corrige el nombre del documento, el
+ * detalle lo muestra corregido—, no una copia tomada el día del registro. Que estos dos
  * campos aparezcan NO significa que el documento se haya pedido o adjuntado: el
- * sistema no recibe archivos (006, FR-010), así que esto es la indicación de qué
+ * sistema no recibe archivos (FR-012; 006), así que esto es la indicación de qué
  * debe llevar el estudiante, no un registro de que ya lo llevó.
  */
 public record AnnexRequirementResponse(

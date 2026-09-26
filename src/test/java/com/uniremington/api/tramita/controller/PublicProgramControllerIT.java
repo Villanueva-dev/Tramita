@@ -16,9 +16,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * IT del catálogo público de programas (T010 RED antes de T019-T022; 009, FR-001,
- * SC-004): la ruta todavía no existe y cae en {@code anyRequest().authenticated()}
- * (SecurityConfig), así que hoy responde 401 en vez de 200.
+ * IT del catálogo público de programas (009, FR-001, SC-004). Se escribió en RED antes de
+ * T019-T022: entonces la ruta no existía y caía en {@code anyRequest().authenticated()}
+ * (401). Hoy {@code PUBLIC_PROGRAMS} está en el {@code permitAll} de SecurityConfig, y este
+ * test es la guarda que lo vigila (mutante de T029).
  *
  * Ningún dato de este test es real (constitución §III): el nombre que se busca es
  * un programa sembrado por V5.1.0, no el dato de un estudiante.
