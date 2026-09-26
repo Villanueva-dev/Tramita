@@ -36,6 +36,11 @@ paths:
         Trámita**. Un canal que exigiera sesión dejaría la cara legible del sello sin
         destinatario.
 
+        ⚠️ **ENMENDADO POR LA 009** (2026-09-25): deja de ser el tercer y último endpoint
+        abierto; `GET /api/public/programs` es el cuarto — ver
+        `specs/009-program-catalog-annex/contracts/openapi.yaml`. Lo de arriba es la afirmación
+        histórica de la 006.
+
         LA POSESIÓN DEL DOCUMENTO ES LA AUTORIZACIÓN. El código tiene 64 bits de entropía
         (research.md D3), de modo que recorrer el espacio no es viable y **este canal no
         necesita límite de tasa propio**: la protección es el tamaño del espacio, no un

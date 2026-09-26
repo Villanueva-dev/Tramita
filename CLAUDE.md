@@ -93,55 +93,60 @@ issue por SP1–SP7), no en un archivo. Se cierra con `Closes #N` en el cuerpo d
 Al citar literatura o normativa institucional, **incluir la referencia exacta** en cada afirmación — alineado con la regla general #4 del CLAUDE.md global.
 
 <!-- SPECKIT START -->
-**Feature ACTIVA: `008-student-closure-notice`** — SP7 (issue `Tramita#13`), el aviso de cierre al
-estudiante. Fase: **implementada y revisada** (2026-09-24; implementación `82e5aaf`…`813113d`, cierre
-documental `26f2200`/`8032c9b`, review con agente limpio aplicado en `99630ee`…`c5c299e`; `3e9ffd4` cierra
-las 41 tareas con el cuerpo de la PR preparado). Si la PR ya se abrió o se mergeó no se escribe acá: se
-deriva con `gh pr list --head 008-student-closure-notice --state all`.
-Artefactos en `specs/008-student-closure-notice/`: `spec.md` (16 FR, 6 SC, 3 US), `plan.md`,
-`research.md` (D1–D9), `data-model.md`, `contracts/openapi.yaml`, `quickstart.md`,
-`checklists/requirements.md` y **`tasks.md` (41 tareas, 6 fases)**. ⚠️ Este bloque lo reescribe **solo `/speckit-plan`** cuando corre
-(`.claude/skills/speckit-plan/SKILL.md`), y queda una fase atrás por construcción: revisarlo antes de
-creerle. ⚠️ `/speckit-tasks` regenera `tasks.md` DESDE PLANTILLA (`.claude/skills/speckit-tasks/SKILL.md:77`):
-se corre UNA vez; después `tasks.md` se edita a mano.
-🔑 **Qué ES la 008**: DOS acciones manuales de la Coordinación, solo para solicitudes del enlace público
-en un estado final —correo prellenado `mailto:` (P1, lo que pidió la Coordinación: Sesión 2 parte B,
-Q22–Q23) y `wa.me` (P2, decisión del equipo, solo con móvil `^3\d{9}$`)—. El sistema **no envía nada ni
-registra «avisado»** (FR-006/FR-007). ⛔ **NO reabrir**: el correo automático (sin SMTP institucional no
-hay correo oficial; un proveedor entrega datos a un tercero), B′ (evento + listener + puerto + tabla),
-`is_success`, acortar `student_phone` a `VARCHAR(10)` (medido: cuenta caracteres y choca con filas
-existentes) y los números extranjeros.
-🔑 **El back expone HECHOS y el front decide** (research D5): `RequestResponse` suma `origin`,
-`studentEmail` y `studentPhone` (aditivo, `NON_NULL`); la regla «ofrecer el aviso» es del cliente
-(`origin === 'PUBLIC_LINK' && currentState.isFinal`) y el texto (nombre + trámite + estado, nada más)
-también. `RequestSummaryResponse` e `InboxEntryResponse` NUNCA llevan correo ni teléfono (§III).
-🔑 **Teléfono `[0-9]{10}` validado en el API** (D3): obligatorio en `PublicRequestBody`, opcional en
-`CreateRequestBody`; NO se normaliza ni se reescriben filas. Es enmienda **NO aditiva** del contrato de
-la 004 y del interno (FR-013, precedente 007). Rompía DOS fixtures `"000 000 0000"`
-(`PublicRequestControllerIT:392` y `PublicCaptureExceptionHandlerTest:156`, corregidos en `813113d`). El
-filtro de dígitos del front (tramita-frontend PR #57) debe desplegarse antes o a la vez.
-🔑 **Sin migración**: la última sigue siendo `V4.1.0`. El origen se deriva del timeline con el `originOf`
-de la 007 (un SELECT más por respuesta, D2) y el enum pasa a `dto/RequestOrigin` (D1; el JSON no cambia).
-El estado final se lee de `StateResponse.isFinal` (§VI): el `git grep` de la tesis sigue en UNA línea.
-🔑 `spike/008-wa` (`a58561d`) es **referencia, no base**; los spikes `008-a/-b/-b2/-c` son de B′ y están
-obsoletos (5 worktrees en `../Tramita-worktrees/`; se borran con el OK del usuario).
-📎 Al abrir la PR: `Closes #13` en texto plano; enmendar sus criterios («puerto como interfaz», «solo en
-FINALIZADO») y decidir `#38`/`#39`; pasarle a Codex el reparto del front (`plan.md`, «Reparto con el
-frontend»). El árbol ya está enmendado (`26f2200`, cuatro líneas: `:134`, `:164`, `:181`, `:216`). Suite
-final: **163 unitarios + 127 IT** (`ca5decf`); base 163 + 112 (`cb85fd6`); se re-mide, no se cita de memoria.
-Última feature cerrada: `007-coordination-inbox` — SP5 (`#12`, CERRADO) + `#22`, PR #47 (`412a5e0`).
-⛔ Nada de la 007 se re-agenda. Sus decisiones vivas: la bandeja lee el responsable que la configuración
-declara, **sin roles** (filtra, no impide); se **mide** la antigüedad desde la ÚLTIMA transición y no se
-dictamina vencimiento; el catálogo expone `isInitial`/`isFinal` **sin orden lineal**; el responsable viaja
-como PARÁMETRO, nunca como literal; `GET /requests/inbox` se reusó enmendando la 004 de forma no aditiva;
-`WorkflowDefinitionResponse` NO se amplía (los estados van en `WorkflowDefinitionDetailResponse`).
-Antes: `006-verifiable-document-seal` (SP4, PR #41: huella guardada sin regenerar; `GET /public/seals/{code}`
-solo afirma que el sello existe; `/ID` derivado del trámite), `005-formal-document` (SP3, PR #31),
-`004-public-request-capture` y `003-request-form-rules`.
+**Feature ACTIVA: `009-program-catalog-annex`** — Sprint 3, issues `Tramita#40` (la hoja de vida académica que
+exige Ingeniería de Sistemas al reenviar) y `Tramita#50` (el programa entra como texto libre). Fase: **planificada**
+(2026-09-25; spec `202d594`, gate `review-spec` superado en `ef4d61a`, gate `review-plan` superado la misma noche
+con 15 mediciones contra código y BD: ninguna premisa bloqueaba; la lista sale por la intercalación de la base
+(`en_US.utf8` medida en el contenedor y en la imagen de Testcontainers; el `Collator` queda como nota) y el
+contrato de la 006 lleva nota por dejar de ser «el tercer y último» endpoint abierto). Siguiente:
+`/speckit-tasks`, que regenera `tasks.md` DESDE PLANTILLA
+(`.claude/skills/speckit-tasks/SKILL.md:77`): se corre UNA vez; después `tasks.md` se edita a mano. Si la PR ya
+se abrió o se mergeó no se escribe acá: se deriva con `gh pr list --head 009-program-catalog-annex --state all`.
+Artefactos en `specs/009-program-catalog-annex/`: `spec.md` (13 FR, 6 SC, 2 US), `checklists/requirements.md`
+(16/16 + las tres decisiones del gate), `plan.md`, `research.md` (D1–D11), `data-model.md`,
+`contracts/openapi.yaml` y `quickstart.md`. ⚠️ Este bloque lo reescribe **solo `/speckit-plan`** cuando corre
+(`.claude/skills/speckit-plan/SKILL.md`) y queda una fase atrás por construcción: revisarlo antes de creerle.
+🔑 **Qué ES la 009**: el programa se ELIGE de un catálogo de 13 programas de la Sede Cali (dato: tabla
+`academic_program`; lista PROVISIONAL dictada por el usuario el 25-sep, sin confirmación escrita de la
+Coordinación, §IV) por los dos canales, con coincidencia EXACTA (FR-004); y el detalle expone `annexRequirement`
+(aditivo, `NON_NULL`) cuando la configuración del trámite declara un anexo POR PROGRAMA (tabla
+`workflow_annex_rule`, FK al catálogo): hoy solo ADICION_CREDITOS × Ingeniería de Sistemas → hoja de vida
+académica (evidencia `:184`, `:553`, `:762`). Se muestra SIEMPRE, desde el registro y en cualquier estado
+(FR-009/FR-010, §VI); bandeja y resumen NO lo llevan (§III).
+⛔ **NO reabrir** (decidido en spec, gate y plan): la regla por facultad (es por programa, 21-sep); derivar la
+facultad del programa (no hay mapa); los tres anexos universales de la novedad de notas (FUERA, gate del 25-sep:
+una regla «para todos» es aditiva después); `program_id` en `request` (D3: se guarda el NOMBRE y lo radicado no se
+toca, FR-005); normalizar mayúsculas o tildes (D8); administrar el catálogo por pantalla (§I); una constraint de
+Bean Validation que consulte la BD (D4: la pertenencia se valida en `RequestBusinessRulesImpl`, precedente 003);
+recibir archivos (FR-012, 006).
+🔑 **Enmienda NO aditiva** de `program` en `POST /public/requests/{code}` y `POST /requests` (FR-013, precedente
+008): un programa fuera del catálogo se reporta EXACTAMENTE como un campo inválido de cada canal (422 «Formato
+inválido» público / 400 «Petición inválida» interno, `invalidFields:["program"]`, sin eco del valor) vía
+`InvalidFieldValueException`. El front (Codex) debe desplegar el desplegable alimentado por
+`GET /api/public/programs` ANTES o A LA VEZ (plan, «Reparto con el frontend»; brief como issue, precedente
+front#59). Medido: el formulario interno del front tiene 4 de sus 5 programas EN la lista (solo Psicología fuera);
+el riesgo real es el formulario público, que hoy manda texto libre.
+🔑 **Migraciones** `V5.0.0` (schema) + `V5.1.0` (siembra: 13 programas + 1 regla), las primeras desde la `V4.1.0`
+de la 006. El literal `ADICION_CREDITOS` va en SQL: el `git grep` de la tesis sigue en UNA línea
+(`DoFr100Renderer.java:166`). Rompe UN fixture por diseño: `RequestControllerIT.java:488` («Programa Reservado»
+→ 400) y dos constructores de tests unitarios (`RequestBusinessRulesImplTest:42`, `RequestServiceImplTest:636`).
+La nota «ENMENDADO POR LA 009» va en el contrato de la 004 (`:270-272`) Y en el de la 003 (`:159`), donde
+`CreateRequestBody.program` sí está declarado. El front se midió sobre `ff4b6ab` (`sections.tsx:164`); se
+re-verifica al escribir el brief, porque el front avanza en paralelo.
+📎 Al abrir la PR: `Closes #40` y `Closes #50` en texto plano (el #40 YA está rectificado el 25-sep con la
+convención del #42: no re-enmendar); brief al front como issue. Suite base: **163 unitarios + 127 IT**
+(`ca5decf`); se re-mide con `./mvnw clean verify` al arrancar la implementación, no se cita de memoria.
+Última feature cerrada: `008-student-closure-notice` — SP7 (`#13`, CERRADO), PR #49 (`0cf3fa3`, 25-sep).
+⛔ Nada de la 008 se re-agenda. Sus decisiones vivas: DOS acciones manuales (`mailto:` P1 y `wa.me` P2, esta solo
+con móvil `^3\d{9}$`); el sistema no envía nada ni registra «avisado»; el back expone `origin`, `studentEmail` y
+`studentPhone` y el front decide; teléfono `[0-9]{10}` validado en el API, sin normalizar; sin migración.
+Antes: `007-coordination-inbox` (SP5 + `#22`, PR #47: bandeja sin roles, antigüedad medida sin dictaminar
+vencimiento, catálogo de estados sin orden lineal), `006-verifiable-document-seal` (SP4, PR #41),
+`005-formal-document` (SP3, PR #31), `004-public-request-capture` y `003-request-form-rules`.
 Stack: Java 21 · Spring Boot 4.0.7 (Security 7, Data JPA, Validation, WebMVC) · PostgreSQL + Flyway
 (validate) · PDFBox 3 · BCrypt · Lombok · Testcontainers (test).
 Paquete `com.uniremington.api.tramita`, estructura **package-by-layer**: `controller/`,
 `dto/`, `model/`, `repo/`, `security/`, `service/` (contratos) + `service/impl/`, `util/`
 y `shared/` (`config/`, `exception/`, `seed/`). Interfaces con prefijo `I`.
-Para más contexto de tecnologías, estructura y comandos, leer `specs/008-student-closure-notice/plan.md`.
+Para más contexto de tecnologías, estructura y comandos, leer `specs/009-program-catalog-annex/plan.md`.
 <!-- SPECKIT END -->
