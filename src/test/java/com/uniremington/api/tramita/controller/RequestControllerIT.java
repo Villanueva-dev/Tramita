@@ -584,6 +584,56 @@ class RequestControllerIT {
                 .andExpect(jsonPath("$.availableTransitions").isEmpty());
     }
 
+    /**
+     * T030 (009, US2 escenario 3, SC-006, FR-010): el anexo de la regla del catálogo
+     * viaja con la solicitud desde el registro hasta un estado final, «en cualquier
+     * estado». Se recorre la cadena hasta FINALIZADA y no hasta RECHAZADA a propósito:
+     * es el estado cuyo literal vigila la tesis (T043), y así el mutante de T039(c)
+     * muere dos veces.
+     */
+    @Test
+    @DisplayName("el annexRequirement de la regla del catálogo viaja del registro a FINALIZADA (009, US2 escenario 3)")
+    void adicionAnnexRequirementFollowsTheRequestFromRegistrationToFinalState() throws Exception {
+        MockHttpSession session = login();
+        String body = mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Con Anexo",
+                          "studentDocument": "SIN-DATO-REAL-908",
+                          "program": "Ingeniería de Sistemas"
+                        }""").session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.annexRequirement.documentName").value("Hoja de vida académica"))
+                .andExpect(jsonPath("$.annexRequirement.sourceHint").value("La descarga el estudiante desde CLASS"))
+                .andReturn().getResponse().getContentAsString();
+        String id = com.jayway.jsonpath.JsonPath.read(body, "$.id");
+
+        mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.annexRequirement.documentName").value("Hoja de vida académica"))
+                .andExpect(jsonPath("$.annexRequirement.sourceHint").value("La descarga el estudiante desde CLASS"));
+
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.annexRequirement.documentName").value("Hoja de vida académica"))
+                .andExpect(jsonPath("$.annexRequirement.sourceHint").value("La descarga el estudiante desde CLASS"));
+
+        for (String state : new String[] {
+                "APROBADA_FACULTAD", "EN_REGISTRO_CALI", "EN_REGISTRO_NACIONAL"}) {
+            mockMvc.perform(advanceRequest(id, state, null).session(session))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.currentState.code").value(state))
+                    .andExpect(jsonPath("$.annexRequirement.documentName").value("Hoja de vida académica"));
+        }
+
+        mockMvc.perform(advanceRequest(id, "FINALIZADA", null).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.code").value("FINALIZADA"))
+                .andExpect(jsonPath("$.currentState.isFinal").value(true))
+                .andExpect(jsonPath("$.annexRequirement.documentName").value("Hoja de vida académica"))
+                .andExpect(jsonPath("$.annexRequirement.sourceHint").value("La descarga el estudiante desde CLASS"));
+    }
+
     @Test
     @DisplayName("transición no definida: 409 problem+json y el estado queda intacto")
     void undefinedTransitionReturns409AndStateSurvives() throws Exception {
@@ -1464,6 +1514,101 @@ class RequestControllerIT {
                 "SELECT program FROM request WHERE id = ?::uuid", String.class, id))
                 .as("avanzar no valida ni reescribe el programa de una fila anterior a la 009")
                 .isEqualTo("Ing");
+    }
+
+    // --- 009 / US2: la GUARDA de las cuatro ausencias de annexRequirement ----------------
+
+    @Test
+    @DisplayName("adición de créditos con un programa del catálogo sin regla no trae annexRequirement (009, US2 escenario 2)")
+    void adicionWithProgramWithoutAnnexRuleOmitsAnnexRequirement() throws Exception {
+        MockHttpSession session = login();
+        String body = mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Sin Anexo Derecho",
+                          "studentDocument": "SIN-DATO-REAL-909",
+                          "program": "Derecho"
+                        }""").session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.annexRequirement").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(body).doesNotContain("\"annexRequirement\"");
+    }
+
+    @Test
+    @DisplayName("novedad de notas nunca trae annexRequirement: entra sin reglas (009, US2 escenario 4, FR-007)")
+    void novedadNeverCarriesAnnexRequirement() throws Exception {
+        MockHttpSession session = login();
+        String body = mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "NOVEDAD_NOTAS",
+                          "studentName": "Estudiante Novedad Sin Anexo",
+                          "studentDocument": "SIN-DATO-REAL-910",
+                          "program": "Ingeniería de Sistemas"
+                        }""").session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.annexRequirement").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(body).doesNotContain("\"annexRequirement\"");
+    }
+
+    /**
+     * GUARDA (009, US2 escenario 6): mismo patrón que
+     * {@link #legacyProgramOutsideCatalogSurvivesReadAndAdvance()} arriba, pero para el
+     * anexo. Un programa legado que no calza exacto con el catálogo («Sistemas» no es
+     * «Ingeniería de Sistemas») no resuelve ninguna regla.
+     */
+    @Test
+    @DisplayName("un programa legado que no calza exacto con el catálogo no trae annexRequirement (009, US2 escenario 6)")
+    void legacyProgramOutsideCatalogOmitsAnnexRequirement() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS",
+                "Estudiante Programa Legado Sin Anexo", "SIN-DATO-REAL-911");
+        assertThat(jdbcTemplate.update(
+                "UPDATE request SET program = ? WHERE id = ?::uuid", "Sistemas", id))
+                .as("la fila existe y se pudo escribir el programa legado por SQL")
+                .isEqualTo(1);
+
+        String body = mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.program").value("Sistemas"))
+                .andExpect(jsonPath("$.annexRequirement").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(body).doesNotContain("\"annexRequirement\"");
+    }
+
+    /**
+     * GUARDA (009, US2): precedente {@link #searchAndInboxNeverExposeContact()} (008)
+     * aplicado al anexo — ni la búsqueda ni la bandeja lo llevan, aunque la solicitud sí.
+     */
+    @Test
+    @DisplayName("ni la búsqueda ni la bandeja exponen annexRequirement, aunque la solicitud lo tenga (009, US2)")
+    void searchAndInboxNeverExposeAnnexRequirement() throws Exception {
+        MockHttpSession session = login();
+        String studentName = "Estudiante Listado Con Anexo";
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "%s",
+                          "studentDocument": "SIN-DATO-REAL-912",
+                          "program": "Ingeniería de Sistemas"
+                        }""".formatted(studentName)).session(session))
+                .andExpect(status().isCreated());
+
+        String search = mockMvc.perform(get("/api/requests").param("search", studentName).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[*].annexRequirement").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        String inbox = mockMvc.perform(get(INBOX)
+                        .param("responsible", "COORDINACION").param("limit", "200")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].annexRequirement").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(search).doesNotContain("\"annexRequirement\"");
+        assertThat(inbox).doesNotContain("\"annexRequirement\"");
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.uniremington.api.tramita.service.impl;
 
 import com.uniremington.api.tramita.dto.AdvanceRequestBody;
+import com.uniremington.api.tramita.dto.AnnexRequirementResponse;
 import com.uniremington.api.tramita.dto.AvailableTransitionResponse;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
 import com.uniremington.api.tramita.dto.InboxEntryResponse;
@@ -22,6 +23,7 @@ import com.uniremington.api.tramita.model.WorkflowTransition;
 import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
 import com.uniremington.api.tramita.repo.IUserRepo;
+import com.uniremington.api.tramita.repo.IWorkflowAnnexRuleRepo;
 import com.uniremington.api.tramita.repo.IWorkflowParameterRepo;
 import com.uniremington.api.tramita.repo.IWorkflowDefinitionRepo;
 import com.uniremington.api.tramita.service.IRequestBusinessRules;
@@ -81,6 +83,8 @@ public class RequestServiceImpl implements IRequestService {
     private final IUserRepo userRepo;
     private final IRequestBusinessRules businessRules;
     private final IWorkflowParameterRepo parameterRepo;
+    /** El anexo por programa (009, FR-012). Se consulta solo cuando la solicitud tiene programa. */
+    private final IWorkflowAnnexRuleRepo annexRuleRepo;
 
     /**
      * Todas las guardas registradas como bean (research.md D5). Se recorre por
@@ -561,6 +565,13 @@ public class RequestServiceImpl implements IRequestService {
      *
      * El correo y el teléfono se pasan sin transformarlos (FR-011): salen tal como se
      * guardaron, y {@code RequestResponse} los omite cuando son nulos.
+     *
+     * DESDE LA 009 RESUELVE EL ANEXO POR PROGRAMA (FR-012): el costo declarado es una
+     * consulta más al detalle cuando la solicitud tiene programa, ninguna cuando no lo
+     * tiene (research.md D6). La decisión de si hay que resolverlo NO mira el estado
+     * actual de la solicitud —ni su code ni si es final—: el anexo se debe «en cualquier
+     * estado» (FR-010), y leer el estado para decidirlo metería un literal de estado en
+     * el motor genérico, justo lo que su tesis (§VI) prohíbe.
      */
     private RequestResponse toResponse(Request request) {
         WorkflowDefinition definition = request.getDefinition();
@@ -591,7 +602,24 @@ public class RequestServiceImpl implements IRequestService {
                 request.getCreatedAt(),
                 originOf(timeline),
                 request.getStudentEmail(),
-                request.getStudentPhone());
+                request.getStudentPhone(),
+                resolveAnnexRequirement(definition, request));
+    }
+
+    /**
+     * El anexo vigente para el programa de la solicitud (009, FR-012, research.md D6).
+     * Sin programa, {@code null} SIN CONSULTAR: la ausencia de programa nunca es una
+     * regla de anexo por resolver, y una solicitud de un trámite sin anexos configurados
+     * —como novedad de notas, US2 escenario 4— tampoco encuentra ninguna.
+     */
+    private AnnexRequirementResponse resolveAnnexRequirement(WorkflowDefinition definition, Request request) {
+        if (request.getProgram() == null) {
+            return null;
+        }
+        return annexRuleRepo
+                .findByDefinitionIdAndProgramName(definition.getId(), request.getProgram())
+                .map(rule -> new AnnexRequirementResponse(rule.getDocumentName(), rule.getSourceHint()))
+                .orElse(null);
     }
 
     private List<SubjectResponse> toSubjectResponses(Request request) {
