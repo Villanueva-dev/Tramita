@@ -88,7 +88,7 @@ issue por SP1–SP7), no en un archivo. Se cierra con `Closes #N` en el cuerpo d
 - **Gestión**: Scrum, 3 sprints (S1: SP1+SP2+SP6 → S2: SP3+SP4 → S3: SP5+SP7).
 - **Requisitos** (pendiente): **ISO/IEC/IEEE 29148:2018**, estructura del SRS según su cláusula 9.6. Sustituye a IEEE 830-1998, que figura como *superseded* en el catálogo del IEEE Standards Association. Se descartó IEEE 1016-2009 (*inactive-reserved*): el diseño se documenta con C4 + 4+1.
 - **Arquitectura** (pendiente): C4 + 4+1.
-- **Ciclo de vida**: **ISO/IEC/IEEE 12207:2026** (segunda edición, aprobada el 2026-02-12 y publicada el 2026-04-15; «cancels and replaces» la 12207:2017, que IEEE SA marca *Superseded*). DOI 10.1109/IEEESTD.2026.11481698. `docs/BASE_DOCUMENTO_TRAMITA.md` ya cita la 2026; el `.docx` y `docs/CICLO_DE_VIDA_DEL_SOFTWARE_TRAMITA.md` siguen en la 2017.
+- **Ciclo de vida**: **ISO/IEC/IEEE 12207:2026** (segunda edición, aprobada el 2026-02-12 y publicada el 2026-04-15; «cancels and replaces» la 12207:2017, que IEEE SA marca *Superseded*). DOI 10.1109/IEEESTD.2026.11481698. En `main`, `docs/BASE_DOCUMENTO_TRAMITA.md` (tres citas), el `.docx` y `docs/CICLO_DE_VIDA_DEL_SOFTWARE_TRAMITA.md` siguen en la 2017: la migración del borrador markdown existe solo en un working tree sin commitear (25-sep).
 
 Al citar literatura o normativa institucional, **incluir la referencia exacta** en cada afirmación — alineado con la regla general #4 del CLAUDE.md global.
 
@@ -125,8 +125,9 @@ vigilan); administrar el catálogo por pantalla (§I); Bean Validation con BD (D
 guardar el requisito en vez de derivarlo (D6: un mutante lo vigila).
 ⚠️ **LO ÚNICO VIVO DE LA 009 ESTÁ EN EL FRONT: `tramita-frontend#74`** (brief, precedente front#59). El backend ya
 rechaza con 422 cualquier programa fuera del catálogo, y el formulario público del front, medido el 2026-09-26 sobre
-`origin/main` = `0650548`, sigue mandando texto libre (`components/do-fr-100/sections.tsx:161`, `TextField`) sin consumir
-`/api/public/programs`; el interno usa la constante `PROGRAMS` (`lib/ui-constants.ts:33`) y preselecciona `PROGRAMS[0]`.
+`origin/main` = `06a0f8c` (PR #73), sigue mandando texto libre (`components/do-fr-100/sections.tsx:172`, `TextField`) sin
+consumir `/api/public/programs`; el interno usa la constante `PROGRAMS` (`lib/ui-constants.ts:33`) y preselecciona
+`PROGRAMS[0]`. El brief front#74 cita las líneas de `0650548`, que el front ya movió: sus enlaces son permanentes.
 Hasta que entre el selector, **un estudiante que escriba el programa a mano recibe 422**. El front avanza en paralelo:
 re-medir su punta antes de escribir cualquier número.
 📎 Cómo se cerró (precedente para la próxima): PR con `Closes #40` y `Closes #50` en texto plano y sin `--milestone`

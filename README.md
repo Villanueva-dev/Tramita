@@ -336,7 +336,7 @@ set -a; source .env; set +a
 SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 ```
 
-Al primer arranque, Flyway aplica las once migraciones y `CoordinationUserSeeder` provisiona
+Al primer arranque, Flyway aplica las trece migraciones y `CoordinationUserSeeder` provisiona
 la cuenta (hasheando `SEED_COORD_PASSWORD` con BCrypt). Reinicios posteriores no la duplican
 (idempotente).
 
