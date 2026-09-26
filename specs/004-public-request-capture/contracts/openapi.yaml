@@ -24,6 +24,15 @@ info:
     `specs/008-student-closure-notice/contracts/openapi.yaml`; lo de abajo es la forma
     histórica de la 004.
 
+    ⚠️ **ENMENDADO POR LA 009** (2026-09-26): `program` deja de ser texto libre. Fuera del
+    catálogo publicado por `GET /api/public/programs`, este canal responde 422 «Formato
+    inválido» con `invalidFields: ["program"]`, sin eco del valor; el canal interno
+    (`POST /requests`, `specs/003-request-form-rules/contracts/openapi.yaml`) responde 400
+    «Petición inválida» ante el mismo caso. La coincidencia es exacta, sin normalizar
+    mayúsculas, tildes ni espacios. La forma vigente vive en
+    `specs/009-program-catalog-annex/contracts/openapi.yaml`; lo de abajo es la forma
+    histórica.
+
     Lo no listado aquí se rige por `specs/003-request-form-rules/contracts/openapi.yaml` y,
     en lo que aquella no altera, por el de la 002.
 
@@ -270,6 +279,13 @@ components:
         program:
           type: string
           maxLength: 120
+          description: |
+            ⚠️ **ENMENDADO POR LA 009** (2026-09-26): deja de aceptar cualquier texto de hasta
+            120 caracteres. Fuera del catálogo publicado por `GET /api/public/programs`, pasa
+            de 201 a 422 con `invalidFields: ["program"]`, sin eco del valor (coincidencia
+            exacta, sin normalizar mayúsculas, tildes ni espacios). La forma vigente vive en
+            `specs/009-program-catalog-annex/contracts/openapi.yaml`; el `maxLength: 120` de
+            arriba es la forma histórica.
         campus:
           type: string
           maxLength: 120

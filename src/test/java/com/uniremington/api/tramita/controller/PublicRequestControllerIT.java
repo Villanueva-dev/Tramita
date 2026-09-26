@@ -185,6 +185,89 @@ class PublicRequestControllerIT {
                 .doesNotContain("esto-no-es-un-correo");
     }
 
+    // --- 009 / FR-002, US1: el programa debe pertenecer al catálogo (D8: sin normalizar) -
+
+    @Test
+    @DisplayName("programa fuera del catálogo: 422 que lo nombra, sin eco (009, FR-002)")
+    void publicSubmissionRejectsProgramOutsideCatalog() throws Exception {
+        Map<String, Object> body = filledForm("Estudiante Programa Fuera De Catalogo",
+                "SIN-DATO-REAL-901");
+        body.put("program", "Psicología");
+
+        String response = mockMvc.perform(publicSubmission("203.0.113.90", PUBLIC_TRADE, body))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title").value("Formato inválido"))
+                .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                .andExpect(jsonPath("$.invalidFields[0]").value("program"))
+                .andExpect(jsonPath("$.missingFields.length()").value(0))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(response)
+                .as("el programa rechazado no puede reflejarse de vuelta al cliente (§III)")
+                .doesNotContain("Psicología");
+    }
+
+    // Cuatro variantes de UNA sola dimensión cada una (research.md D10): la variante de
+    // la spec difiere en mayúscula y tilde a la vez, y dejaría vivo un mutante que solo
+    // atacara una de las dos. FR-002 exige coincidencia EXACTA: nada de esto se normaliza.
+
+    @Test
+    @DisplayName("programa con otra mayúscula (sin acentos de por medio): 422, sin normalizar (009, FR-002, D8)")
+    void publicSubmissionRejectsProgramCaseVariant() throws Exception {
+        assertProgramVariantIsRejected("203.0.113.91", "ingeniería de sistemas");
+    }
+
+    @Test
+    @DisplayName("programa sin la tilde: 422, sin normalizar (009, FR-002, D8)")
+    void publicSubmissionRejectsProgramAccentVariant() throws Exception {
+        assertProgramVariantIsRejected("203.0.113.92", "Ingenieria de Sistemas");
+    }
+
+    @Test
+    @DisplayName("programa con un espacio final: 422, sin normalizar (009, FR-002, D8)")
+    void publicSubmissionRejectsProgramTrailingSpaceVariant() throws Exception {
+        // El espacio final es un espacio U+0020 real dentro del literal, no un escape:
+        // es justo lo que la coincidencia EXACTA de FR-002 debe seguir rechazando.
+        assertProgramVariantIsRejected("203.0.113.93", "Ingeniería de Sistemas ");
+    }
+
+    @Test
+    @DisplayName("programa abreviado —el ejemplo de US1 escenario 4—: 422, sin normalizar (009, FR-002)")
+    void publicSubmissionRejectsProgramAbbreviation() throws Exception {
+        assertProgramVariantIsRejected("203.0.113.94", "Ing. de Sistemas");
+    }
+
+    private void assertProgramVariantIsRejected(String origin, String program) throws Exception {
+        Map<String, Object> body = filledForm("Estudiante Variante De Programa",
+                "SIN-DATO-REAL-902");
+        body.put("program", program);
+
+        mockMvc.perform(publicSubmission(origin, PUBLIC_TRADE, body))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                .andExpect(jsonPath("$.invalidFields[0]").value("program"));
+    }
+
+    @Test
+    @DisplayName("programa en blanco: 422 «Formato incompleto», no «inválido» (009, FR-002, D4)")
+    void publicSubmissionTreatsBlankProgramAsMissingNotInvalid() throws Exception {
+        // GUARDA, no RED: @NotBlank (PublicRequestBody.java:51) ya categoriza un valor de
+        // solo espacios como AUSENTE antes de que exista ningún chequeo de catálogo. Fija
+        // que ese chequeo, que corre en el servicio DESPUÉS de Bean Validation, no
+        // convierta un blanco en «inválido» (la ausencia domina, research.md D4).
+        Map<String, Object> body = filledForm("Estudiante Con Programa En Blanco",
+                "SIN-DATO-REAL-903");
+        body.put("program", "   ");
+
+        mockMvc.perform(publicSubmission("203.0.113.95", PUBLIC_TRADE, body))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.title").value("Formato incompleto"))
+                .andExpect(jsonPath("$.missingFields.length()").value(1))
+                .andExpect(jsonPath("$.missingFields[0]").value("program"))
+                .andExpect(jsonPath("$.invalidFields.length()").value(0));
+    }
+
     @Test
     @DisplayName("media type no soportado: 415 problem+json, no 400")
     void submissionWithUnsupportedMediaTypeIsRejected() throws Exception {

@@ -3,6 +3,8 @@ package com.uniremington.api.tramita.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -16,6 +18,7 @@ import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.model.RequestTransitionLog;
 import com.uniremington.api.tramita.model.User;
+import com.uniremington.api.tramita.model.WorkflowAnnexRule;
 import com.uniremington.api.tramita.model.WorkflowDefinition;
 import com.uniremington.api.tramita.model.WorkflowParameter;
 import com.uniremington.api.tramita.model.WorkflowState;
@@ -23,6 +26,7 @@ import com.uniremington.api.tramita.model.WorkflowTransition;
 import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
 import com.uniremington.api.tramita.repo.IUserRepo;
+import com.uniremington.api.tramita.repo.IWorkflowAnnexRuleRepo;
 import com.uniremington.api.tramita.repo.IWorkflowParameterRepo;
 import com.uniremington.api.tramita.repo.IWorkflowDefinitionRepo;
 import com.uniremington.api.tramita.service.IRequestBusinessRules;
@@ -70,6 +74,11 @@ class RequestServiceImplTest {
      * de este test no lo ejercitan; está para satisfacer al constructor.
      */
     private final IWorkflowParameterRepo parameterRepo = mock(IWorkflowParameterRepo.class);
+    /**
+     * El anexo por programa (009, US2). Los casos de US1–US4 no tienen programa en su
+     * solicitud, así que nunca lo consultan (FR-010); está para satisfacer al constructor.
+     */
+    private final IWorkflowAnnexRuleRepo annexRuleRepo = mock(IWorkflowAnnexRuleRepo.class);
     /** Sin guardas registradas: los casos de US1–US3 no las ejercitan (FR-017). */
     private final RequestServiceImpl service = serviceWith();
 
@@ -607,6 +616,46 @@ class RequestServiceImplTest {
         assertThat(inbox).singleElement().extracting(InboxEntryResponse::origin).isNull();
     }
 
+    /**
+     * T033 (009, US2). No reemplaza a los IT (research.md D10 la descarta como prueba
+     * principal): fija lo que el JSON no deja ver —que sin programa NO hay consulta—.
+     */
+    @Test
+    @DisplayName("detalle: sin programa, no se consulta el anexo y annexRequirement es null (009, US2)")
+    void detailSkipsAnnexLookupWhenRequestHasNoProgram() {
+        requestAt(initial);
+
+        RequestResponse response = service.getById(REQUEST_ID);
+
+        verify(annexRuleRepo, never()).findByDefinitionIdAndProgramName(any(), any());
+        assertThat(response.annexRequirement()).isNull();
+    }
+
+    /**
+     * T033 (009, US2). Fija que la consulta lleva el programa EXACTO de la solicitud y que
+     * el DTO copia la regla tal cual. La definición del fixture ({@code definition}, arriba)
+     * no tiene {@code id}, así que el primer argumento solo puede compararse con
+     * {@code isNull()}: que el servicio pase {@code definition.getId()} y no otra cosa lo
+     * fija el IT de US2 ({@code adicionAnnexRequirementFollowsTheRequestFromRegistrationToFinalState}).
+     */
+    @Test
+    @DisplayName("detalle: con programa, el anexo de la regla vigente viaja tal cual al DTO (009, US2)")
+    void detailCarriesAnnexRuleVerbatimForTheRequestProgram() {
+        requestAtWithProgram(initial, "Programa X");
+        WorkflowAnnexRule rule = WorkflowAnnexRule.builder()
+                .documentName("Documento De Prueba")
+                .sourceHint("Indicación De Prueba")
+                .build();
+        when(annexRuleRepo.findByDefinitionIdAndProgramName(isNull(), eq("Programa X")))
+                .thenReturn(Optional.of(rule));
+
+        RequestResponse response = service.getById(REQUEST_ID);
+
+        verify(annexRuleRepo).findByDefinitionIdAndProgramName(isNull(), eq("Programa X"));
+        assertThat(response.annexRequirement().documentName()).isEqualTo("Documento De Prueba");
+        assertThat(response.annexRequirement().sourceHint()).isEqualTo("Indicación De Prueba");
+    }
+
     /** Solicitud del trámite de prueba, pendiente en el estado inicial, con id y radicación fijos. */
     private Request pendingRequest(java.util.UUID id, LocalDateTime createdAt) {
         return Request.builder()
@@ -634,7 +683,7 @@ class RequestServiceImplTest {
     /** Motor con las guardas dadas registradas; sin argumentos, ninguna. */
     private RequestServiceImpl serviceWith(IWorkflowGuard... guards) {
         return new RequestServiceImpl(
-                definitionRepo, requestRepo, logRepo, userRepo, businessRules, parameterRepo,
+                definitionRepo, requestRepo, logRepo, userRepo, businessRules, parameterRepo, annexRuleRepo,
                 List.of(guards));
     }
 
@@ -655,6 +704,23 @@ class RequestServiceImplTest {
         when(userRepo.findByEmail(EMAIL)).thenReturn(Optional.of(actor));
         when(requestRepo.save(any(Request.class))).thenAnswer(inv -> inv.getArgument(0));
         when(logRepo.save(any(RequestTransitionLog.class))).thenAnswer(inv -> inv.getArgument(0));
+        return request;
+    }
+
+    /**
+     * Igual que {@link #requestAt(WorkflowState)}, pero con programa (009, US2): es lo
+     * que dispara la consulta del anexo en {@code toResponse}.
+     */
+    private Request requestAtWithProgram(WorkflowState state, String program) {
+        Request request = Request.builder()
+                .definition(definition)
+                .currentState(state)
+                .studentName("Ana María Pérez")
+                .studentDocument("DOC-PRUEBA-001")
+                .program(program)
+                .build();
+        when(requestRepo.findById(REQUEST_ID)).thenReturn(Optional.of(request));
+        when(userRepo.findByEmail(EMAIL)).thenReturn(Optional.of(actor));
         return request;
     }
 

@@ -33,6 +33,14 @@ import java.util.UUID;
  * dígitos, para las anteriores a la 008 puede tener cualquier forma. Si es un móvil o
  * no lo decide el cliente (FR-002, FR-012). El backend expone hechos; el cliente
  * decide si ofrece el aviso (research.md D5 de la 008).
+ *
+ * DESDE LA 009 EXPONE EL ANEXO POR PROGRAMA (FR-009, FR-013): {@code annexRequirement}
+ * viaja aquí, en el detalle de una solicitud concreta, y en NINGÚN otro DTO
+ * ({@code RequestSummaryResponse}, {@code InboxEntryResponse}) por la misma razón que el
+ * contacto de la 008 — la búsqueda y la bandeja listan para decidir A QUIÉN atender, no
+ * para tramitar una solicitud puntual, y el anexo es información de trámite. Es aditivo
+ * y omitido cuando es nulo (NON_NULL): una solicitud sin programa, o con un programa sin
+ * regla de anexo configurada, no trae la clave.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record RequestResponse(
@@ -53,5 +61,7 @@ public record RequestResponse(
         /** Destinatario del aviso por correo (008, P1). Ausente si no se declaró. */
         String studentEmail,
         /** Destinatario del aviso por WhatsApp (008, P2), tal como se guardó. Ausente si no se declaró. */
-        String studentPhone) {
+        String studentPhone,
+        /** El anexo por programa vigente (009, FR-009). Ausente sin programa o sin regla configurada. */
+        AnnexRequirementResponse annexRequirement) {
 }

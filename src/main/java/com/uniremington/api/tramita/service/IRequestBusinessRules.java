@@ -20,6 +20,9 @@ public interface IRequestBusinessRules {
      * @throws com.uniremington.api.tramita.shared.exception.IncompleteConfigurationException
      *         si un parámetro que la validación necesita no está configurado o su
      *         valor no es interpretable (500) — FR-010, FR-011
+     * @throws com.uniremington.api.tramita.shared.exception.InvalidFieldValueException
+     *         si {@code program} viene declarado y no pertenece al catálogo (009,
+     *         FR-004); ausente es válido
      */
     void validate(WorkflowDefinition definition, CreateRequestBody body);
 }
