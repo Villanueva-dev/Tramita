@@ -22,7 +22,7 @@ git grep -nE '"(FINALIZADA|DEVUELTA|ADICION_CREDITOS|NOVEDAD_NOTAS)"' main -- 's
 
 ## Qué está entregado
 
-Seis features recorrieron el ciclo y están mergeadas en `main`. La tabla dice **qué sabe
+Nueve features recorrieron el ciclo y están mergeadas en `main`; los tres sprints del árbol de problemas están completos. La tabla dice **qué sabe
 hacer el sistema hoy**; **cuánto falta** no se escribe acá, se consulta en los
 [milestones](../../milestones) — un milestone por sprint, un issue por sub-problema.
 
@@ -34,6 +34,9 @@ hacer el sistema hoy**; **cuánto falta** no se escribe acá, se consulta en los
 | [`004-public-request-capture`](specs/004-public-request-capture/) | El estudiante entrega el formato firmado desde un enlace público, sin cuenta | #18 |
 | [`005-formal-document`](specs/005-formal-document/) | El sistema emite el DO-FR-100 diligenciado como PDF | #10 |
 | [`006-verifiable-document-seal`](specs/006-verifiable-document-seal/) | Cada emisión queda sellada, verificable por dos canales, con historial | #11 |
+| [`007-coordination-inbox`](specs/007-coordination-inbox/) | La bandeja de la Coordinación: qué espera a cada responsable, con antigüedad medida y sin dictaminar vencimiento | #12, #22 |
+| [`008-student-closure-notice`](specs/008-student-closure-notice/) | El detalle expone origen y contacto para avisar el cierre al estudiante; el sistema no envía nada ni registra «avisado» | #13 |
+| [`009-program-catalog-annex`](specs/009-program-catalog-annex/) | El programa se elige de un catálogo publicado sin sesión, con coincidencia exacta, y el detalle anuncia el anexo que exige la facultad, derivado de configuración | #40, #50 |
 
 ```bash
 gh api repos/:owner/:repo/milestones \
@@ -61,7 +64,7 @@ gh api repos/:owner/:repo/milestones \
 ## Arquitectura
 
 Organización **package-by-layer** (constitución §II, vigente desde v2.0.0). Base:
-`com.uniremington.api.tramita` — 90 archivos `.java` en `src/main`.
+`com.uniremington.api.tramita` — 104 archivos `.java` en `src/main`.
 
 ```
 tramita/
@@ -72,22 +75,25 @@ tramita/
 │                 PublicRequestController       # captura del formato SIN sesión
 │                 SealController                # verificación exacta (con sesión)
 │                 PublicSealController          # consulta del sello por código impreso
-├── dto/          20 records de entrada y salida — sin entidades cruzando la frontera HTTP
+│                 PublicProgramController       # catálogo de programas SIN sesión (solo el nombre)
+├── dto/          24 records de entrada y salida — sin entidades cruzando la frontera HTTP
 ├── model/        User
 │                 WorkflowDefinition / WorkflowState / WorkflowTransition / WorkflowParameter
 │                 Request (@Version) / RequestSubject
 │                 RequestTransitionLog / RequestDocumentSeal    # ambas solo INSERT
-├── repo/         6 interfaces Spring Data
+│                 AcademicProgram / WorkflowAnnexRule           # catálogo y anexo por programa, como dato
+├── repo/         8 interfaces Spring Data
 ├── security/     AppUserDetailsService # carga el usuario para Spring Security
 │                 JsonAuthenticationConverter / AuthSuccessHandler / AuthFailureHandler
 │                 LoginThrottlingFilter          # 429 anti-fuerza-bruta
 │                 PublicSubmissionThrottlingFilter + CachedBodyRequest  # canal público
 ├── service/      Contratos: IAuthService, IWorkflowDefinitionService, IRequestService,
 │                 IRequestBusinessRules, IWorkflowGuard, IDocumentService,
-│                 IDocumentRenderer, IDocumentSealService
+│                 IDocumentRenderer, IDocumentSealService, IAcademicProgramService
 │   └── impl/     RequestServiceImpl            # EL MOTOR: advance() valida contra la
 │                                               #   definición — no conoce ningún trámite
-│                 RequestBusinessRulesImpl      # reglas por parámetro configurado
+│                 RequestBusinessRulesImpl      # reglas por parámetro configurado y pertenencia al catálogo
+│                 AcademicProgramServiceImpl    # la lista pública, sin caché
 │                 DocumentServiceImpl / DoFr100Renderer   # el PDF del formato
 │                 DocumentSealServiceImpl       # sellar, verificar, historial
 │                 AuthServiceImpl / LoginAttemptService / PasswordPolicy
@@ -96,7 +102,7 @@ tramita/
 └── shared/
     ├── config/      SecurityConfig, CsrfCookieFilter, CorsProperties, PublicCaptureProperties
     ├── exception/   GlobalExceptionHandler, PublicCaptureExceptionHandler,
-    │                ProblemJsonWriter (RFC 9457) + 7 excepciones de dominio
+    │                ProblemJsonWriter (RFC 9457) + 8 excepciones de dominio
     ├── validation/  @AtMostOneDecimal          # la precisión de una nota, en la entrada
     └── seed/        CoordinationUserSeeder     # provisión idempotente de la cuenta real
 ```
@@ -115,7 +121,7 @@ propio. Solo `/me` y `/password` son métodos de controller.
 
 ## Modelo de datos
 
-**Nueve tablas**, todas creadas por Flyway (`V1.0.0` → `V4.1.0`, once migraciones).
+**Once tablas**, todas creadas por Flyway (`V1.0.0` → `V5.1.0`, trece migraciones).
 
 **Auth** (`V1.0.0`): `users` — índice único funcional `uq_users_email_lower` sobre
 `LOWER(email)`; la cuenta la provisiona `CoordinationUserSeeder` por env (nunca credenciales
@@ -160,10 +166,16 @@ en git).
   **copiado** (código y nombre, no referenciado), quién emitió y cuándo.
 - **No hay columna de documento**: el archivo nunca se almacena.
 
+**Catálogo y anexo por programa** (`V5.0.0`, semilla `V5.1.0`): `academic_program` (nombre único; trece programas
+**provisionales** hasta la confirmación escrita de la Coordinación) y `workflow_annex_rule` (FK a la **versión** de la
+definición y al programa, `ON DELETE RESTRICT`, única por definición y programa). `request.program` guarda el **nombre**,
+no una FK: lo ya radicado no se toca, y el anexo se deriva al leer el detalle, nunca se guarda.
+
 Detalle por feature: [`002`](specs/002-workflow-engine/data-model.md) ·
 [`003`](specs/003-request-form-rules/data-model.md) ·
 [`004`](specs/004-public-request-capture/data-model.md) ·
-[`006`](specs/006-verifiable-document-seal/data-model.md).
+[`006`](specs/006-verifiable-document-seal/data-model.md) ·
+[`009`](specs/009-program-catalog-annex/data-model.md).
 La semilla de novedad de notas es **provisional** hasta validar la cadena con la Coordinación.
 
 ---
@@ -186,9 +198,9 @@ Sesión **stateful** con cookie, sin JWT.
 `/me` responde desde el **snapshot de la sesión** (email + active del `UserDetails` capturado
 al autenticar), sin tocar la BD.
 
-### Las dos rutas sin sesión
+### Las tres rutas sin sesión
 
-Todo lo demás cae en `anyRequest().authenticated()`. Solo dos matchers llevan `permitAll`, y
+Todo lo demás cae en `anyRequest().authenticated()`. Solo tres matchers llevan `permitAll`, y
 cada uno está declarado **una sola vez** para que el permiso y la exclusión de CSRF no puedan
 divergir:
 
@@ -201,6 +213,10 @@ divergir:
   exclusión de CSRF**: un `GET` no cambia estado y Spring Security no lo protege por diseño.
   Autoriza **por posesión** del código (64 bits en base 36, ≤13 caracteres) y solo afirma que
   el sello existe. Sin datos personales.
+- **`GET /api/public/programs`** — el catálogo de programas que alimenta el desplegable del formulario
+  público. Tampoco necesita exclusión de CSRF ni límite de tasa (el filtro solo intercepta el `POST` de
+  captura). Devuelve **solo nombres**, en el orden de la intercalación de la base y sin caché: un
+  programa agregado por SQL aparece sin reiniciar.
 
 > ⚠️ **Al desplegar detrás de un proxy** hay que cambiar `server.forward-headers-strategy` a
 > `NATIVE` y declarar el proxy en `server.tomcat.remoteip.internal-proxies`. Si no,
@@ -242,7 +258,7 @@ integración para el SPA en
 | `POST` | `/api/requests` | ✅ | `201` + `Location` — nace en el estado inicial de su trámite |
 | `GET`  | `/api/requests?search=` | — | `200` — localiza por cédula exacta o fragmento del nombre |
 | `GET`  | `/api/requests/inbox` | — | `200` — las recientes, **sin documento de identidad** |
-| `GET`  | `/api/requests/{id}` | — | `200` — detalle + transiciones disponibles |
+| `GET`  | `/api/requests/{id}` | — | `200` — detalle + transiciones disponibles + `annexRequirement` cuando el programa lo exige |
 | `POST` | `/api/requests/{id}/transitions` | ✅ | `200` — avanza o devuelve; `409` si no está definida o la rechaza una guarda |
 | `GET`  | `/api/requests/{id}/timeline` | — | `200` — el recorrido del trámite, en orden cronológico |
 | `GET`  | `/api/requests/{id}/document` | — | `200` `application/pdf` — el DO-FR-100 diligenciado y sellado |
@@ -255,6 +271,7 @@ integración para el SPA en
 |--------|------|:----:|-------|
 | `POST` | `/api/public/requests/{definitionCode}` | excluido | `201` + recibo **sin identificador** |
 | `GET`  | `/api/public/seals/{code}` | n/a (`GET`) | `200` `ISSUED` · `404` si no existe |
+| `GET`  | `/api/public/programs` | n/a (`GET`) | `200` `[{ name }]` — el catálogo, solo el nombre |
 
 Recorridos con `curl`, incluida la **demo SC-005** (cargar un trámite nuevo por SQL con la app
 corriendo y operarlo sin redeploy):
@@ -262,7 +279,8 @@ corriendo y operarlo sin redeploy):
 [`003`](specs/003-request-form-rules/quickstart.md) ·
 [`004`](specs/004-public-request-capture/quickstart.md) ·
 [`005`](specs/005-formal-document/quickstart.md) ·
-[`006`](specs/006-verifiable-document-seal/quickstart.md).
+[`006`](specs/006-verifiable-document-seal/quickstart.md) ·
+[`009`](specs/009-program-catalog-annex/quickstart.md) (el catálogo y una regla de anexo cargados por SQL en caliente).
 
 ---
 
