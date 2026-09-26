@@ -94,17 +94,20 @@ Al citar literatura o normativa institucional, **incluir la referencia exacta** 
 
 <!-- SPECKIT START -->
 **Feature ACTIVA: `009-program-catalog-annex`** — Sprint 3, issues `Tramita#40` (la hoja de vida académica que
-exige Ingeniería de Sistemas al reenviar) y `Tramita#50` (el programa entra como texto libre). Fase: **planificada**
+exige Ingeniería de Sistemas al reenviar) y `Tramita#50` (el programa entra como texto libre). Fase: **planificada, con tareas**
 (2026-09-25; spec `202d594`, gate `review-spec` superado en `ef4d61a`, gate `review-plan` superado la misma noche
 con 15 mediciones contra código y BD: ninguna premisa bloqueaba; la lista sale por la intercalación de la base
 (`en_US.utf8` medida en el contenedor y en la imagen de Testcontainers; el `Collator` queda como nota) y el
-contrato de la 006 lleva nota por dejar de ser «el tercer y último» endpoint abierto). Siguiente:
-`/speckit-tasks`, que regenera `tasks.md` DESDE PLANTILLA
-(`.claude/skills/speckit-tasks/SKILL.md:77`): se corre UNA vez; después `tasks.md` se edita a mano. Si la PR ya
+contrato de la 006 lleva nota por dejar de ser «el tercer y último» endpoint abierto). ✅ **`tasks.md`
+generado el 26-sep (madrugada): 48 tareas en 5 fases** (10 RED, 4 guardas, 1 fixture, 5 de mutantes; US1 = T010–T029
+es el MVP; US2 = T030–T040; cierre T041–T048). ⛔ `/speckit-tasks` NO se vuelve a correr (regenera DESDE PLANTILLA,
+`.claude/skills/speckit-tasks/SKILL.md:77`): `tasks.md` se edita A MANO. Siguiente: **implementación** T001→T048,
+cada RED observado con `./mvnw clean …` (nunca incremental) y los RED de IT ANTES que los unitarios, que rompen la
+compilación. Si la PR ya
 se abrió o se mergeó no se escribe acá: se deriva con `gh pr list --head 009-program-catalog-annex --state all`.
 Artefactos en `specs/009-program-catalog-annex/`: `spec.md` (13 FR, 6 SC, 2 US), `checklists/requirements.md`
 (16/16 + las tres decisiones del gate), `plan.md`, `research.md` (D1–D11), `data-model.md`,
-`contracts/openapi.yaml` y `quickstart.md`. ⚠️ Este bloque lo reescribe **solo `/speckit-plan`** cuando corre
+`contracts/openapi.yaml`, `quickstart.md` y **`tasks.md`**. ⚠️ Este bloque lo reescribe **solo `/speckit-plan`** cuando corre
 (`.claude/skills/speckit-plan/SKILL.md`) y queda una fase atrás por construcción: revisarlo antes de creerle.
 🔑 **Qué ES la 009**: el programa se ELIGE de un catálogo de 13 programas de la Sede Cali (dato: tabla
 `academic_program`; lista PROVISIONAL dictada por el usuario el 25-sep, sin confirmación escrita de la
