@@ -43,6 +43,17 @@ gh api repos/:owner/:repo/milestones \
   --jq '.[] | "\(.title) — abiertos:\(.open_issues) cerrados:\(.closed_issues)"'
 ```
 
+### Límites declarados
+
+- **Novedad de notas es el trámite «de seguimiento»**: registra y avanza su estado con la misma
+  maquinaria, pero su cadena es provisional, no emite documento formal y no ofrece el aviso de
+  cierre. El porqué de cada uno, con su evidencia, está en
+  [`arbol-de-problemas.md` §7](docs/nuevo-proyecto/01-planteamiento/arbol-de-problemas.md).
+- **Sin Swagger UI**: el contrato de cada feature es su `specs/*/contracts/openapi.yaml`.
+- **La configuración la carga el equipo, no la Coordinación**: un trámite nuevo es SQL, operable
+  sin reiniciar ni desplegar ([quickstart de la 002](specs/002-workflow-engine/quickstart.md)).
+  No hay pantalla de administración (`specs/002-workflow-engine/spec.md:157`).
+
 ---
 
 ## Stack
