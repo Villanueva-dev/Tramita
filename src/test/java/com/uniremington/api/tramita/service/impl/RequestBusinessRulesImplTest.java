@@ -101,7 +101,7 @@ class RequestBusinessRulesImplTest {
     }
 
     @Test
-    @DisplayName("una solicitud sin asignaturas sigue siendo válida (FR-006, SC-007)")
+    @DisplayName("una solicitud sin asignaturas es válida aunque el trámite capture créditos: el tope lo aplica CLASS (#17)")
     void aRequestWithoutSubjectsRemainsValid() {
         stub("CAPTURES_CREDITS", "true");
         stub("MAX_CREDITS", "21");
