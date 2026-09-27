@@ -172,7 +172,7 @@ Mapeo de los sub-problemas SP1–SP7 del árbol §7 a épicas con su Definition 
 **Definition of Done**:
 
 - Schema de DB con las entidades mínimas necesarias (solicitud, evento de solicitud, usuario, rol).
-- Endpoint REST + Swagger publicado para captura, aprobación y consulta.
+- Endpoint REST publicado para captura, aprobación y consulta, con su contrato OpenAPI versionado. *(Enmendado el 2026-09-26: decía «+ Swagger»; ver `arbol-de-problemas.md` §8.)*
 - Frontend mínimo de captura + bandeja + detalle (a cargo del compañero/a).
 - Tests del motor de workflow (transiciones e invariantes — Principio V).
 - Coord aprueba la demo.

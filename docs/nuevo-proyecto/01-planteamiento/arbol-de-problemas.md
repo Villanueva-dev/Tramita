@@ -150,6 +150,14 @@ Cada causa raíz se traduce en un sub-problema **MECE** (mutuamente excluyente, 
 
 > **Nota sobre profundidad diferencial**: SP1–SP7 se aplican **en plenitud a la adición de créditos** (el trámite "profundo"). Para la **novedad de notas** ("seguimiento"), el motor se configura para que la coordinación **registre y avance el estado** del trámite mientras la cadena de firmas transcurre por fuera (correo/OneDrive); el estudiante recibe el **aviso de finalización** cuando el trámite se completa, y sus consultas intermedias se responden de forma **mediada** (coordinación → cockpit → respuesta al estudiante). No se intenta orquestar las firmas externas ni replicar el control anti-fraude de Registro y Control. La diferencia es de **configuración**, no de código: ambos trámites corren sobre el mismo motor.
 
+> **Limitaciones declaradas de la novedad de notas** *(2026-09-26)*: tres huecos que el MVP no cierra porque dependen de respuestas que solo tiene la Coordinación. Se declaran en lugar de resolverse con supuestos:
+>
+> 1. **La cadena de estados es provisional.** Lo advierte la propia migración que la siembra (`V2.1.0__Seed_workflow_definitions.sql:10-16`): siguen sin confirmar la granularidad de `EN_PREPARACION`, el destino de las devoluciones y la obligatoriedad del paso financiero. El hilo de correo real que la habría fijado —como fijó la de adición de créditos— no llegó (§11).
+> 2. **No emite documento formal ni sello.** El papel es **por asignatura con varios estudiantes** y lleva cuatro notas parciales del 25 % más la definitiva; el modelo es un estudiante con N asignaturas y dos columnas de nota (`V4.0.0__Declare_document_templates.sql:20-24`; `specs/005-formal-document/research.md:252-255`).
+> 3. **No ofrece el aviso de finalización al estudiante**, contra lo que dice la nota anterior. El trámite no tiene canal público porque su formato lo diligencia el docente y no el estudiante (`V3.3.0__Enable_public_capture.sql:50-52`); toda novedad la registra entonces la Coordinación, y la feature 008 excluye esas solicitudes del aviso (`specs/008-student-closure-notice/spec.md:90`, FR-004). Si el estudiante debe recibirlo es una pregunta abierta para la Coordinación.
+>
+> Lo que justifica el trámite en el MVP sí se sostiene: la misma maquinaria recorre una cadena distinta **solo por configuración** (`WorkflowGenericityIT`).
+
 ---
 
 ## 8. Alcance y exclusiones
@@ -157,7 +165,7 @@ Cada causa raíz se traduce en un sub-problema **MECE** (mutuamente excluyente, 
 **Dentro del alcance**:
 
 - Proceso de **adición de créditos** y **novedad de notas**, en la **Sede Cali**.
-- Backend (API REST + Swagger) + frontend mínimo a cargo del compañero del equipo.
+- Backend (API REST documentada por el contrato OpenAPI de cada feature, `specs/*/contracts/openapi.yaml`) + frontend mínimo a cargo del compañero del equipo. *(Enmendado el 2026-09-26: decía «API REST + Swagger». La interfaz interactiva no se construyó: `springdoc-openapi` se difirió desde la feature 001 porque su última versión de entonces solo soportaba Boot 3.x (`specs/001-auth-login/plan.md:38`), y el contrato de cada feature vive como archivo OpenAPI versionado.)*
 - Motor de workflow capaz de modelar los dos procesos sin código duplicado, con **profundidad de automatización configurable** (adición: flujo completo; novedad: seguimiento de estado).
 - Persistencia en PostgreSQL; autenticación (la E3 confirma **correo institucional** como identificador mínimo, sin autenticación estricta; **SSO institucional pendiente** de confirmar con tecnología — la decisión técnica de **sesión por cookie**, no JWT, es del equipo, registrada en `draft-principios.md` § Stack mandatorio como provisional y migrable a SSO); generación de PDF; auditoría inmutable.
 - **Trazabilidad de estado para la coordinación (administración)** con precisión y profundidad: cada transición registrada, fechada y auditable.
