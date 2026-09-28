@@ -9,13 +9,29 @@ info:
       * `POST /public/requests/{definitionCode}` — recepción SIN autenticación del formato
         DO-FR-100. Es el segundo endpoint abierto del sistema; el primero es el login.
       * `GET /requests/inbox` — vista de solicitudes recientes para la Coordinación, SIN
-        número de documento (FR-014).
+        número de documento (FR-014). ⚠️ **ENMENDADO por la feature 007, de forma NO
+        aditiva**: ver la nota en la ruta.
 
     Ningún endpoint existente cambia. `POST /requests` conserva su contrato, ampliado por
     la 003, y suma seis campos opcionales heredados del modelo (`studentEmail`,
     `signature`, `studentPhone`, `campus`, `faculty`, `modality`) que esta feature agrega
     a la entidad. Que sean opcionales ahí y obligatorios en el canal público es
     deliberado: el formulario interno sigue aceptando el cuerpo mínimo de la 002.
+
+    ⚠️ **ENMENDADO POR LA 008** (2026-09-24), de forma NO aditiva: `studentPhone` pasa a
+    exigir exactamente diez dígitos (`[0-9]{10}`) en los DOS canales —obligatorio en el
+    público, opcional en el interno—. La forma vigente vive en
+    `specs/008-student-closure-notice/contracts/openapi.yaml`; lo de abajo es la forma
+    histórica de la 004.
+
+    ⚠️ **ENMENDADO POR LA 009** (2026-09-26): `program` deja de ser texto libre. Fuera del
+    catálogo publicado por `GET /api/public/programs`, este canal responde 422 «Formato
+    inválido» con `invalidFields: ["program"]`, sin eco del valor; el canal interno
+    (`POST /requests`, `specs/003-request-form-rules/contracts/openapi.yaml`) responde 400
+    «Petición inválida» ante el mismo caso. La coincidencia es exacta, sin normalizar
+    mayúsculas, tildes ni espacios. La forma vigente vive en
+    `specs/009-program-catalog-annex/contracts/openapi.yaml`; lo de abajo es la forma
+    histórica.
 
     Lo no listado aquí se rige por `specs/003-request-form-rules/contracts/openapi.yaml` y,
     en lo que aquella no altera, por el de la 002.
@@ -79,7 +95,12 @@ paths:
         '413':
           description: |
             El cuerpo excede el tope admitido (research.md D7). Se corta antes de
-            procesarlo: nada se materializa en memoria.
+            procesarlo, y **consume cupo** del límite de tasa (research.md D7-bis):
+            el envío ocupa capacidad del canal —conexión, filtro, ciclo de petición—
+            aunque no se procese. Lo que el tope garantiza es un LÍMITE a lo que se
+            lee, no la ausencia de lectura: con Content-Length declarado se corta sin
+            abrir el stream, y sin él el cuerpo se lee hasta el tope para medirlo.
+            Un origen que ya agotó su cupo recibe `429`, no este `413`.
           content:
             application/problem+json:
               schema:
@@ -137,8 +158,24 @@ paths:
 
   /requests/inbox:
     get:
-      summary: Solicitudes recientes, sin criterio de búsqueda
+      summary: Solicitudes recientes, sin criterio de búsqueda — ENMENDADO por la 007
       description: |
+        ⚠️ **Este contrato fue enmendado por la feature 007 y ya no rige tal como está
+        escrito.** Lo que sigue se conserva como registro de lo que la 004 prometió.
+
+        Desde la 007, `GET /requests/inbox` exige el parámetro `responsible` y devuelve
+        **las solicitudes que esperan la acción de ese responsable**, ordenadas por
+        antigüedad de la espera — no «las más recientes, sin criterio». El cambio **no es
+        aditivo**: quien esperara el listado completo recibe un subconjunto, y la llamada
+        sin parámetro responde 400. Se enmendó a conciencia y sin estrenar un endpoint
+        paralelo porque **ningún cliente lo consumía** — medido el 2026-09-21 sobre el
+        frontend: `git grep -rn 'requests/inbox' origin/main -- app lib components`
+        devuelve cero resultados — y dos listados con el mismo propósito se desincronizan.
+        El contrato vigente es `specs/007-coordination-inbox/contracts/openapi.yaml`
+        (research.md D7 de esa feature).
+
+        --- Texto original de la 004 ---
+
         Existe porque `GET /requests` exige un criterio de búsqueda y no se puede buscar a
         alguien de cuya solicitud nadie se enteró (FR-012).
 
@@ -148,7 +185,9 @@ paths:
         ese campo la resuelve conservando el listado (research.md D8).
       responses:
         '200':
-          description: Solicitudes de la más reciente a la más antigua.
+          description: |
+            Solicitudes de la más reciente a la más antigua. ⚠️ Desde la 007: las que
+            esperan al responsable pedido, de la que más lleva esperando a la que menos.
           content:
             application/json:
               schema:
@@ -226,6 +265,13 @@ components:
           description: |
             Número de contacto del formato. Se conserva porque el PDF formal del trámite
             (SP3) debe reproducir el formato oficial; ver la rectificación de FR-005a.
+
+            ⚠️ **ENMENDADO POR LA 008** (2026-09-24): deja de aceptar cualquier texto de hasta
+            30 caracteres y pasa a exigir **exactamente diez dígitos** (`^[0-9]{10}$`), sin
+            espacios, guiones ni prefijo internacional (FR-009 de la 008). Es un cambio **NO
+            aditivo**: `300 123 4567` pasa de 201 a 422 con `invalidFields: ["studentPhone"]`.
+            La forma vigente vive en `specs/008-student-closure-notice/contracts/openapi.yaml`;
+            el `maxLength: 30` de arriba es la forma histórica.
         studentCode:
           type: string
           maxLength: 30
@@ -233,6 +279,13 @@ components:
         program:
           type: string
           maxLength: 120
+          description: |
+            ⚠️ **ENMENDADO POR LA 009** (2026-09-26): deja de aceptar cualquier texto de hasta
+            120 caracteres. Fuera del catálogo publicado por `GET /api/public/programs`, pasa
+            de 201 a 422 con `invalidFields: ["program"]`, sin eco del valor (coincidencia
+            exacta, sin normalizar mayúsculas, tildes ni espacios). La forma vigente vive en
+            `specs/009-program-catalog-annex/contracts/openapi.yaml`; el `maxLength: 120` de
+            arriba es la forma histórica.
         campus:
           type: string
           maxLength: 120
@@ -284,6 +337,11 @@ components:
         Entrada de la vista de recientes. Es `RequestSummary` (contrato de la 002) MENOS
         `studentDocument`. No es duplicación: son dos contratos con reglas de exposición
         distintas, y esa diferencia es el punto.
+
+        ⚠️ **ENMENDADO POR LA 007** (2026-09-21): la forma vigente vive en
+        `specs/007-coordination-inbox/contracts/openapi.yaml`. Suma `waitingSince`,
+        `pendingResponsible` y `origin`, y `createdAt` pasa a llevar el offset de la sede
+        (cambio NO aditivo). Lo de abajo es la forma histórica de la 004.
       required: [id, definition, studentName, currentState, createdAt]
       properties:
         id:

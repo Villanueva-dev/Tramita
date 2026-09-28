@@ -1,13 +1,14 @@
 package com.uniremington.api.tramita.service.impl;
 
 import com.uniremington.api.tramita.dto.AdvanceRequestBody;
+import com.uniremington.api.tramita.dto.AnnexRequirementResponse;
 import com.uniremington.api.tramita.dto.AvailableTransitionResponse;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
 import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.PublicRequestBody;
+import com.uniremington.api.tramita.dto.RequestOrigin;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
-import com.uniremington.api.tramita.dto.StateResponse;
 import com.uniremington.api.tramita.dto.SubjectResponse;
 import com.uniremington.api.tramita.dto.TimelineEntryResponse;
 import com.uniremington.api.tramita.dto.UpdateRequestBody;
@@ -23,6 +24,7 @@ import com.uniremington.api.tramita.model.WorkflowTransition;
 import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
 import com.uniremington.api.tramita.repo.IUserRepo;
+import com.uniremington.api.tramita.repo.IWorkflowAnnexRuleRepo;
 import com.uniremington.api.tramita.repo.IWorkflowParameterRepo;
 import com.uniremington.api.tramita.repo.IWorkflowDefinitionRepo;
 import com.uniremington.api.tramita.service.IRequestBusinessRules;
@@ -33,10 +35,17 @@ import com.uniremington.api.tramita.shared.exception.IllegalTransitionException;
 import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationException;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
+import com.uniremington.api.tramita.util.CampusTime;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
-import org.springframework.data.domain.Limit;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import org.springframework.data.domain.Limit;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -66,16 +75,6 @@ public class RequestServiceImpl implements IRequestService {
      * pública». La distinción no le sirve a quien envía legítimamente y sí a quien
      * sondea qué trámites existen (FR-002).
      */
-    /**
-     * Cuántas solicitudes trae la bandeja de recientes. Con las 30-40 solicitudes por
-     * semestre que reporta la Coordinación
-     * (material-coord/2026-06-04-entrevista3-sintesis-analitica.md:213), 50 cubre más de
-     * un semestre completo: en la práctica la Coordinación ve todo lo que llegó, sin
-     * paginar. El tope existe como cota de sanidad —para que la consulta no pueda
-     * volverse un volcado si el volumen cambia—, no como paginación.
-     */
-    private static final int INBOX_SIZE = 50;
-
     private static final String NO_PUBLIC_CHANNEL =
             "No hay captura pública disponible para ese trámite";
 
@@ -85,6 +84,8 @@ public class RequestServiceImpl implements IRequestService {
     private final IUserRepo userRepo;
     private final IRequestBusinessRules businessRules;
     private final IWorkflowParameterRepo parameterRepo;
+    /** El anexo por programa (009, FR-009). Se consulta solo cuando la solicitud tiene programa. */
+    private final IWorkflowAnnexRuleRepo annexRuleRepo;
 
     /**
      * Todas las guardas registradas como bean (research.md D5). Se recorre por
@@ -120,6 +121,10 @@ public class RequestServiceImpl implements IRequestService {
                                     initialStates.size()));
         }
         WorkflowState initial = initialStates.getFirst();
+        // Y el inicial tiene que tener salida (FR-014 de la 007): la configuración se
+        // comprueba antes que el formulario, porque una definición rota no es culpa de
+        // quien envía y no debe llegar a evaluarle nada.
+        requireAnExitOrClosure(definition, initial);
 
         // Las reglas del trámite se aplican ANTES de persistir: una solicitud que
         // las incumple no debe existir ni siquiera un instante (US2).
@@ -272,6 +277,11 @@ public class RequestServiceImpl implements IRequestService {
                         "La transición %s → %s no está definida para este trámite"
                                 .formatted(current.getCode(), body.targetStateCode())));
 
+        // El destino tiene que tener salida o ser un cierre (FR-014 de la 007). Va después
+        // de resolver la transición —un destino inexistente sigue siendo 409— y antes de
+        // la nota: la configuración rota es del operador, no de quien envía.
+        requireAnExitOrClosure(request.getDefinition(), transition.getToState());
+
         // La obligatoriedad de la nota es dato de la definición (FR-014): el
         // motor solo la hace cumplir — la "devolución" es concepto de la config
         String note = body.note() == null || body.note().isBlank() ? null : body.note();
@@ -332,6 +342,33 @@ public class RequestServiceImpl implements IRequestService {
         }
     }
 
+    /**
+     * FR-014 de la 007: una solicitud nunca queda detenida en un estado del que no se
+     * puede salir. Un estado no final sin transiciones de salida es un callejón: la
+     * solicitud que entrara no aparecería en la bandeja de nadie —la bandeja lee las
+     * transiciones de salida, research.md D1— y nadie sería responsable de ella. Eso es
+     * configuración rota, no un error de quien envía, así que se rechaza con el 500 de
+     * configuración antes de persistir nada.
+     *
+     * Es la capa de RUNTIME de FR-014. La base no lo impide (V2.2.0 solo restringe los
+     * iniciales y las transiciones a sí mismo) y el invariante de configuración de
+     * WorkflowGenericityIT solo cubre lo sembrado cuando corre: para una definición
+     * cargada por SQL en caliente —la vía que SC-005 promueve— esta guarda es la que vale.
+     * El motor sigue sin conocer trámites: compara estados por código, como el resto.
+     */
+    private void requireAnExitOrClosure(WorkflowDefinition definition, WorkflowState state) {
+        if (state.isFinalState()) {
+            return;
+        }
+        boolean hasExit = definition.getTransitions().stream()
+                .anyMatch(t -> t.getFromState().getCode().equals(state.getCode()));
+        if (!hasExit) {
+            throw new IncompleteConfigurationException(
+                    "El estado %s de la definición %s v%d no es final y no tiene transiciones de salida: una solicitud quedaría detenida sin responsable posible"
+                            .formatted(state.getCode(), definition.getCode(), definition.getVersion()));
+        }
+    }
+
     @Override
     @Transactional(readOnly = true)
     public RequestResponse getById(UUID requestId) {
@@ -385,12 +422,74 @@ public class RequestServiceImpl implements IRequestService {
                                 .toList();
         }
 
+    /**
+     * La bandeja (007, US1). El criterio vive en la consulta —quién espera a quién es
+     * un hecho de la configuración, research.md D1— y el responsable llega por
+     * parámetro: este método no conoce ningún rótulo de área (D2). La cota la trae
+     * quien llama (D8).
+     */
     @Override
     @Transactional(readOnly = true)
-    public List<InboxEntryResponse> getInbox() {
-        return requestRepo.findAllByOrderByCreatedAtDesc(Limit.of(INBOX_SIZE)).stream()
-                .map(this::toInboxEntry)
+    public List<InboxEntryResponse> getInbox(String responsible, int limit) {
+        List<Request> pending = requestRepo.findPendingFor(responsible, Limit.of(limit));
+        Map<UUID, List<RequestTransitionLog>> timelines = timelinesOf(pending);
+        // El repositorio corta por radicación (D8); acá manda la espera (D5): primero la
+        // que más lleva detenida. El sort es estable, así que los empates conservan la
+        // radicación.
+        return pending.stream()
+                .map(request -> toInboxEntry(request, responsible,
+                        timelines.getOrDefault(request.getId(), List.of())))
+                .sorted(Comparator.comparing(InboxEntryResponse::waitingSince))
                 .toList();
+    }
+
+    /**
+     * El timeline del lote entero, agrupado por solicitud: UNA consulta, no una por
+     * fila. De él salen las dos cosas que la bandeja deriva por entrada: el origen
+     * (FR-007) y desde cuándo espera (D3). Traer el lote y derivar en memoria es una
+     * consulta menos que una agregada aparte para el máximo, y a este volumen las
+     * filas de más no pesan (javadoc de {@code findTimelinesOf}).
+     */
+    private Map<UUID, List<RequestTransitionLog>> timelinesOf(List<Request> requests) {
+        if (requests.isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> ids = requests.stream().map(Request::getId).toList();
+        return logRepo.findTimelinesOf(ids).stream()
+                .collect(Collectors.groupingBy(entry -> entry.getRequest().getId()));
+    }
+
+    /**
+     * Desde cuándo espera (D3): el instante de su ÚLTIMA transición, no el de su
+     * radicación. Una solicitud radicada hace dos meses y devuelta ayer lleva un día
+     * esperando; medir desde {@code createdAt} la pondría primera y desplazaría a la que
+     * de verdad lleva semanas detenida. La radicación es solo el respaldo para una
+     * solicitud sin timeline, que en producción no existe: {@code register} escribe
+     * la entrada de nacimiento siempre. Se convierte a la hora de la sede en el borde
+     * de salida (D4/FR-006): lo persistido sigue en UTC.
+     */
+    private OffsetDateTime waitingSince(Request request, List<RequestTransitionLog> timeline) {
+        LocalDateTime since = timeline.stream()
+                .map(RequestTransitionLog::getOccurredAt)
+                .max(Comparator.naturalOrder())
+                .orElse(request.getCreatedAt());
+        return CampusTime.toCampus(since);
+    }
+
+    /**
+     * El origen sale del actor de la entrada de nacimiento (FR-007): el portal público
+     * escribe con su propia cuenta desde la 004, así que no hay nada nuevo que
+     * persistir. Sin entrada de nacimiento no hay origen que afirmar: null, no un
+     * valor inventado.
+     */
+    private RequestOrigin originOf(List<RequestTransitionLog> timeline) {
+        return timeline.stream()
+                .filter(entry -> entry.getFromState() == null)
+                .findFirst()
+                .map(entry -> PORTAL_ACTOR_EMAIL.equals(entry.getActor().getEmail())
+                        ? RequestOrigin.PUBLIC_LINK
+                        : RequestOrigin.COORDINATION)
+                .orElse(null);
     }
 
     /**
@@ -433,7 +532,7 @@ public class RequestServiceImpl implements IRequestService {
                         definition.getCode(), definition.getName(), definition.getVersion()),
                 request.getStudentName(),
                 request.getStudentDocument(),
-                toStateResponse(request.getCurrentState()),
+                StateResponseMapper.toResponse(request.getCurrentState()),
                 request.getCreatedAt());
     }
 
@@ -442,15 +541,19 @@ public class RequestServiceImpl implements IRequestService {
      * una línea para el documento de identidad es la garantía de FR-014, y conviene
      * que se vea al leerlo.
      */
-    private InboxEntryResponse toInboxEntry(Request request) {
+    private InboxEntryResponse toInboxEntry(Request request, String pendingResponsible,
+            List<RequestTransitionLog> timeline) {
         WorkflowDefinition definition = request.getDefinition();
         return new InboxEntryResponse(
                 request.getId(),
                 new WorkflowDefinitionResponse(
                         definition.getCode(), definition.getName(), definition.getVersion()),
                 request.getStudentName(),
-                toStateResponse(request.getCurrentState()),
-                request.getCreatedAt());
+                StateResponseMapper.toResponse(request.getCurrentState()),
+                CampusTime.toCampus(request.getCreatedAt()),
+                waitingSince(request, timeline),
+                pendingResponsible,
+                originOf(timeline));
     }
 
     private TimelineEntryResponse toTimelineEntry(
@@ -465,8 +568,8 @@ public class RequestServiceImpl implements IRequestService {
                         .orElse(null);
         return new TimelineEntryResponse(
                 entry.getId(),
-                entry.getFromState() == null ? null : toStateResponse(entry.getFromState()),
-                toStateResponse(entry.getToState()),
+                entry.getFromState() == null ? null : StateResponseMapper.toResponse(entry.getFromState()),
+                StateResponseMapper.toResponse(entry.getToState()),
                 entry.getActor().getEmail(),
                 responsible,
                 entry.getNote(),
@@ -479,15 +582,49 @@ public class RequestServiceImpl implements IRequestService {
                 () -> new IllegalStateException("La sesión referencia un usuario inexistente"));
     }
 
-    /** Mapeo a mano (convención de 001): la entity nunca cruza la frontera de la API. */
+    /**
+     * Mapeo a mano (convención de 001): la entity nunca cruza la frontera de la API.
+     *
+     * Desde la 008 carga el timeline para derivar el origen (FR-008): una consulta más por
+     * cada respuesta de detalle —register, advance y getById—, acotada por el largo del
+     * timeline (del orden de cinco a diez entradas), y CON EL ACTOR EN EL MISMO JOIN:
+     * {@code findTimelinesOf}, la consulta en lote de la bandeja, para un solo id. No es
+     * la de {@code getTimeline}: esa no trae al actor, que es perezoso, y {@code originOf}
+     * lo lee. El review con agente limpio de la 008 midió con Statistics de Hibernate que
+     * con la consulta sin fetch el detalle costaba DOS consultas en getById —el timeline y
+     * la carga perezosa del actor— y una en register y advance, donde el usuario ya estaba
+     * en la sesión; con el join fetch queda en una en los tres caminos. El cliente que
+     * hacía dos llamadas para saber el origen deja de necesitar la segunda. Se reusa
+     * {@code originOf} de la 007 a
+     * propósito: es la única forma de que «origen» signifique lo mismo en la bandeja y
+     * en el detalle. Se descartó un caso especial en {@code register} —donde el actor ya
+     * se conoce— porque serían dos formas de calcular el mismo dato, y una consulta
+     * dirigida a la entrada de nacimiento queda anotada como LA optimización si alguna
+     * vez una medición muestra que el detalle pesa; no se construye antes (research.md
+     * D2 de la 008).
+     *
+     * El correo y el teléfono se pasan sin transformarlos (FR-011): salen tal como se
+     * guardaron, y {@code RequestResponse} los omite cuando son nulos.
+     *
+     * DESDE LA 009 RESUELVE EL ANEXO POR PROGRAMA (FR-009): el costo declarado es una
+     * consulta más al detalle cuando la solicitud tiene programa, ninguna cuando no lo
+     * tiene (research.md D6). La decisión de si hay que resolverlo NO mira el estado
+     * actual de la solicitud —ni su code ni si es final—: el anexo se debe «en cualquier
+     * estado» (FR-010), y leer el estado para decidirlo metería un literal de estado en
+     * el motor genérico, justo lo que su tesis (§VI) prohíbe.
+     */
     private RequestResponse toResponse(Request request) {
         WorkflowDefinition definition = request.getDefinition();
         WorkflowState current = request.getCurrentState();
+        // singletonList y no List.of: los unitarios mapean entidades sin persistir, con id nulo,
+        // y List.of(null) lanza NPE antes de llegar al mock del repositorio.
+        List<RequestTransitionLog> timeline =
+                logRepo.findTimelinesOf(Collections.singletonList(request.getId()));
         // De un estado final no sale ninguna transición: lista vacía = trámite cerrado
         var available = definition.getTransitions().stream()
                 .filter(t -> t.getFromState().getCode().equals(current.getCode()))
                 .map(t -> new AvailableTransitionResponse(
-                        toStateResponse(t.getToState()), t.getResponsible(), t.isRequiresNote()))
+                        StateResponseMapper.toResponse(t.getToState()), t.getResponsible(), t.isRequiresNote()))
                 .toList();
         return new RequestResponse(
                 request.getId(),
@@ -500,9 +637,29 @@ public class RequestServiceImpl implements IRequestService {
                 request.getSemester(),
                 request.getReason(),
                 toSubjectResponses(request),
-                toStateResponse(current),
+                StateResponseMapper.toResponse(current),
                 available,
-                request.getCreatedAt());
+                request.getCreatedAt(),
+                originOf(timeline),
+                request.getStudentEmail(),
+                request.getStudentPhone(),
+                resolveAnnexRequirement(definition, request));
+    }
+
+    /**
+     * El anexo vigente para el programa de la solicitud (009, FR-009, research.md D6).
+     * Sin programa, {@code null} SIN CONSULTAR: la ausencia de programa nunca es una
+     * regla de anexo por resolver, y una solicitud de un trámite sin anexos configurados
+     * —como novedad de notas, US2 escenario 4— tampoco encuentra ninguna.
+     */
+    private AnnexRequirementResponse resolveAnnexRequirement(WorkflowDefinition definition, Request request) {
+        if (request.getProgram() == null) {
+            return null;
+        }
+        return annexRuleRepo
+                .findByDefinitionIdAndProgramName(definition.getId(), request.getProgram())
+                .map(rule -> new AnnexRequirementResponse(rule.getDocumentName(), rule.getSourceHint()))
+                .orElse(null);
     }
 
     private List<SubjectResponse> toSubjectResponses(Request request) {
@@ -511,9 +668,5 @@ public class RequestServiceImpl implements IRequestService {
                         subject.getCode(), subject.getName(), subject.getCredits(),
                         subject.getGroup(), subject.getCurrentGrade(), subject.getProposedGrade()))
                 .toList();
-    }
-
-    private StateResponse toStateResponse(WorkflowState state) {
-        return new StateResponse(state.getCode(), state.getName(), state.isFinalState());
     }
 }

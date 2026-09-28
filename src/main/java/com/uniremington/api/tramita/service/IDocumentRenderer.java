@@ -26,6 +26,22 @@ public interface IDocumentRenderer {
      */
     String documentKey();
 
-    /** El PDF del formato, ya diligenciado con los datos de la solicitud. */
-    byte[] render(Request request);
+    /**
+     * CON QUÉ VERSIÓN DEL FORMATO SE EMITE, para que un documento viejo no se reconstruya con
+     * el papel nuevo. Cada sello la guarda; al verificar se compara contra esta, y si difieren
+     * el resultado es «no verificable» en vez de una acusación de alteración.
+     *
+     * Tiene que cambiar cuando cambie CUALQUIER cosa que altere los bytes del documento: la
+     * maquetación, las tipografías, los textos fijos o el logo institucional.
+     */
+    String formatVersion();
+
+    /**
+     * El PDF del formato, ya diligenciado con los datos de la solicitud.
+     *
+     * @param mark los datos del sello que el pie imprime, CONGELADOS al emitir. No los averigua
+     *     el renderer: al emitir vienen del presente y al reconstruir vienen del sello, y de eso
+     *     depende que las dos veces salgan los mismos bytes. Ver {@link DocumentSealMark}.
+     */
+    byte[] render(Request request, DocumentSealMark mark);
 }

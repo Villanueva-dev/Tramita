@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-03
 
-**Status**: Draft
+**Status**: Implementada
 
 **Input**: SP2 del árbol de problemas — captura estructurada del formulario de cada trámite y reglas de negocio configurables por definición, sin que el motor deje de ser genérico. Cierra el Sprint 1 (issue #9).
 
@@ -196,6 +196,12 @@ trámite concreto.
 - **FR-006**: Ampliar el formulario MUST NOT romper a los clientes que registran solicitudes con el
   contrato anterior a esta feature: una solicitud enviada con los datos mínimos MUST seguir
   registrándose correctamente.
+  ⚠️ **ENMENDADO POR #17** (2026-09-26): los datos mínimos admiten también una solicitud **sin
+  asignaturas** de un trámite que captura créditos, y es válida: el tope no se evalúa porque no
+  hay créditos que sumar. Es una decisión, no un efecto colateral de la compatibilidad: el tope lo
+  aplica CLASS (`docs/nuevo-proyecto/01-planteamiento/arbol-de-problemas.md:129`) y el DO-FR-100
+  del canal público no trae tabla de materias. Lo fija
+  `RequestBusinessRulesImplTest.aRequestWithoutSubjectsRemainsValid`.
 
 #### Reglas de negocio configurables
 

@@ -22,6 +22,18 @@ import org.springframework.util.unit.DataSize;
 public record PublicCaptureProperties(
         int maxSubmissions, Duration window, DataSize maxBodySize) {
 
+    /**
+     * Techo del tope configurable. Holgado frente al valor vigente (256 KB).
+     *
+     * No es una preferencia: el filtro lee con {@code readNBytes(Math.toIntExact(maxBytes + 1))}
+     * y un tope que no quepa en un int haría fallar esa conversión en CADA petición, dejando el
+     * canal caído por configuración. Este techo lo vuelve imposible desde el arranque —falla al
+     * levantar, no en caliente— y, de paso, acota cuánto puede pedirse leer a heap por petición
+     * en un canal sin sesión. Las dos guardas son deliberadas: esta decide el producto, la del
+     * filtro impide que el error sea silencioso si alguien mueve esta.
+     */
+    private static final DataSize MAX_ALLOWED_BODY_SIZE = DataSize.ofMegabytes(1);
+
     public PublicCaptureProperties {
         if (maxSubmissions < 1) {
             throw new IllegalArgumentException(
@@ -36,6 +48,14 @@ public record PublicCaptureProperties(
         if (maxBodySize == null || maxBodySize.toBytes() < 1) {
             throw new IllegalArgumentException(
                     "app.public-capture.max-body-size debe ser positivo");
+        }
+        if (maxBodySize.toBytes() > MAX_ALLOWED_BODY_SIZE.toBytes()) {
+            throw new IllegalArgumentException(
+                    "app.public-capture.max-body-size no puede exceder "
+                            + MAX_ALLOWED_BODY_SIZE.toMegabytes() + "MB; se configuró "
+                            + maxBodySize.toBytes() + " bytes. Un tope mayor haría que el filtro "
+                            + "pida leer a heap más de lo que un formato admite, y por encima de "
+                            + "2 GiB desbordaría la conversión a int de la propia lectura");
         }
     }
 }

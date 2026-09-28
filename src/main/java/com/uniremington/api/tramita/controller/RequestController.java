@@ -5,11 +5,15 @@ import com.uniremington.api.tramita.dto.CreateRequestBody;
 import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.RequestResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
+import com.uniremington.api.tramita.dto.SealEntryResponse;
 import com.uniremington.api.tramita.dto.TimelineEntryResponse;
 import com.uniremington.api.tramita.dto.UpdateRequestBody;
+import com.uniremington.api.tramita.service.IDocumentSealService;
 import com.uniremington.api.tramita.service.IDocumentService;
 import com.uniremington.api.tramita.service.IRequestService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.net.URI;
@@ -42,6 +46,7 @@ public class RequestController {
 
     private final IRequestService requestService;
     private final IDocumentService documentService;
+    private final IDocumentSealService sealService;
 
     /** US1: 201 + Location del recurso creado (semántica REST de creación). */
     @PostMapping
@@ -73,7 +78,21 @@ public class RequestController {
     }
 
     /**
-     * US2 de la 004/FR-012: las solicitudes recientes, sin criterio de búsqueda.
+     * 007 / SP5: la bandeja de trabajo — las solicitudes que esperan la acción del
+     * responsable pedido (FR-001). Enmienda NO aditiva del contrato de la 004, que
+     * listaba «las más recientes, sin criterio» (research.md D7).
+     *
+     * El responsable viaja como PARÁMETRO: el servidor no conoce ningún rótulo de
+     * área (D2, §VI). NO es control de acceso (FR-003a): cualquier sesión consulta
+     * cualquier bandeja; filtra, no impide. Una etiqueta que no exista responde 200
+     * con lista vacía, porque un 404 filtraría qué etiquetas existen.
+     *
+     * La cota es explícita y de quien llama (D8); el valor por defecto y el tope son
+     * los del contrato. Las anotaciones de validación en los parámetros activan la
+     * validación por método de ESTE handler —igual que en {@code search}—: sin
+     * responsable llega MissingServletRequestParameterException y con la cota fuera
+     * de rango HandlerMethodValidationException, y ResponseEntityExceptionHandler
+     * sirve ambas como 400 problem+json sin exponer mensajes internos.
      *
      * DECLARADO ANTES de {@code @GetMapping("/{id}")} a propósito. Spring resuelve
      * por especificidad del patrón —un segmento literal gana sobre una variable—, de
@@ -83,11 +102,13 @@ public class RequestController {
      * «inbox» a UUID y devolvía 400. Dejarlo contiguo es lo que hace evidente al
      * siguiente lector que estas dos rutas compiten.
      *
-     * Devuelve InboxEntryResponse, SIN documento de identidad (FR-014).
+     * Devuelve InboxEntryResponse, SIN documento de identidad (FR-014 de la 004, §III).
      */
     @GetMapping("/inbox")
-    public List<InboxEntryResponse> getInbox() {
-        return requestService.getInbox();
+    public List<InboxEntryResponse> getInbox(
+            @RequestParam @NotBlank @Size(max = 50) String responsible,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(200) int limit) {
+        return requestService.getInbox(responsible, limit);
     }
 
     /** US3: detalle con las transiciones disponibles desde el estado actual. */
@@ -112,6 +133,19 @@ public class RequestController {
     }
 
     /**
+     * US3 de la 006/FR-008: el historial de EMISIONES del documento, de la más antigua a la
+     * más reciente — no el recorrido del trámite, que ya existe en {@link #getTimeline}.
+     *
+     * Una solicitud sin emisiones devuelve lista vacía, no 404: existe, simplemente nadie
+     * pidió el documento todavía. Solo si la solicitud misma no existe la respuesta es 404,
+     * y ese criterio lo resuelve {@code DocumentSealServiceImpl#history}.
+     */
+    @GetMapping("/{id}/seals")
+    public List<SealEntryResponse> getSeals(@PathVariable UUID id) {
+        return sealService.history(id);
+    }
+
+    /**
      * SP3: el formato oficial del trámite, diligenciado con los datos de la solicitud.
      *
      * SE GENERA BAJO DEMANDA Y NO SE GUARDA. El DO-FR-100 es el documento que circula PARA
@@ -128,8 +162,9 @@ public class RequestController {
      * con qué construir esta URL.
      */
     @GetMapping("/{id}/document")
-    public ResponseEntity<byte[]> getDocument(@PathVariable UUID id) {
-        byte[] document = documentService.generateFor(id);
+    public ResponseEntity<byte[]> getDocument(
+            @PathVariable UUID id, Authentication authentication) {
+        byte[] document = documentService.generateFor(id, authentication.getName());
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 // El nombre lleva el id de la solicitud y NUNCA la cédula ni el nombre del

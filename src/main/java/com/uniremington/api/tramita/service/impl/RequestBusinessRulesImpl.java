@@ -4,9 +4,11 @@ import com.uniremington.api.tramita.dto.CreateRequestBody;
 import com.uniremington.api.tramita.dto.SubjectRequestBody;
 import com.uniremington.api.tramita.model.WorkflowDefinition;
 import com.uniremington.api.tramita.model.WorkflowParameter;
+import com.uniremington.api.tramita.repo.IAcademicProgramRepo;
 import com.uniremington.api.tramita.repo.IWorkflowParameterRepo;
 import com.uniremington.api.tramita.service.IRequestBusinessRules;
 import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationException;
+import com.uniremington.api.tramita.shared.exception.InvalidFieldValueException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
 import java.math.BigDecimal;
 import java.util.List;
@@ -39,12 +41,29 @@ public class RequestBusinessRulesImpl implements IRequestBusinessRules {
     private static final String MAX_GRADE = "MAX_GRADE";
 
     private final IWorkflowParameterRepo parameterRepo;
+    private final IAcademicProgramRepo programRepo;
 
     @Override
     public void validate(WorkflowDefinition definition, CreateRequestBody body) {
+        // El catálogo se comprueba ANTES que los créditos (research.md D4): un cuerpo que
+        // incumple las dos reglas a la vez debe reportar el campo, no el número.
+        validateProgram(body);
         List<SubjectRequestBody> subjects = body.subjects();
         validateCredits(definition, subjects);
         validateGrades(definition, subjects);
+    }
+
+    /**
+     * Pertenencia exacta al catálogo de programas (FR-004, 009). Ausente es válido: el
+     * campo es opcional en {@code CreateRequestBody} y no declararlo no es lo mismo que
+     * declarar uno fuera de catálogo. SIN NORMALIZAR (research.md D8): ni mayúsculas, ni
+     * tildes, ni espacios — la coincidencia es exacta.
+     */
+    private void validateProgram(CreateRequestBody body) {
+        String program = body.program();
+        if (program != null && !programRepo.existsByName(program)) {
+            throw new InvalidFieldValueException(List.of("program"));
+        }
     }
 
     private void validateCredits(WorkflowDefinition definition, List<SubjectRequestBody> subjects) {

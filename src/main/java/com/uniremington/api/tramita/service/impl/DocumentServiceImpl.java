@@ -5,7 +5,17 @@ import com.uniremington.api.tramita.model.WorkflowParameter;
 import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IWorkflowParameterRepo;
 import com.uniremington.api.tramita.service.IDocumentRenderer;
+import com.uniremington.api.tramita.model.User;
+import com.uniremington.api.tramita.repo.IUserRepo;
+import com.uniremington.api.tramita.service.DocumentSealMark;
+import com.uniremington.api.tramita.service.IDocumentSealService;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.HexFormat;
 import com.uniremington.api.tramita.service.IDocumentService;
+import com.uniremington.api.tramita.util.VerificationCodeGenerator;
 import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationException;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import java.util.LinkedHashMap;
@@ -39,11 +49,20 @@ public class DocumentServiceImpl implements IDocumentService {
     private final IRequestRepo requestRepo;
     private final IWorkflowParameterRepo parameterRepo;
     private final Map<String, IDocumentRenderer> renderersByKey;
+    private final VerificationCodeGenerator codeGenerator;
+    private final IDocumentSealService sealService;
+    private final IUserRepo userRepo;
 
     public DocumentServiceImpl(
             IRequestRepo requestRepo,
             IWorkflowParameterRepo parameterRepo,
-            List<IDocumentRenderer> renderers) {
+            List<IDocumentRenderer> renderers,
+            VerificationCodeGenerator codeGenerator,
+            IDocumentSealService sealService,
+            IUserRepo userRepo) {
+        this.codeGenerator = codeGenerator;
+        this.sealService = sealService;
+        this.userRepo = userRepo;
 
         this.requestRepo = requestRepo;
         this.parameterRepo = parameterRepo;
@@ -65,9 +84,20 @@ public class DocumentServiceImpl implements IDocumentService {
         return index;
     }
 
+    /**
+     * ⚠️ YA NO ES {@code readOnly}, Y ESO TIENE UN EFECTO QUE CONVIENE CONOCER: al quitarlo se
+     * reactiva el dirty checking, así que cualquier modificación accidental de {@code Request}
+     * durante el renderizado se persistiría al cerrar la transacción. Hoy el renderer solo lee.
+     *
+     * FAIL-CLOSED (FR-012): sellar y entregar son atómicos. Si el guardado del sello falla,
+     * Spring deshace la transacción y propaga la excepción; el método nunca retorna y el
+     * controlador nunca construye la respuesta. El comportamiento seguro es el que se obtiene
+     * al NO escribir manejo de error, así que acá no hay try, ni reintento, ni contador: pedir
+     * el documento de nuevo es el reintento, y el manejador global ya responde RFC 9457.
+     */
     @Override
-    @Transactional(readOnly = true)
-    public byte[] generateFor(UUID requestId) {
+    @Transactional
+    public byte[] generateFor(UUID requestId, String actorEmail) {
         Request request = requestRepo.findById(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "La solicitud %s no existe".formatted(requestId)));
@@ -92,6 +122,40 @@ public class DocumentServiceImpl implements IDocumentService {
                             .formatted(request.getDefinition().getCode(), declared));
         }
 
-        return renderer.render(request);
+        // EL ORDEN IMPORTA Y PARECE CIRCULAR, PERO NO LO ES (research.md D2): el código se
+        // genera primero porque no depende del contenido; se dibuja el documento CON el código
+        // impreso; y recién entonces se calcula la huella. Hashear antes de imprimir el código
+        // produciría una huella que no describe el archivo que se entrega.
+        String verificationCode = codeGenerator.generate();
+
+        // El instante se fija ACÁ y se usa para imprimir y para guardar. Si lo pusiera la base
+        // al persistir, el pie podría decir una cosa y el sello otra, y la reconstrucción no
+        // coincidiría.
+        LocalDateTime issuedAt = LocalDateTime.now(ZoneOffset.UTC);
+
+        byte[] document = renderer.render(request, new DocumentSealMark(
+                verificationCode, issuedAt,
+                request.getCurrentState().getName(), request.getVersion()));
+
+        sealService.record(request, resolveActor(actorEmail), verificationCode,
+                sha256(document), renderer.formatVersion(), issuedAt);
+
+        return document;
+    }
+
+    private User resolveActor(String actorEmail) {
+        // Con sesión válida el usuario existe; si no, es un estado imposible (500 honesto)
+        return userRepo.findByEmail(actorEmail).orElseThrow(
+                () -> new IllegalStateException("La sesión referencia un usuario inexistente"));
+    }
+
+    /** Huella del documento ENTREGADO, con el código ya impreso dentro (research.md D2). */
+    private static String sha256(byte[] document) {
+        try {
+            return HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(document));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 es parte de la plataforma", impossible);
+        }
     }
 }

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> Trabajo de grado en curso — Ingeniería de Sistemas, Universidad Remington (modalidad Distancia, SNIES 53112, Resolución 015939 del 1 de septiembre de 2023). Equipo de dos personas, plazo ≈ 2,5 meses. **Estado**: el backend ya arrancó — el **Sprint 0 de autenticación (`001-auth-login`) y el motor de workflow (`002-workflow-engine`) están cerrados y mergeados a `main`** (panorama técnico y arranque en `README.md`). El estado vigente NO se lleva en un documento: vive en los **milestones e issues de GitHub**, donde cada sub-problema SP1–SP7 es un issue y cada sprint un milestone cuyo avance calcula GitHub. El chasis Spring Boot 4 / Java 21 se hereda de `../convenia/`.
+> Trabajo de grado en curso — Ingeniería de Sistemas, Universidad Remington (modalidad Distancia, SNIES 53112, Resolución 015939 del 1 de septiembre de 2023). Equipo de dos personas, plazo ≈ 2,5 meses. **Estado**: **nueve features cerradas y mergeadas a `main`** (`001-auth-login` … `009-program-catalog-annex`): autenticación, motor de workflow, formularios y reglas configurables, captura pública del formato, PDF formal, sello verificable, bandeja de la Coordinación, aviso de cierre al estudiante y catálogo de programas con anexo por programa (panorama técnico y arranque en `README.md`). Los tres sprints del árbol de problemas están completos; lo abierto vive en el milestone «Deuda técnica y decisiones diferidas». El estado vigente NO se lleva en un documento: vive en los **milestones e issues de GitHub**, donde cada sub-problema SP1–SP7 es un issue y cada sprint un milestone cuyo avance calcula GitHub. El chasis Spring Boot 4 / Java 21 se hereda de `../convenia/`.
 
 ## Qué se está construyendo
 
@@ -38,14 +38,17 @@ Comandos complementarios: `speckit-constitution`, `speckit-clarify`, `speckit-ch
 
 ### Estado actual del Spec Kit
 
-- `.specify/memory/constitution.md` **está ratificada (v1.0.0, 2026-07-02) y va por la v2.2.2 (última enmienda: 2026-08-16)** vía `/speckit-constitution`: 5 principios (KISS+YAGNI · **arquitectura por capas** · seguridad por defecto **+ minimización de datos personales** · decisiones trazables · testing pragmático) + secciones de restricciones tecnológicas, idioma y proceso (Scrum, sprints de 2 semanas). Cinco enmiendas hasta hoy:
+- `.specify/memory/constitution.md` **está ratificada (v1.0.0, 2026-07-02) y va por la v2.3.1 (última enmienda: 2026-09-19)** vía `/speckit-constitution`: **7 principios** (KISS+YAGNI · **arquitectura por capas** · seguridad por defecto **+ minimización de datos personales** · decisiones trazables · testing pragmático · **workflow configurable por dato** · **trazabilidad inmutable**) + secciones de restricciones tecnológicas, idioma y proceso (Scrum, sprints de 2 semanas). La versión vigente se lee de una línea, sin creerle a este archivo: `grep -n '^\*\*Versión\*\*' .specify/memory/constitution.md`. **Siete enmiendas** hasta hoy:
   - **v2.0.0 (MAJOR, 2026-08-02)** — §II pasa de package-by-feature a package-by-layer, para alinear el proyecto con el material de formación del equipo; el trade-off (el árbol deja de "gritar" el dominio, la correspondencia C4 pasa a los diagramas) está documentado en el propio principio.
   - **v2.1.0 (MINOR, 2026-08-06)** — §IV sustituye **IEEE 830** por **ISO/IEC/IEEE 29148:2018** (cláusula 9.6) y fija C4 + 4+1 para la arquitectura. Es MINOR y no PATCH porque cambia la norma que rige la estructura del entregable de requisitos, no solo su redacción; no obliga a rehacer trabajo porque el SRS todavía no está redactado.
   - **v2.2.0 (MINOR, 2026-08-14)** — §III suma la **minimización de datos personales** (qué se almacena, qué nunca se persiste, anonimización por rol en fixtures) y §IV **separa el medio de verificación por clase de fuente**: Context7 queda acotado a fuentes técnicas, y la normativa institucional solo se verifica contra el documento obtenido de la fuente — mientras no se obtenga, lo que dependa de ella se marca como provisional y no auditada. Ambos huecos salieron de auditar la constitución con `auditar-vs-entrevistas` v2.0.0.
   - **v2.2.1 (PATCH, 2026-08-16)** — «Restricciones tecnológicas» pasa de citar **RFC 7807** a **RFC 9457**, que la obsoleta según el propio documento. Es PATCH y no MINOR porque la obligación de devolver los errores en `application/problem+json` es idéntica antes y después: solo se corrige la identificación de la norma que la respalda.
+  - **v2.3.0 (MINOR, 2026-09-13)** — ratifica **dos principios nuevos** que vivían en el borrador y nunca habían entrado: **§VI workflow configurable por dato** (la tesis arquitectónica del proyecto: incorporar un trámite ya cubierto NO debe requerir desplegar código) y **§VII trazabilidad inmutable** (la garantía vive en la base de datos, no en la disciplina del código). Van **APENDIZADOS y no insertados** en el orden del borrador: había más de veinte citas a los Principios I, III, IV y V en las specs de las features 001–003, y numerar en medio las habría roto todas. ⛔ **Cualquier principio futuro se apendiza, por la misma razón.**
   - **v2.2.2 (PATCH, 2026-08-16)** — **errata de la anterior**. La v2.2.1 justificó su alcance citando `rg -n --hidden '7807'` → «una sola ocurrencia», pero ese comando se había ejecutado acotado a tres rutas y se consignó como si fuera global; sobre el repositorio completo devuelve **18 líneas en 9 archivos**. La norma no cambia: se rectifica la evidencia con que se justificó el alcance. Lección incorporada al §IV: **un comando citado como prueba debe poder re-ejecutarse y dar el mismo resultado**.
-- **Sprint 1 completo**: la feature `001-auth-login` recorrió el ciclo entero (`specify → plan → tasks → implement`). El backend de autenticación está **implementado, testeado y mergeado a `main` (PR #2, 2026-07-15)**; sus artefactos viven en `specs/001-auth-login/` y el arranque/uso está en `README.md`.
-- `arbol-de-problemas.md` sigue siendo la fuente del planteamiento; según su §11, lo que resta es **bajar SP1–SP7 a backlog Scrum** y producir los entregables formales de tesis (requisitos ISO/IEC/IEEE 29148:2018 + arquitectura C4 / 4+1).
+  - **v2.3.1 (PATCH, 2026-09-19)** — segunda errata de evidencia, y por la misma lección que la v2.2.2. La v2.3.0 justificó no ratificar el invariante «sin PDF no hay trámite cerrado» con dos pruebas que hoy dan otro resultado: `grep -ric pdf src/main/java` devolvía **0** y hoy devuelve **46** (entraron PDFBox y el renderer con las features 005 y 006), y la validación que citaba en `RequestServiceImpl:144` vive hoy en la **:260**. ⚠️ **La decisión NO cambia y se re-midió**: el motor sigue impidiendo solo avanzar DESDE un estado final y sigue sin impedir llegar a uno sin PDF. Se rectifica la evidencia, no la conclusión, y el texto de la v2.3.0 **no se reescribe**. Además el §VII pasa a nombrar **los dos** triggers que hoy sostienen la garantía: `trg_timeline_immutable` y `trg_document_seal_immutable`.
+- La feature `001-auth-login` recorrió el ciclo entero (`specify → plan → tasks → implement`) y fue la primera en hacerlo: el backend de autenticación está **mergeado a `main` (PR #2, 2026-07-15)**, sus artefactos viven en `specs/001-auth-login/` y el arranque está en `README.md`. Pertenece al milestone **Sprint 0 — Fundaciones**, no al Sprint 1: el login es anterior al árbol de problemas y no corresponde a ningún SP.
+  - ⚠️ **Qué sprints están completos NO se escribe acá.** Esta línea decía «Sprint 1 completo» atribuyéndoselo a la 001, y era falso en dos sentidos a la vez. El avance lo calcula GitHub: `gh api repos/:owner/:repo/milestones --jq '.[] | "\(.title) — abiertos:\(.open_issues) cerrados:\(.closed_issues)"'`.
+- `arbol-de-problemas.md` sigue siendo la fuente del planteamiento. ✅ Su §11 pedía **bajar SP1–SP7 a backlog Scrum**, y eso **ya está hecho**: los siete son issues de GitHub (#7 a #13), cada uno con su milestone. ⛔ No re-agendarlo. Lo que sigue pendiente son los **entregables formales de tesis**: requisitos según ISO/IEC/IEEE 29148:2018 y arquitectura C4 / 4+1.
 
 ## Reutilización arquitectónica de Convenia
 
@@ -85,37 +88,61 @@ issue por SP1–SP7), no en un archivo. Se cierra con `Closes #N` en el cuerpo d
 - **Gestión**: Scrum, 3 sprints (S1: SP1+SP2+SP6 → S2: SP3+SP4 → S3: SP5+SP7).
 - **Requisitos** (pendiente): **ISO/IEC/IEEE 29148:2018**, estructura del SRS según su cláusula 9.6. Sustituye a IEEE 830-1998, que figura como *superseded* en el catálogo del IEEE Standards Association. Se descartó IEEE 1016-2009 (*inactive-reserved*): el diseño se documenta con C4 + 4+1.
 - **Arquitectura** (pendiente): C4 + 4+1.
-- **Ciclo de vida**: ISO/IEC/IEEE 12207:2017 (edición vigente).
+- **Ciclo de vida**: **ISO/IEC/IEEE 12207:2026** (segunda edición, aprobada el 2026-02-12 y publicada el 2026-04-15; «cancels and replaces» la 12207:2017, que IEEE SA marca *Superseded*). DOI 10.1109/IEEESTD.2026.11481698. En `main`, `docs/BASE_DOCUMENTO_TRAMITA.md` (tres citas), el `.docx` y `docs/CICLO_DE_VIDA_DEL_SOFTWARE_TRAMITA.md` siguen en la 2017: la migración del borrador markdown existe solo en un working tree sin commitear (25-sep).
 
 Al citar literatura o normativa institucional, **incluir la referencia exacta** en cada afirmación — alineado con la regla general #4 del CLAUDE.md global.
 
 <!-- SPECKIT START -->
-Feature **activa**: `004-public-request-capture` — captura pública del formato DO-FR-100: el
-estudiante diligencia y firma desde un enlace sin sesión, y la Coordinación ve lo que llegó en una
-vista de recientes. Fase actual: **tasks cerradas (46), pendiente `/speckit-implement`** — nada
-implementado todavía. Plan e insumos: `specs/004-public-request-capture/plan.md` (+ `research.md`
-con D1–D10, `data-model.md`, `contracts/openapi.yaml`, `tasks.md`, `quickstart.md`).
-Diseño: el trámite se habilita por configuración (`PUBLIC_CAPTURE_ENABLED` en `workflow_parameter`)
-y viaja en la RUTA, nunca en el cuerpo; CSRF **desactivado solo en esa ruta** (sin sesión no hay
-identidad que suplantar) y el canal se protege con límite de envíos por origen y tope de 256 KB;
-actor del tramo inicial = fila sintética `portal-publico@tramita.local` con `active = false`, para
-no aflojar el `NOT NULL` de `actor_id` (§VII); vista de recientes con DTO propio **sin cédula**.
-El recibo NO devuelve `id` ni estado. Sin dependencias nuevas.
-**Migración `V3.3.0`: SEIS columnas** (`student_email`, `student_signature`, `student_phone`,
-`campus`, `faculty`, `modality`), todas nullable. **Los once campos del formato son obligatorios
-en el canal público y ninguno admite quedar vacío** (FR-003, D10) — la obligatoriedad es del
-contrato de entrada, no del modelo: las filas existentes no tienen esos datos. 🔑 **D10 INVIRTIÓ a
-FR-005a**, que hasta el 2026-09-16 prohibía persistir el teléfono «por no tener consumidor»; el
-consumidor que aquel análisis no miró es el PDF formal del SP3 (`Tramita#10`).
-⚠️ Dos riesgos **aceptados y declarados** en el spec: el canal anónimo admite suplantación (lo
-contiene la revisión de la Coordinación) y los envíos duplicados se registran por separado.
-Última feature entregada: `003-request-form-rules` (SP2 — formularios validados + reglas de negocio
-configurables por trámite). Antes: `002-workflow-engine` (motor + timeline, SP1+SP6, PR #3) y la
-devolución en la propia revisión de Coordinación (**PR #23**, `7b55b20`).
+**No hay feature activa.** La última cerrada es **`009-program-catalog-annex`** — Sprint 3, issues `Tramita#40` (la hoja
+de vida académica que exige Ingeniería de Sistemas al reenviar) y `Tramita#50` (el programa entraba como texto libre),
+**MERGEADA el 2026-09-26 por la PR #52 (`d8e031d`)**; los dos issues cerraron con el merge y el milestone Sprint 3
+quedó en 0 abiertos / 8 cerrados. Recorrido: spec `202d594` → gate `review-spec` `ef4d61a` → plan `a57b136` → tareas
+`d11482f` → Fase 2 `f350a3c` → US1 `c3e53a2` (con `BREAKING CHANGE:`) → US2 `5849039` → review `188f093` + `8c03742`
+→ cierre `69da251`. Las 48 tareas de `tasks.md` están marcadas con lo observado (RED, verde, mutante, commit); suite
+final **171 unitarios + 151 IT** (línea base `163 + 127`); **19 mutantes** muertos (13 de `tasks.md` + 6 del review).
+⛔ `/speckit-tasks` NO se vuelve a correr sobre una feature con `tasks.md` escrito (regenera desde plantilla,
+`.claude/skills/speckit-tasks/SKILL.md:77`): se edita a mano. La siguiente feature arranca con `/speckit-specify`, que
+reescribe `.specify/feature.json` (hoy apunta a la 009, como la 008 apuntó hasta que nació la 009). El estado de una
+PR no se escribe acá: `gh pr list --head <rama> --state all`.
+Artefactos en `specs/009-program-catalog-annex/`: `spec.md` («Implementada»), `plan.md`, `research.md` (D1–D11),
+`data-model.md`, `contracts/openapi.yaml`, `quickstart.md` (recorrido contra el servidor `dev` el 2026-09-26: doce
+bloques, una corrección) y `tasks.md`. ⚠️ Este bloque lo reescribe **solo `/speckit-plan`** cuando corre
+(`.claude/skills/speckit-plan/SKILL.md`); fuera de eso se corrige a mano (última vez: tras el merge de la 009).
+🔑 **Qué ES la 009**: el programa se ELIGE de un catálogo de 13 programas de la Sede Cali (dato: tabla
+`academic_program`, siembra `V5.1.0`; lista PROVISIONAL dictada el 25-sep sin confirmación escrita de la Coordinación,
+§IV) por los dos canales, con coincidencia EXACTA (FR-004) validada en `RequestBusinessRulesImpl` ANTES que los
+créditos; un programa fuera del catálogo es 422 «Formato inválido» (público) / 400 «Petición inválida» (interno) con
+`invalidFields:["program"]`, sin eco (`InvalidFieldValueException`, un `@ExceptionHandler` por advice). La lista se
+publica en **`GET /api/public/programs`** (cuarto endpoint abierto, solo `name`, sin caché, orden de la intercalación
+`en_US.utf8`). El detalle expone `annexRequirement {documentName, sourceHint}` (aditivo, `NON_NULL`) cuando
+`workflow_annex_rule` lo declara para la VERSIÓN con que nació la solicitud × su programa; hoy solo ADICION_CREDITOS v1
+× Ingeniería de Sistemas → hoja de vida académica (evidencia `:184`, `:553`, `:762`). Se deriva al leer, NO se guarda,
+NO mira el estado (FR-009/FR-010, §VI); bandeja y resumen NO lo llevan (§III). Lo radicado no se toca (FR-005).
+⛔ **NO reabrir** (spec, gates, plan e implementación): la regla por facultad (es por programa); derivar la facultad del
+programa; los tres anexos universales de la novedad de notas (FUERA; una regla «para todos» es aditiva después);
+`program_id` en `request` (D3: se guarda el NOMBRE); normalizar mayúsculas, tildes o espacios (D8: tres mutantes lo
+vigilan); administrar el catálogo por pantalla (§I); Bean Validation con BD (D4); recibir archivos (FR-012, 006);
+guardar el requisito en vez de derivarlo (D6: un mutante lo vigila).
+⚠️ **LO ÚNICO VIVO DE LA 009 ESTÁ EN EL FRONT: `tramita-frontend#74`** (brief, precedente front#59). El backend ya
+rechaza con 422 cualquier programa fuera del catálogo, y el formulario público del front, medido el 2026-09-26 sobre
+`origin/main` = `06a0f8c` (PR #73), sigue mandando texto libre (`components/do-fr-100/sections.tsx:172`, `TextField`) sin
+consumir `/api/public/programs`; el interno usa la constante `PROGRAMS` (`lib/ui-constants.ts:33`) y preselecciona
+`PROGRAMS[0]`. El brief front#74 cita las líneas de `0650548`, que el front ya movió: sus enlaces son permanentes.
+Hasta que entre el selector, **un estudiante que escriba el programa a mano recibe 422**. El front avanza en paralelo:
+re-medir su punta antes de escribir cualquier número.
+📎 Cómo se cerró (precedente para la próxima): PR con `Closes #40` y `Closes #50` en texto plano y sin `--milestone`
+(los dos cerraron al merge, verificado); `BREAKING CHANGE` en el commit de US1; brief al front como issue; contratos
+históricos de la 003 (`:159`) y la 004 (`:27-35`, `:283`) con la nota «ENMENDADO POR LA 009»; review con agente limpio
+sobre el rango (sin críticos ni altos; sus 5 hallazgos se confirmaron con comandos propios antes de aplicarse).
+Antes: `008-student-closure-notice` (SP7 `#13`, PR #49: dos acciones manuales `mailto:`/`wa.me`, el sistema no envía nada
+ni registra «avisado», teléfono `[0-9]{10}` validado en el API sin normalizar), `007-coordination-inbox` (SP5 `#12` +
+`#22`, PR #47: bandeja sin roles, antigüedad medida sin dictaminar vencimiento), `006-verifiable-document-seal` (SP4,
+PR #41), `005-formal-document` (SP3, PR #31), `004-public-request-capture` y `003-request-form-rules`. ⛔ Nada de eso se
+re-agenda.
 Stack: Java 21 · Spring Boot 4.0.7 (Security 7, Data JPA, Validation, WebMVC) · PostgreSQL + Flyway
-(validate) · BCrypt · Lombok · Testcontainers (test).
+(validate) · PDFBox 3 · BCrypt · Lombok · Testcontainers (test).
 Paquete `com.uniremington.api.tramita`, estructura **package-by-layer**: `controller/`,
 `dto/`, `model/`, `repo/`, `security/`, `service/` (contratos) + `service/impl/`, `util/`
 y `shared/` (`config/`, `exception/`, `seed/`). Interfaces con prefijo `I`.
-Para más contexto de tecnologías, estructura y comandos, leer el plan actual.
+Para más contexto de tecnologías, estructura y comandos, leer `specs/009-program-catalog-annex/plan.md`.
 <!-- SPECKIT END -->

@@ -156,7 +156,18 @@ components:
         studentName: { type: string, maxLength: 120, example: Estudiante De Prueba }
         studentDocument: { type: string, maxLength: 20, example: 'DOC-TEST-0001' }
         studentCode: { type: string, maxLength: 30, example: 'EST-0001' }
-        program: { type: string, maxLength: 120, example: Ingeniería de Sistemas }
+        program:
+          type: string
+          maxLength: 120
+          example: Ingeniería de Sistemas
+          description: |
+            ⚠️ **ENMENDADO POR LA 009** (2026-09-26): deja de aceptar cualquier texto de hasta
+            120 caracteres. Fuera del catálogo publicado por `GET /api/public/programs`, pasa
+            de 201 a 400 con `invalidFields: ["program"]`, sin eco del valor (coincidencia
+            exacta, sin normalizar mayúsculas, tildes ni espacios). Omitir la clave sigue
+            siendo válido en este canal. La forma vigente vive en
+            `specs/009-program-catalog-annex/contracts/openapi.yaml`; el `maxLength: 120` de
+            arriba es la forma histórica.
         semester: { type: string, maxLength: 50, example: '2026-2' }
         reason:
           type: string

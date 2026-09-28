@@ -1,22 +1,31 @@
 package com.uniremington.api.tramita.service.impl;
 
 import com.uniremington.api.tramita.model.Request;
+import com.uniremington.api.tramita.service.DocumentSealMark;
 import com.uniremington.api.tramita.service.IDocumentRenderer;
 import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationException;
+import com.uniremington.api.tramita.util.CampusTime;
 import com.uniremington.api.tramita.util.PdfTextEncoder;
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pdfbox.cos.COSArray;
+import org.apache.pdfbox.cos.COSString;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -25,6 +34,7 @@ import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.apache.pdfbox.util.Version;
 import org.springframework.stereotype.Service;
 
 /**
@@ -61,21 +71,70 @@ public class DoFr100Renderer implements IDocumentRenderer {
     private static final String LOGO = "/documents/logo-uniremington.png";
 
     /**
-     * La zona de la sede. `createdAt` se persiste en UTC —convención del chasis— y este
-     * documento lleva la fecha EN LA CELDA DE UN PAPEL QUE SE FIRMA: imprimir el instante
-     * UTC sin convertir adelanta un día entre las 19:00 y las 23:59 de Cali, porque
-     * Colombia es UTC−5. No se cambia el almacenamiento, se convierte al formatear.
+     * LA VERSIÓN DE ESTA MAQUETACIÓN. Se sube A MANO al cambiar cualquier cosa que altere los
+     * bytes del documento: posiciones, tipografías, textos fijos, el orden de las secciones.
+     *
+     * ⚠️ SI CAMBIÁS LA MAQUETACIÓN Y NO SUBÍS ESTE NÚMERO, el sistema va a creer que el formato
+     * sigue vigente, va a reconstruir documentos viejos con el papel nuevo, las huellas no van
+     * a coincidir y va a responder que documentos LEGÍTIMOS fueron alterados.
+     *
+     * Lo que avisa es {@code DoFr100LayoutCanaryTest}: guarda la huella de un documento de
+     * prueba y se pone en rojo ante cualquier cambio de trazado. Si se rompió a propósito,
+     * subir este número es la respuesta correcta.
+     *
+     * <p>v1 → v2: aislar las fuentes por documento cambió los bytes del archivo aunque el
+     * documento se vea igual. No hay sellos emitidos con v1 —la tabla nace en esta misma
+     * feature—, así que no se invalidó nada; se subió igual porque la primera vez que el
+     * canario avisa no puede responderse «esta vez no hace falta».
      */
-    private static final ZoneId CAMPUS_ZONE = ZoneId.of("America/Bogota");
+    private static final String FORMAT_VERSION = "DO_FR_100/v2";
+
+    /** Cuántos caracteres de la huella del logo entran en la versión (cabe en VARCHAR(80)). */
+    private static final int LOGO_DIGEST_LENGTH = 16;
+
+    /**
+     * La zona de la sede vive en {@link CampusTime}, ÚNICA fuente (revisión #34 M1): antes
+     * era una constante privada de este renderer, y los DTO que exponen `issuedAt` por la
+     * API devolvían el UTC crudo sin convertir — el JSON dejaba de ser «contrastable contra
+     * el pie impreso» que promete el contrato. `createdAt` se persiste en UTC —convención
+     * del chasis— y este documento lleva la fecha EN LA CELDA DE UN PAPEL QUE SE FIRMA:
+     * imprimir el instante UTC sin convertir adelanta un día entre las 19:00 y las 23:59 de
+     * Cali, porque Colombia es UTC−5. No se cambia el almacenamiento, se convierte al
+     * formatear.
+     */
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd");
     private static final DateTimeFormatter MONTH = DateTimeFormatter.ofPattern("MM");
     private static final DateTimeFormatter YEAR = DateTimeFormatter.ofPattern("yyyy");
     private static final DateTimeFormatter FULL_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    private static final PDFont REGULAR = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
-    private static final PDFont BOLD = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+    /**
+     * ⛔ LAS FUENTES NO PUEDEN SER CONSTANTES COMPARTIDAS, Y ESTO NO ES UNA PREFERENCIA DE
+     * ESTILO: era el bug. Una instancia de {@link PDFont} acumula estado al escribirse en un
+     * documento, así que compartirla hace que el resultado dependa de qué documentos se
+     * dibujaron antes en el mismo proceso. Medido: tras emitir un documento con el motivo en
+     * su largo máximo (2000 caracteres, permitido por @Size), el MISMO documento pasaba a dar
+     * otros bytes. Como el renderer es un @Service singleton que vive todo el uptime, eso
+     * significaba reconstruir un documento viejo y obtener un archivo distinto, es decir
+     * responder que un documento LEGÍTIMO fue alterado.
+     *
+     * Aislarlas también elimina una condición de carrera: dos peticiones concurrentes
+     * compartían la misma instancia mutable.
+     *
+     * {@code DoFr100FontIsolationTest} lo vigila. Si alguien «optimiza» esto de vuelta a una
+     * constante, ese test se pone en rojo.
+     */
+    private static PDFont regular() {
+        return new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+    }
+
+    private static PDFont bold() {
+        return new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+    }
 
     private static final float LEFT = 45, RIGHT = 567, TOP = 750, BOTTOM = 70;
+
+    /** Longitud en bytes de cada mitad del `/ID`, la que usa PDFBox por omisión. */
+    private static final int ID_LENGTH = 16;
     private static final float ROW_HEIGHT = 18, LINE_HEIGHT = 13, BODY_SIZE = 9;
 
     /**
@@ -106,13 +165,47 @@ public class DoFr100Renderer implements IDocumentRenderer {
     private static final Map<String, String> TYPE_BY_DEFINITION = Map.of(
             "ADICION_CREDITOS", "Matrícula créditos adicionales");
 
+    /**
+     * Huella del logo institucional, calculada una sola vez al construir el renderer.
+     *
+     * El logo es la parte del formato que puede cambiar SIN que nadie toque el código: alcanza
+     * con reemplazar el archivo en un despliegue. Por eso esta mitad de la versión se detecta
+     * sola, mientras que la maquetación necesita que alguien suba {@link #FORMAT_VERSION}.
+     */
+    private final String logoDigest = digestOfLogo();
+
+    private static String digestOfLogo() {
+        try (InputStream stream = DoFr100Renderer.class.getResourceAsStream(LOGO)) {
+            if (stream == null) {
+                throw new IllegalStateException("Falta el recurso del logo institucional: " + LOGO);
+            }
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(stream.readAllBytes());
+            return HexFormat.of().formatHex(digest).substring(0, LOGO_DIGEST_LENGTH);
+        } catch (IOException | NoSuchAlgorithmException failure) {
+            throw new IllegalStateException("No fue posible identificar el logo institucional", failure);
+        }
+    }
+
+    /**
+     * INCLUYE LA VERSIÓN DE PDFBOX, y esa parte no se escribe a mano: se lee en tiempo de
+     * ejecución. El pom fija la versión de la biblioteca JUSTAMENTE para poder actualizarla
+     * ante vulnerabilidades, así que va a cambiar. Si un cambio de PDFBox altera un solo byte
+     * de la salida, los sellos anteriores deben pasar a «no verificable» —ese papel ya no se
+     * puede reconstruir— y no a «alterado», que sería acusar de falsificación a documentos
+     * legítimos por haber aplicado un parche de seguridad.
+     */
+    @Override
+    public String formatVersion() {
+        return FORMAT_VERSION + "+logo." + logoDigest + "+pdfbox." + Version.getVersion();
+    }
+
     @Override
     public String documentKey() {
         return "DO_FR_100";
     }
 
     @Override
-    public byte[] render(Request request) {
+    public byte[] render(Request request, DocumentSealMark mark) {
         String markedType = TYPE_BY_DEFINITION.get(request.getDefinition().getCode());
         if (markedType == null) {
             throw new IncompleteConfigurationException(
@@ -126,10 +219,11 @@ public class DoFr100Renderer implements IDocumentRenderer {
             PDImageXObject logo = loadLogo(document);
             PDImageXObject signature = loadSignature(document, request.getStudentSignature());
 
-            List<String> pending = drawFirstPage(document, logo, request, markedType);
-            drawOverflowPages(document, logo, pending);
-            drawSignaturePage(document, logo, request, signature);
+            List<String> pending = drawFirstPage(document, logo, request, markedType, mark);
+            drawOverflowPages(document, logo, pending, mark);
+            drawSignaturePage(document, logo, request, signature, mark);
 
+            fixDocumentId(document, request);
             document.save(output);
             return output.toByteArray();
         } catch (IOException failure) {
@@ -137,11 +231,52 @@ public class DoFr100Renderer implements IDocumentRenderer {
         }
     }
 
+    /**
+     * FIJA EL `/ID` DEL TRAILER PARA QUE EL DOCUMENTO SE PUEDA RECONSTRUIR BYTE A BYTE.
+     *
+     * Sin esto el documento NO es reproducible, y se midió dónde: de 52 348 bytes, los
+     * primeros 52 021 ya son idénticos entre dos renders: el contenido es determinista. Lo
+     * único que varía son los 32 bytes que PDFBox sortea en cada {@code save()} para el
+     * identificador del trailer. Una huella calculada sobre un documento reconstruido no
+     * verificaría nada mientras esos bytes cambien (`research.md` D1).
+     *
+     * SE RESPETA LA SEMÁNTICA QUE EL FORMATO PDF LE DA AL CAMPO, que son dos cadenas con
+     * papeles distintos: la primera identifica al documento de forma permanente, la segunda
+     * cambia cuando el documento se modifica. De ahí que la primera derive solo del
+     * identificador de la solicitud y la segunda incorpore además su revisión.
+     *
+     * ⛔ NO PUEDE SER UNA CONSTANTE LITERAL, aunque daría bytes igual de estables y costaría
+     * menos: haría que TODOS los documentos del sistema se identificaran igual, que es
+     * exactamente lo que este campo existe para evitar.
+     */
+    private static void fixDocumentId(PDDocument document, Request request) {
+        UUID requestId = Objects.requireNonNull(
+                request.getId(),
+                "La solicitud no tiene identificador, y sin él el documento no puede declarar "
+                        + "un /ID propio: todos los documentos emitidos compartirían el mismo");
+
+        COSString permanent = new COSString(derive(requestId.toString()));
+        COSString revision = new COSString(derive(requestId + ":" + request.getVersion()));
+        document.getDocument().setDocumentID(new COSArray(List.of(permanent, revision)));
+    }
+
+    /** Los primeros {@value #ID_LENGTH} bytes del SHA-256 de la semilla. */
+    private static byte[] derive(String seed) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(seed.getBytes(StandardCharsets.UTF_8));
+            return Arrays.copyOf(digest, ID_LENGTH);
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 es parte de la plataforma", impossible);
+        }
+    }
+
     // --- páginas ---------------------------------------------------------------------------
 
     /** Dibuja la primera página y devuelve las líneas del motivo que no cupieron. */
     private List<String> drawFirstPage(
-            PDDocument document, PDImageXObject logo, Request request, String markedType)
+            PDDocument document, PDImageXObject logo, Request request, String markedType,
+            DocumentSealMark mark)
             throws IOException {
 
         PDPage page = new PDPage(PDRectangle.LETTER);
@@ -150,9 +285,9 @@ public class DoFr100Renderer implements IDocumentRenderer {
             float y = header(content, logo) - 18;
 
             float[] dateColumns = {LEFT, LEFT + 150, LEFT + 250, LEFT + 350, RIGHT};
-            y = row(content, y, dateColumns, BOLD, "Ciudad", "Día", "Mes", "Año");
+            y = row(content, y, dateColumns, bold(), "Ciudad", "Día", "Mes", "Año");
             LocalDateTime filedAt = atCampus(request.getCreatedAt());
-            y = row(content, y, dateColumns, REGULAR,
+            y = row(content, y, dateColumns, regular(),
                     PRINTED_CITY,
                     filedAt.format(DAY),
                     filedAt.format(MONTH),
@@ -161,20 +296,20 @@ public class DoFr100Renderer implements IDocumentRenderer {
             y = sectionTitle(content, y, "Tipo de solicitud:");
             float[] typeColumns = {LEFT, RIGHT - 40, RIGHT};
             for (String type : REQUEST_TYPES) {
-                y = row(content, y, typeColumns, REGULAR, type, type.equals(markedType) ? "X" : "");
+                y = row(content, y, typeColumns, regular(), type, type.equals(markedType) ? "X" : "");
             }
 
             y = sectionTitle(content, y, "Datos del solicitante");
             float[] dataColumns = {LEFT, LEFT + 230, RIGHT};
-            y = row(content, y, dataColumns, REGULAR, "Nombres completos del solicitante", request.getStudentName());
-            y = row(content, y, dataColumns, REGULAR, "Número de identificación", request.getStudentDocument());
-            y = row(content, y, dataColumns, REGULAR, "Correo electrónico", request.getStudentEmail());
-            y = row(content, y, dataColumns, REGULAR, "Número de contacto", request.getStudentPhone());
-            y = row(content, y, dataColumns, REGULAR, "Programa académico en el que se encuentra", request.getProgram());
-            y = row(content, y, dataColumns, REGULAR, "Sede", request.getCampus());
-            y = row(content, y, dataColumns, REGULAR, "Facultad", request.getFaculty());
-            y = row(content, y, dataColumns, REGULAR, "Semestre cursado y aprobado", request.getSemester());
-            y = row(content, y, dataColumns, REGULAR, "Modalidad", request.getModality());
+            y = row(content, y, dataColumns, regular(), "Nombres completos del solicitante", request.getStudentName());
+            y = row(content, y, dataColumns, regular(), "Número de identificación", request.getStudentDocument());
+            y = row(content, y, dataColumns, regular(), "Correo electrónico", request.getStudentEmail());
+            y = row(content, y, dataColumns, regular(), "Número de contacto", request.getStudentPhone());
+            y = row(content, y, dataColumns, regular(), "Programa académico en el que se encuentra", request.getProgram());
+            y = row(content, y, dataColumns, regular(), "Sede", request.getCampus());
+            y = row(content, y, dataColumns, regular(), "Facultad", request.getFaculty());
+            y = row(content, y, dataColumns, regular(), "Semestre cursado y aprobado", request.getSemester());
+            y = row(content, y, dataColumns, regular(), "Modalidad", request.getModality());
 
             y = sectionTitle(content, y, "Compromisos adquiridos:");
 
@@ -194,7 +329,7 @@ public class DoFr100Renderer implements IDocumentRenderer {
             List<String> here = lines.subList(0, Math.min(fit, lines.size()));
             textBox(content, y, here);
 
-            footer(content);
+            footer(content, mark);
             return new ArrayList<>(lines.subList(here.size(), lines.size()));
         }
     }
@@ -203,7 +338,8 @@ public class DoFr100Renderer implements IDocumentRenderer {
      * Las hojas que hagan falta para el resto del motivo. Van ANTES del campo de firmas,
      * para que la firma siga cerrando el documento como en el papel.
      */
-    private void drawOverflowPages(PDDocument document, PDImageXObject logo, List<String> pending)
+    private void drawOverflowPages(PDDocument document, PDImageXObject logo, List<String> pending,
+            DocumentSealMark mark)
             throws IOException {
         while (!pending.isEmpty()) {
             PDPage page = new PDPage(PDRectangle.LETTER);
@@ -214,14 +350,15 @@ public class DoFr100Renderer implements IDocumentRenderer {
                 int fit = Math.max(1, (int) ((y - BOTTOM - 10) / LINE_HEIGHT));
                 List<String> here = pending.subList(0, Math.min(fit, pending.size()));
                 textBox(content, y, here);
-                footer(content);
+                footer(content, mark);
                 pending = new ArrayList<>(pending.subList(here.size(), pending.size()));
             }
         }
     }
 
     private void drawSignaturePage(
-            PDDocument document, PDImageXObject logo, Request request, PDImageXObject signature)
+            PDDocument document, PDImageXObject logo, Request request, PDImageXObject signature,
+            DocumentSealMark mark)
             throws IOException {
 
         PDPage page = new PDPage(PDRectangle.LETTER);
@@ -234,7 +371,7 @@ public class DoFr100Renderer implements IDocumentRenderer {
             content.fill();
             content.setNonStrokingColor(Color.BLACK);
             box(content, LEFT, y - 20, RIGHT - LEFT, 20);
-            centered(content, BOLD, 10, "Campo de firmas y aprobaciones", LEFT, RIGHT, y - 14);
+            centered(content, bold(), 10, "Campo de firmas y aprobaciones", LEFT, RIGHT, y - 14);
             y -= 20;
 
             float middle = (LEFT + RIGHT) / 2f;
@@ -250,14 +387,14 @@ public class DoFr100Renderer implements IDocumentRenderer {
             line(content, LEFT + 12, y - height + 45, middle - 12, y - height + 45);
             line(content, middle + 12, y - height + 45, RIGHT - 12, y - height + 45);
 
-            write(content, BOLD, BODY_SIZE, "Firma del estudiante", LEFT + 12, y - height + 28);
-            write(content, REGULAR, BODY_SIZE,
+            write(content, bold(), BODY_SIZE, "Firma del estudiante", LEFT + 12, y - height + 28);
+            write(content, regular(), BODY_SIZE,
                     "Fecha: " + atCampus(request.getCreatedAt()).format(FULL_DATE),
                     LEFT + 12, y - height + 14);
-            write(content, BOLD, BODY_SIZE, "Firma de la Facultad", middle + 12, y - height + 28);
-            write(content, REGULAR, BODY_SIZE, "Fecha: ______________", middle + 12, y - height + 14);
+            write(content, bold(), BODY_SIZE, "Firma de la Facultad", middle + 12, y - height + 28);
+            write(content, regular(), BODY_SIZE, "Fecha: ______________", middle + 12, y - height + 14);
 
-            footer(content);
+            footer(content, mark);
         }
     }
 
@@ -275,22 +412,45 @@ public class DoFr100Renderer implements IDocumentRenderer {
         float drawn = width * logo.getHeight() / (float) logo.getWidth();
         content.drawImage(logo, LEFT + 14, y - height / 2 - drawn / 2, width, drawn);
 
-        centered(content, BOLD, 11, "SOLICITUD DE EXCEPCIÓN DE MATRÍCULA",
+        centered(content, bold(), 11, "SOLICITUD DE EXCEPCIÓN DE MATRÍCULA",
                 titleStart, titleEnd, y - height / 2 - 4);
-        write(content, REGULAR, 8, "DO-FR-100", titleEnd + 8, y - 16);
-        write(content, REGULAR, 8, "Versión. 01", titleEnd + 8, y - 30);
-        write(content, REGULAR, 8, "Fecha. 19/11/2024", titleEnd + 8, y - 44);
+        write(content, regular(), 8, "DO-FR-100", titleEnd + 8, y - 16);
+        write(content, regular(), 8, "Versión. 01", titleEnd + 8, y - 30);
+        write(content, regular(), 8, "Fecha. 19/11/2024", titleEnd + 8, y - 44);
         return y - height;
     }
 
-    private void footer(PDPageContentStream content) throws IOException {
-        write(content, REGULAR, 7,
+    /**
+     * EL PIE ES LA MARCA LEGIBLE DEL SELLO (FR-003), y existe para quien recibe el papel
+     * impreso y no tiene cuenta en el sistema: sin herramientas, puede leer con qué código
+     * consultar el documento, cuándo se emitió, en qué estado estaba el trámite y sobre qué
+     * revisión de los datos. Es la única vía de contraste para esa persona.
+     *
+     * ⚠️ VA DELIBERADAMENTE POR DEBAJO DEL MARGEN INFERIOR (línea base 40 y 30, contra un
+     * BOTTOM de 70): es el sello del documento, no contenido del formato oficial. Los tests
+     * que vigilan que el cuerpo no invada el margen descartan estas líneas por sus marcadores
+     * de texto, así que cambiarlas obliga a actualizar ese filtro.
+     *
+     * El estado se imprime con su NOMBRE legible y no con su código, y ese nombre es el que el
+     * sello congela: si se resolviera contra la configuración al verificar, renombrar un estado
+     * convertiría un documento legítimo en uno «alterado».
+     */
+    private void footer(PDPageContentStream content, DocumentSealMark mark)
+            throws IOException {
+        write(content, regular(), 7,
                 "Generado por Trámita — Coordinación Académica, Sede Cali", LEFT, 40);
+        write(content, regular(), 7,
+                "Verificación: %s · Emitido: %s · Estado: %s · Revisión: %d".formatted(
+                        mark.verificationCode(),
+                        CampusTime.toCampus(mark.issuedAt()).format(FULL_DATE),
+                        mark.stateName(),
+                        mark.requestVersion()),
+                LEFT, 30);
     }
 
     private float sectionTitle(PDPageContentStream content, float y, String title) throws IOException {
         y -= 20;
-        write(content, BOLD, 10, title, LEFT, y);
+        write(content, bold(), 10, title, LEFT, y);
         return y - 6;
     }
 
@@ -321,7 +481,7 @@ public class DoFr100Renderer implements IDocumentRenderer {
         box(content, LEFT, y - height, RIGHT - LEFT, height);
         float lineY = y - 16;
         for (String line : lines) {
-            write(content, REGULAR, BODY_SIZE, line, LEFT + 8, lineY);
+            write(content, regular(), BODY_SIZE, line, LEFT + 8, lineY);
             lineY -= LINE_HEIGHT;
         }
     }
@@ -367,7 +527,7 @@ public class DoFr100Renderer implements IDocumentRenderer {
             throws IOException {
         List<String> lines = new ArrayList<>();
         StringBuilder current = new StringBuilder();
-        for (String word : PdfTextEncoder.sanitize(paragraph, REGULAR).split("\\s+")) {
+        for (String word : PdfTextEncoder.sanitize(paragraph, regular()).split("\\s+")) {
             // UNA PALABRA MÁS ANCHA QUE LA CAJA SE PARTE POR CARÁCTER. Sin esto, la guarda
             // de abajo no puede cortarla —`current` está vacío— y la línea entera se traza
             // fuera de la hoja: 2000 caracteres sin un solo espacio son entrada legal, y
@@ -401,7 +561,7 @@ public class DoFr100Renderer implements IDocumentRenderer {
     }
 
     private static LocalDateTime atCampus(LocalDateTime utc) {
-        return utc.atOffset(ZoneOffset.UTC).atZoneSameInstant(CAMPUS_ZONE).toLocalDateTime();
+        return CampusTime.toCampus(utc).toLocalDateTime();
     }
 
     /** Recorta un valor al ancho de su celda, marcando el recorte. */
@@ -421,7 +581,7 @@ public class DoFr100Renderer implements IDocumentRenderer {
     }
 
     private float widthOf(String text, float size) throws IOException {
-        return REGULAR.getStringWidth(text) / 1000 * size;
+        return regular().getStringWidth(text) / 1000 * size;
     }
 
     /** Parte una palabra que no cabe en trozos del ancho máximo. */

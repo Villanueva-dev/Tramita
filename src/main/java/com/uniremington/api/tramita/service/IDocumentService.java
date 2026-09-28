@@ -21,5 +21,5 @@ public interface IDocumentService {
      *         si declara un formato que ninguna implementación dibuja. Eso no es un
      *         trámite sin documento: es configuración rota, y se reporta como tal.
      */
-    byte[] generateFor(UUID requestId);
+    byte[] generateFor(UUID requestId, String actorEmail);
 }

@@ -75,8 +75,9 @@ tener formato.
 ### Functional Requirements
 
 - **FR-023**: El sistema **MUST** emitir el documento formal de una solicitud como PDF.
-- **FR-024**: El documento **MUST** reproducir la estructura del formato oficial vigente
-  (DO-FR-100 v2024): encabezado con código y versión, ciudad y fecha, tipo de solicitud,
+- **FR-024**: El documento **MUST** reproducir la estructura del formato oficial
+  (DO-FR-100, plantilla v2024 — ver la salvedad sobre el estado de esa versión en *Assumptions*):
+  encabezado con código y versión, ciudad y fecha, tipo de solicitud,
   datos del solicitante con sus rótulos literales, compromisos adquiridos y campo de firmas.
 - **FR-025**: El tipo de solicitud **MUST** aparecer marcado, y **MUST NOT** haber más de
   una marca: un formato con dos tipos marcados es una solicitud ambigua.
@@ -152,6 +153,20 @@ formato: lo copia.
   pasar inadvertida la confusión hasta que se miró un documento generado desde la base.
 - **El logo institucional puede distribuirse con el sistema.** Se incluye como recurso para
   reproducir el encabezado del formato.
-- **El formato vigente es la plantilla v2024** obtenida de la Coordinación
+- **El formato reproducido es la plantilla v2024** obtenida de la Coordinación
   (`material-coord/2026-06-03-coord-DO-FR-100-formato-solicitud-excepcion-de-matricula-v2024.docx`).
   Si la institución publica una versión nueva, cambian los rótulos y el encabezado.
+
+  ⚠️ **«v2024» es el rótulo del archivo entregado, no una versión que la institución haya
+  confirmado como vigente.** La Coordinación dio **tres identificadores distintos** en tres
+  momentos: «versión 0.1» (Sesión 2, leyendo el ejemplar en pantalla), el archivo entregado
+  rotulado **v2024**, y de memoria en la Sesión 1 «formato es 00001-2025». El documento de
+  evidencia lo deja explícitamente sin resolver: *«La versión vigente del formato de adición de
+  créditos no está establecida y debe verificarse contra el portal institucional de formatos
+  antes de fijar la plantilla del generador de PDF»*
+  (`material-coord/evidencia-entrevistas-coordinacion.md:544`).
+
+  Construir contra el único ejemplar físico entregado es lo único que se puede hacer hoy, y no
+  se cuestiona. Lo que esta salvedad fija es que **el número de versión impreso en el PDF hereda
+  esa incertidumbre**: no debe presentarse como confirmado —ante la tutora, el jurado o la propia
+  Coordinación— hasta verificarlo contra el portal institucional.

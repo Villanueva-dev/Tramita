@@ -61,6 +61,32 @@ public class SecurityConfig {
                     .matcher(HttpMethod.POST, "/api/public/requests/*");
 
     /**
+     * La consulta pública del sello, declarada UNA vez por la misma razón que
+     * {@link #PUBLIC_CAPTURE}: el {@code permitAll} y esta ruta deben referirse a exactamente
+     * lo mismo (006, FR-014, research.md D9).
+     *
+     * A DIFERENCIA DE {@code PUBLIC_CAPTURE}, esta ruta NO necesita exclusión de CSRF. CSRF
+     * protege operaciones que cambian estado usando la sesión del navegante; un {@code GET} no
+     * cambia estado y Spring Security no lo protege por diseño, así que no hace falta tocar la
+     * configuración de CSRF para que este canal quede abierto.
+     */
+    private static final PathPatternRequestMatcher PUBLIC_SEAL_LOOKUP =
+            PathPatternRequestMatcher.withDefaults()
+                    .matcher(HttpMethod.GET, "/api/public/seals/*");
+
+    /**
+     * El catálogo público de programas, declarada UNA vez por la misma razón que
+     * {@link #PUBLIC_SEAL_LOOKUP}: el {@code permitAll} y esta ruta deben referirse a
+     * exactamente lo mismo (009, FR-001).
+     *
+     * SIN EXCLUSIÓN DE CSRF, igual que {@link #PUBLIC_SEAL_LOOKUP}: es un {@code GET} y
+     * CSRF no protege operaciones que no cambian estado.
+     */
+    private static final PathPatternRequestMatcher PUBLIC_PROGRAMS =
+            PathPatternRequestMatcher.withDefaults()
+                    .matcher(HttpMethod.GET, "/api/public/programs");
+
+    /**
      * DelegatingPasswordEncoder con BCrypt por defecto (research.md D6): el hash se
      * persiste con prefijo {bcrypt}, desacoplando los datos de un futuro cambio de
      * algoritmo (una migración a {argon2} no invalidaría los hashes existentes).
@@ -136,8 +162,13 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                        // Segundo y último endpoint abierto del sistema (004, FR-001)
+                        // Segundo endpoint abierto del sistema (004, FR-001)
                         .requestMatchers(PUBLIC_CAPTURE).permitAll()
+                        // Tercer endpoint abierto: verificación por posesión del código
+                        // impreso (006, FR-014, research.md D9)
+                        .requestMatchers(PUBLIC_SEAL_LOOKUP).permitAll()
+                        // Cuarto endpoint abierto: catálogo de programas (009, FR-001)
+                        .requestMatchers(PUBLIC_PROGRAMS).permitAll()
                         .anyRequest().authenticated())
                 // sin sesión → 401 problem+json (RFC 9457, D10)
                 .exceptionHandling(ex -> ex
@@ -158,10 +189,11 @@ public class SecurityConfig {
                         new LoginThrottlingFilter(loginAttemptService, jsonMapper, problemJsonWriter),
                         UsernamePasswordAuthenticationFilter.class)
                 // Protección del canal público (004, US3). Va ANTES de que la petición se
-                // resuelva: el 413 debe cortar sin materializar el envío en memoria, que es
-                // todo el punto del tope. Su contador es propio y no el del login — cuentan
-                // cosas distintas (envíos vs. fallos de autenticación) con umbrales
-                // distintos, y compartirlo mezclaría los dos presupuestos.
+                // resuelva: el 413 corta el envío antes de que nadie lo procese, y ese corte
+                // consume cupo porque el envío ocupó el canal igual (research.md D7-bis). Su
+                // contador es propio y no el del login — cuentan cosas distintas (envíos vs.
+                // fallos de autenticación) con umbrales distintos, y compartirlo mezclaría los
+                // dos presupuestos.
                 .addFilterBefore(
                         new PublicSubmissionThrottlingFilter(publicSubmissionCounter,
                                 publicCaptureProperties, problemJsonWriter),

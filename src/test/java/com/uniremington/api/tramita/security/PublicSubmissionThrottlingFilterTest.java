@@ -54,7 +54,7 @@ class PublicSubmissionThrottlingFilterTest {
 
         assertThat(response.getStatus()).isEqualTo(413);
         assertThat(chain.getRequest())
-                .as("nada debe llegar al chain: el corte ocurre antes de materializar el envío")
+                .as("nada debe llegar al chain: el envío se corta antes de que nadie lo procese")
                 .isNull();
     }
 
@@ -128,6 +128,55 @@ class PublicSubmissionThrottlingFilterTest {
     }
 
     @Test
+    @DisplayName("un 413 consume cupo del origen, declare o no el tamaño: el envío ocupó el canal")
+    void oversizedSubmissionsConsumeQuota() throws Exception {
+        String origin = "203.0.113.40";
+        for (int i = 0; i < MAX_SUBMISSIONS; i++) {
+            // Se alternan las DOS rutas del tope a propósito: con Content-Length se corta sin
+            // abrir el stream, y sin él hay que leer hasta el tope para medir. Las dos cobran,
+            // porque lo que consume capacidad del canal es el envío, no la lectura. Si una
+            // sola de las dos no cobrara, el cupo no llegaría a agotarse y el 429 no saldría.
+            MockHttpServletRequest oversized = i % 2 == 0
+                    ? submission(oversizedBody(), origin)
+                    : submissionWithoutContentLength(oversizedBody(), origin);
+            MockHttpServletResponse rejected = new MockHttpServletResponse();
+            filter.doFilterInternal(oversized, rejected, new MockFilterChain());
+            assertThat(rejected.getStatus())
+                    .as("cada envío desmesurado se corta con 413 antes de procesarse")
+                    .isEqualTo(413);
+        }
+
+        filter.doFilterInternal(submission(smallBody(), origin), response, chain);
+
+        // Sin esto, el tope de tamaño es una ruta que esquiva la ÚNICA defensa de tasa de un
+        // canal sin sesión: un mismo origen repite envíos desmesurados sin límite alguno.
+        assertThat(response.getStatus())
+                .as("agotado el cupo con envíos de 413, el siguiente envío legítimo recibe 429")
+                .isEqualTo(429);
+        assertThat(chain.getRequest()).isNull();
+    }
+
+    @Test
+    @DisplayName("agotado el cupo, un envío desmesurado recibe 429 y no se lee: el límite va primero")
+    void exhaustedQuotaShortCircuitsBeforeMeasuringTheBody() throws Exception {
+        String origin = "203.0.113.41";
+        for (int i = 0; i < MAX_SUBMISSIONS; i++) {
+            filter.doFilterInternal(submission(smallBody(), origin),
+                    new MockHttpServletResponse(), new MockFilterChain());
+        }
+
+        filter.doFilterInternal(submission(oversizedBody(), origin), response, chain);
+
+        // Fija el ORDEN, no solo el cobro: con el tope evaluado primero, este envío recibiría
+        // 413 y el servidor volvería a medirlo en cada intento. Evaluar el cupo antes corta
+        // sin abrir el stream, que es lo que convierte el límite en una defensa.
+        assertThat(response.getStatus())
+                .as("quien ya agotó su cupo recibe 429 aunque su envío además exceda el tope")
+                .isEqualTo(429);
+        assertThat(response.getHeader("Retry-After")).isNotNull();
+    }
+
+    @Test
     @DisplayName("el límite es por origen: agotar uno no bloquea a otro")
     void throttlingIsPerOrigin() throws Exception {
         String saturated = "203.0.113.30";
@@ -158,6 +207,28 @@ class PublicSubmissionThrottlingFilterTest {
 
     private byte[] smallBody() {
         return "{}".getBytes(StandardCharsets.UTF_8);
+    }
+
+    private byte[] oversizedBody() {
+        return new byte[(int) MAX_BODY.toBytes() + 1];
+    }
+
+    /** Envío que no declara su tamaño, como haría un cliente con Transfer-Encoding chunked. */
+    private MockHttpServletRequest submissionWithoutContentLength(byte[] body, String remoteAddr) {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", PUBLIC_PATH) {
+            @Override
+            public int getContentLength() {
+                return -1;
+            }
+
+            @Override
+            public long getContentLengthLong() {
+                return -1L;
+            }
+        };
+        request.setRemoteAddr(remoteAddr);
+        request.setContent(body);
+        return request;
     }
 
     private MockHttpServletRequest submission(byte[] body, String remoteAddr) {

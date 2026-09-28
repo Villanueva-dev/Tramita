@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 import com.uniremington.api.tramita.model.Request;
+import com.uniremington.api.tramita.service.DocumentSealMark;
 import com.uniremington.api.tramita.model.WorkflowDefinition;
 import com.uniremington.api.tramita.model.WorkflowState;
 import java.awt.image.BufferedImage;
@@ -12,6 +13,7 @@ import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.imageio.ImageIO;
@@ -38,6 +40,15 @@ import org.junit.jupiter.api.Test;
  * prefijo SIN-DATO-REAL y correo en un dominio reservado para pruebas.
  */
 class DoFr100RendererTest {
+
+    /** Los textos con que se reconoce cada línea del pie. Si el pie cambia, se actualiza acá. */
+    private static final List<String> FOOTER_MARKERS =
+            List.of("Generado por Trámita", "Verificación:");
+
+    /** Una marca de sello cualquiera: la mayoría de los casos de este archivo no la miran. */
+    private static final DocumentSealMark TEST_MARK = new DocumentSealMark(
+            "TESTCODE0001", LocalDateTime.of(2026, 9, 18, 15, 30), "Radicada", 0L);
+
 
     private final DoFr100Renderer renderer = new DoFr100Renderer();
 
@@ -67,7 +78,7 @@ class DoFr100RendererTest {
     @Test
     @DisplayName("lleva los nueve rótulos oficiales de la plantilla v2024, literales")
     void carriesEveryOfficialLabel() throws Exception {
-        String text = textOf(renderer.render(request()));
+        String text = textOf(renderer.render(request(), TEST_MARK));
 
         assertThat(text)
                 .as("un rótulo cambiado deja de ser el formato oficial")
@@ -77,7 +88,7 @@ class DoFr100RendererTest {
     @Test
     @DisplayName("lleva los datos que el estudiante diligenció, con sus tildes intactas")
     void carriesTheSubmittedDataWithAccents() throws Exception {
-        String text = textOf(renderer.render(request()));
+        String text = textOf(renderer.render(request(), TEST_MARK));
 
         assertThat(text).contains(
                 "Ana María Peñaranda Gutiérrez",
@@ -92,7 +103,7 @@ class DoFr100RendererTest {
     @Test
     @DisplayName("son dos páginas, y el campo de firmas va en la segunda")
     void isTwoPagesWithTheSignatureFieldOnTheSecond() throws Exception {
-        byte[] pdf = renderer.render(request());
+        byte[] pdf = renderer.render(request(), TEST_MARK);
 
         try (PDDocument document = Loader.loadPDF(pdf)) {
             assertThat(document.getNumberOfPages())
@@ -110,7 +121,7 @@ class DoFr100RendererTest {
     @Test
     @DisplayName("marca el tipo de solicitud correcto y SOLO ese")
     void marksOnlyTheAdditionalCreditsType() throws Exception {
-        String text = pageText(renderer.render(request()), 1);
+        String text = pageText(renderer.render(request(), TEST_MARK), 1);
 
         assertThat(text).contains(
                 "Excepción por asignatura reprobada por segunda vez",
@@ -144,7 +155,7 @@ class DoFr100RendererTest {
         // que «Cali» apareciera en algún lugar de la hoja, y pasaba aunque la celda
         // estuviera vacía: el pie dice «Sede Cali». Un mutante lo delató. Ahora se ata la
         // ciudad a su fila —Ciudad | Día | Mes | Año— que es donde el formato la pone.
-        assertThat(pageText(renderer.render(internalForm), 1))
+        assertThat(pageText(renderer.render(internalForm, TEST_MARK), 1))
                 .as("la ciudad es parte del formato, no un dato que pueda faltar")
                 .containsPattern("Ciudad\\s+Día\\s+Mes\\s+Año\\s+Cali");
     }
@@ -152,7 +163,7 @@ class DoFr100RendererTest {
     @Test
     @DisplayName("nunca imprime las trece casillas de motivos: son de otros trámites")
     void neverPrintsTheThirteenReasonCheckboxes() throws Exception {
-        String text = textOf(renderer.render(request()));
+        String text = textOf(renderer.render(request(), TEST_MARK));
 
         assertThat(text).doesNotContain(REASON_CHECKBOXES.toArray(String[]::new));
     }
@@ -162,8 +173,8 @@ class DoFr100RendererTest {
     void rendersWithoutSignature() throws Exception {
         Request withoutSignature = requestBuilder().studentSignature(null).build();
 
-        assertThatCode(() -> renderer.render(withoutSignature)).doesNotThrowAnyException();
-        assertThat(pageText(renderer.render(withoutSignature), 2))
+        assertThatCode(() -> renderer.render(withoutSignature, TEST_MARK)).doesNotThrowAnyException();
+        assertThat(pageText(renderer.render(withoutSignature, TEST_MARK), 2))
                 .as("el bloque queda vacío, como un formato todavía sin firmar")
                 .contains("Firma del estudiante");
     }
@@ -183,7 +194,7 @@ class DoFr100RendererTest {
                 .repeat(29);
 
         byte[] pdf = renderer.render(
-                requestBuilder().reason(longReason.substring(0, 2000)).build());
+                requestBuilder().reason(longReason.substring(0, 2000)).build(), TEST_MARK);
 
         assertThat(textOf(pdf))
                 .as("el final del motivo tiene que estar en el documento, no cortado")
@@ -203,7 +214,7 @@ class DoFr100RendererTest {
         // en cuatro líneas— que sobrevivía a toda la clase.
         String longReason = "Necesito adicionar la asignatura para no atrasar el plan de estudios. "
                 .repeat(29);
-        byte[] pdf = renderer.render(requestBuilder().reason(longReason.substring(0, 2000)).build());
+        byte[] pdf = renderer.render(requestBuilder().reason(longReason.substring(0, 2000)).build(), TEST_MARK);
 
         // 70 es el margen inferior que el renderer reserva. Medido sobre la versión
         // correcta: nada del cuerpo baja de 80, y lo único por debajo es el pie, en 40.
@@ -225,8 +236,8 @@ class DoFr100RendererTest {
                 .studentSignature("data:image/png;base64,aGVsbG8gbXVuZG8=").build();
 
         for (Request request : List.of(withGarbage, withNonImage)) {
-            assertThatCode(() -> renderer.render(request)).doesNotThrowAnyException();
-            assertThat(pageText(renderer.render(request), 2))
+            assertThatCode(() -> renderer.render(request, TEST_MARK)).doesNotThrowAnyException();
+            assertThat(pageText(renderer.render(request, TEST_MARK), 2))
                     .as("el formato sale sin firma, como un papel todavía sin firmar")
                     .contains("Firma del estudiante");
         }
@@ -238,7 +249,7 @@ class DoFr100RendererTest {
         // 2000 caracteres sin un solo espacio es entrada legal: @Size(max=2000) no exige
         // palabras. Sin corte por carácter, la línea entera se traza fuera de la hoja y
         // el texto desaparece del documento impreso.
-        byte[] pdf = renderer.render(requestBuilder().reason("A".repeat(2000)).build());
+        byte[] pdf = renderer.render(requestBuilder().reason("A".repeat(2000)).build(), TEST_MARK);
 
         assertThat(rightmostTextEdge(pdf))
                 .as("lo que se dibuja pasado el margen derecho no existe para quien imprime")
@@ -253,7 +264,7 @@ class DoFr100RendererTest {
         // anchas entran muchas más por línea y el texto baja mucho más: medido, 2000
         // caracteres de «MM » terminaban en el baseline 30, por debajo del pie.
         byte[] pdf = renderer.render(
-                requestBuilder().reason("MM ".repeat(700).substring(0, 2000)).build());
+                requestBuilder().reason("MM ".repeat(700).substring(0, 2000)).build(), TEST_MARK);
 
         assertThat(lowestTextBaseline(pdf))
                 .as("el peor caso de ancho también tiene que respetar el margen")
@@ -270,7 +281,7 @@ class DoFr100RendererTest {
         Request lateInTheEvening = requestBuilder()
                 .createdAt(LocalDateTime.of(2026, 9, 18, 1, 0)).build();
 
-        String text = pageText(renderer.render(lateInTheEvening), 1);
+        String text = pageText(renderer.render(lateInTheEvening, TEST_MARK), 1);
 
         assertThat(text)
                 .as("a la 01:00 UTC en Cali son las 20:00 del día anterior")
@@ -283,7 +294,7 @@ class DoFr100RendererTest {
         // 120 caracteres es el máximo de studentName (@Size). La celda no los recorta ni
         // los ajusta, así que el texto se dibujaba fuera de la hoja: mismo defecto que el
         // motivo sin espacios, aplicado a la tabla.
-        byte[] pdf = renderer.render(requestBuilder().studentName("Ana ".repeat(30)).build());
+        byte[] pdf = renderer.render(requestBuilder().studentName("Ana ".repeat(30)).build(), TEST_MARK);
 
         assertThat(rightmostTextEdge(pdf))
                 .as("una celda que se desborda deja el dato fuera del documento impreso")
@@ -296,10 +307,10 @@ class DoFr100RendererTest {
         // NINGÚN TEST VEÍA LAS IMÁGENES. PDFTextStripper no las extrae, así que un renderer
         // que dejara de dibujar la firma —o el logo— pasaba la clase entera. Se cuentan los
         // XObject de la página de firmas: con firma van dos (logo + trazo), sin ella uno.
-        assertThat(imagesOnPage(renderer.render(request()), 2))
+        assertThat(imagesOnPage(renderer.render(request(), TEST_MARK), 2))
                 .as("la firma del estudiante tiene que estar en el documento")
                 .isEqualTo(2);
-        assertThat(imagesOnPage(renderer.render(requestBuilder().studentSignature(null).build()), 2))
+        assertThat(imagesOnPage(renderer.render(requestBuilder().studentSignature(null).build(), TEST_MARK), 2))
                 .as("sin firma queda solo el logo del encabezado")
                 .isEqualTo(1);
     }
@@ -318,7 +329,7 @@ class DoFr100RendererTest {
                 1. Sostener el promedio acumulado exigido por el reglamento.
                 2. Cumplir con la asistencia del 80 % en la asignatura adicional.""";
 
-        String text = pageText(renderer.render(requestBuilder().reason(motivo).build()), 1);
+        String text = pageText(renderer.render(requestBuilder().reason(motivo).build(), TEST_MARK), 1);
 
         assertThat(text)
                 .as("un salto de línea no es un carácter imprimible: no puede salir como «?»")
@@ -335,7 +346,7 @@ class DoFr100RendererTest {
         // hay más aire que entre los dos ítems, que el estudiante escribió seguidos.
         // Se mide el espaciado real, porque la extracción de texto no distingue una línea
         // en blanco de un renglón contiguo.
-        byte[] pdf = renderer.render(requestBuilder().reason(motivo).build());
+        byte[] pdf = renderer.render(requestBuilder().reason(motivo).build(), TEST_MARK);
         float intro = baselineOf(pdf, "Me comprometo a lo siguiente:");
         float primero = baselineOf(pdf, "1. Sostener");
         float segundo = baselineOf(pdf, "2. Cumplir");
@@ -379,9 +390,15 @@ class DoFr100RendererTest {
             PDFTextStripper stripper = new PDFTextStripper() {
                 @Override
                 protected void writeString(String text, List<TextPosition> positions) {
-                    // El pie va deliberadamente bajo el margen (baseline 40, medido): es
-                    // el sello del documento, no contenido del formato.
-                    if (text.contains("Generado por Trámita")) {
+                    // El pie va deliberadamente bajo el margen (baselines 40 y 30): es el
+                    // sello del documento, no contenido del formato oficial.
+                    //
+                    // ⚠️ SE FILTRA POR TEXTO Y NO POR POSICIÓN, y es a propósito: filtrar por
+                    // altura descartaría también el contenido que se desborda hacia abajo, que
+                    // es justamente lo que estos tests existen para detectar. El costo es que
+                    // agregar una línea al pie obliga a sumarla acá — pasó al imprimir la marca
+                    // legible del sello, y el plan lo había anticipado.
+                    if (FOOTER_MARKERS.stream().anyMatch(text::contains)) {
                         return;
                     }
                     positions.forEach(position ->
@@ -455,6 +472,62 @@ class DoFr100RendererTest {
         return requestBuilder().build();
     }
 
+    @Test
+    @DisplayName("FR-003: el pie imprime el código, la fecha, el estado y la revisión — la línea exacta")
+    void footerPrintsTheHumanReadableSeal() throws Exception {
+        // #34 A2: los cuatro valores DISTINGUIBLES entre sí y del resto del documento.
+        // Revisión 41 no coincide con ningún otro número que el documento imprima (el «7» del
+        // test anterior matcheaba el 17 de createdAt en otra parte del documento). El estado
+        // es un texto exclusivo del pie: "Radicada" es también el default de otros casos de
+        // este archivo y el FIXED_MARK del canario, así que no distingue nada por sí solo.
+        // issuedAt es DISTINTO de createdAt a propósito: si el pie tomara la fecha equivocada,
+        // este test lo vería. 2026-09-19T02:00 UTC cae 2026-09-18T21:00 en Cali (UTC−5): el
+        // pie debe decir 18/09/2026, no 19/09/2026 (#34 M1).
+        DocumentSealMark mark = new DocumentSealMark(
+                "ABC123XYZ", LocalDateTime.of(2026, 9, 19, 2, 0), "Estado Exclusivo Del Pie", 41L);
+
+        String text = textOf(renderer.render(requestBuilder().build(), mark));
+
+        // La LÍNEA completa, no contains() sueltos sobre el documento entero: un
+        // contains("7") o un contains("Radicada") sobreviven a mutantes que cambian la
+        // revisión o el estado por una constante, porque esos valores ya aparecen en otro
+        // lugar del documento por otra razón. La línea entera con sus cuatro valores exactos
+        // no sobrevive — ver DoFr100Renderer:440-447 para el formato.
+        assertThat(text)
+                .as("Quien recibe el papel impreso no tiene cuenta en el sistema: la marca "
+                        + "legible es lo único que le permite contrastar el documento")
+                .contains("Verificación: ABC123XYZ · Emitido: 18/09/2026 · "
+                        + "Estado: Estado Exclusivo Del Pie · Revisión: 41");
+    }
+
+    @Test
+    @DisplayName("D5: la versión del formato incluye la versión de la biblioteca que dibuja")
+    void formatVersionIncludesTheRenderingLibraryVersion() {
+        // El pom fija la versión de PDFBox JUSTAMENTE para poder actualizarla ante
+        // vulnerabilidades, así que va a cambiar. Si un parche altera un solo byte de la
+        // salida y la versión del formato no lo refleja, los sellos anteriores pasan a
+        // reportarse como ALTERADOS en vez de «no verificables»: se acusaría de falsificación
+        // a documentos legítimos por haber aplicado una actualización de seguridad.
+        //
+        // ⛔ Si este test se pone rojo porque alguien quitó la versión de la biblioteca,
+        // reponerla es la respuesta; no hay que ajustar la aserción.
+        assertThat(renderer.formatVersion())
+                .as("la versión del formato tiene que cambiar sola al actualizar PDFBox, "
+                        + "sin depender de que alguien se acuerde de tocar una constante")
+                .contains(org.apache.pdfbox.util.Version.getVersion());
+    }
+
+    @Test
+    @DisplayName("D5: la versión del formato identifica maquetación y logo")
+    void formatVersionIdentifiesLayoutAndLogo() {
+        assertThat(renderer.formatVersion())
+                .as("El sello guarda esta cadena; si no distingue una maquetación de otra, "
+                        + "un documento viejo se reconstruye con el formato nuevo")
+                .isNotBlank()
+                .hasSizeLessThanOrEqualTo(80)
+                .startsWith("DO_FR_100/");
+    }
+
     private static Request.RequestBuilder requestBuilder() {
         WorkflowState initial = WorkflowState.builder()
                 .code("RADICADA").name("Radicada").initial(true).build();
@@ -465,6 +538,9 @@ class DoFr100RendererTest {
                 .build();
 
         return Request.builder()
+                // El renderer deriva de acá el /ID del documento: una solicitud sin
+                // identidad no puede emitir un documento distinguible de los demás.
+                .id(UUID.fromString("33333333-3333-4333-8333-333333333333"))
                 .definition(definition)
                 .currentState(initial)
                 .studentName("Ana María Peñaranda Gutiérrez")

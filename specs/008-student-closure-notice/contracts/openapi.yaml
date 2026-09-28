@@ -1,0 +1,365 @@
+openapi: 3.1.0
+info:
+  title: Trámita — delta de contrato de la feature 008
+  version: 0.8.0
+  description: |
+    Delta sobre los contratos de las features 002 a 007, cuyas estructuras NO se alteran salvo
+    donde se declara abajo. Esta feature entrega el aviso de cierre al estudiante (SP7, issue
+    #13): el sistema **no envía nada** (FR-006) ni **registra nada** (FR-007); expone los hechos
+    con los que la Coordinación prepara y envía el aviso desde sus propios canales.
+
+    **Ningún endpoint es nuevo.** Cambian:
+
+      * `POST /requests`, `POST /requests/{id}/transitions`, `GET /requests/{id}` — **cambio
+        aditivo**: el detalle de la solicitud gana `origin`, `studentEmail` y `studentPhone`
+        (FR-008). Un cliente que lee los doce campos actuales sigue funcionando (FR-013).
+        Con `currentState.isFinal`, que ya viajaba, el cliente tiene todo para decidir si
+        ofrece el aviso **sin una segunda consulta** (research.md D4, D5).
+
+      * `POST /public/requests/{definitionCode}` y `POST /requests` — ⚠️ **ENMIENDA NO ADITIVA
+        del campo `studentPhone`** (FR-009, FR-010, FR-013). La 004 lo aceptaba como cualquier
+        texto de hasta 30 caracteres; a partir de esta feature tiene que ser **exactamente diez
+        dígitos** (`[0-9]{10}`), obligatorio en el canal público y opcional en el interno. Un
+        cliente que mandara `300 123 4567` pasa de 201 a 422 (público) o 400 (interno). Se
+        declara con el mismo procedimiento que la 007 usó para `GET /requests/inbox` y, a
+        diferencia de aquella, **sí tiene consumidor**: el formulario público del front. Por eso
+        el filtro de dígitos del cliente se despliega antes o a la vez (research.md D9).
+
+    **Sin migración.** La columna `student_phone` sigue en `VARCHAR(30)`; la regla vive en el
+    contrato de entrada. Las solicitudes ya radicadas **no se reescriben** (FR-011). La última
+    migración del repositorio sigue siendo `V4.1.0`.
+
+    **Lo que el detalle NO afirma**: que el estudiante fue avisado. No existe ese dato.
+
+    Lo no listado aquí se rige por `specs/007-coordination-inbox/contracts/openapi.yaml` y, en
+    lo que aquélla no altera, por los de la 006, la 005, la 004, la 003 y la 002.
+
+servers:
+  - url: /api
+
+paths:
+  /requests:
+    post:
+      summary: Registrar una solicitud (contrato de la 002/003/004; acá solo lo que cambia)
+      description: |
+        Dos cambios sobre el contrato vigente:
+
+        1. **`studentPhone` del cuerpo** — ⚠️ enmienda **no aditiva** (FR-010): sigue siendo
+           opcional; si viene, tiene que ser exactamente diez dígitos. Para no declarar
+           teléfono se **omite** el campo (o se manda `null`): una cadena vacía cuenta como
+           «vino, y no cumple», y responde 400 con el campo en `invalidFields`. Es la lectura
+           literal de FR-010 y hoy ningún cliente manda `""` (research.md D3).
+        2. **La respuesta** es el detalle ampliado (`RequestResponse`, abajo): trae `origin`
+           —que para este endpoint es siempre `COORDINATION`—, y `studentEmail` y
+           `studentPhone` si se declararon. Cambio aditivo.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRequestBody'
+      responses:
+        '201':
+          description: Solicitud creada; el cuerpo es el detalle ampliado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestResponse'
+        '400':
+          description: |
+            Cuerpo inválido, como en la 003. Caso nuevo: `studentPhone` presente y fuera de
+            formato → `invalidFields: ["studentPhone"]`. El detalle nombra el campo y nunca
+            repite el valor.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+  /requests/{id}/transitions:
+    post:
+      summary: Avanzar una solicitud (contrato de la 002/003; acá solo lo que cambia)
+      description: |
+        Sin cambios en el cuerpo ni en los errores. **La respuesta** es el detalle ampliado
+        (`RequestResponse`): es el momento exacto en que el aviso puede ofrecerse, porque si el
+        destino es un estado final y la solicitud nació por el enlace público, esta misma
+        respuesta ya trae `origin`, `currentState.isFinal`, `studentEmail` y `studentPhone`
+        (FR-008; spec US1, escenario 2). No hace falta volver a consultar.
+
+        **Consultar o avanzar no escribe ningún registro de aviso** (FR-007, SC-006): el timeline
+        solo gana la entrada de la transición, como siempre.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Transición aplicada; se devuelve el detalle ampliado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestResponse'
+
+  /requests/{id}:
+    get:
+      summary: Detalle de una solicitud (contrato de la 002/003; acá solo lo que cambia)
+      description: |
+        **La respuesta** es el detalle ampliado (`RequestResponse`). Consultarlo no escribe nada
+        (SC-006). El resto del contrato —404 si no existe, 401 sin sesión— se rige por la 002.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: El detalle ampliado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestResponse'
+
+  /public/requests/{definitionCode}:
+    post:
+      summary: Recibe el formato del estudiante, sin sesión (contrato de la 004; acá solo lo que cambia)
+      description: |
+        Un solo cambio, ⚠️ **no aditivo** (FR-009): `studentPhone` tiene que ser exactamente
+        diez dígitos, sin espacios, guiones ni prefijo internacional. Sigue siendo obligatorio.
+
+        **Cómo se informa el rechazo** (mismo mecanismo de la 004, issue #27): un teléfono con
+        forma incorrecta responde 422 «Formato inválido» con `invalidFields: ["studentPhone"]`;
+        uno en blanco responde 422 «Formato incompleto» con `missingFields: ["studentPhone"]`
+        —solo en esa lista: la ausencia domina—. El detalle **nombra el campo y nunca repite el
+        valor recibido**.
+
+        **Qué NO se exige**: que sea un móvil. Un fijo de diez dígitos (`6025551234`) se acepta:
+        sirve de contacto y para el PDF, solo que no habilita WhatsApp (FR-012). Esa distinción
+        la hace el cliente al decidir si ofrece el botón, nunca este endpoint.
+
+        El teléfono se conserva **tal como llega**, ya validado (FR-011). No se normaliza.
+
+        Todo lo demás —`security: []`, el trámite en la ruta, los once obligatorios, el 404 sin
+        distinguir causas, el 429— se rige por la 004.
+      security: []
+      parameters:
+        - name: definitionCode
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 50
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicRequestBody'
+      responses:
+        '422':
+          description: |
+            Formato incompleto o inválido, como en la 004. Caso nuevo: `studentPhone` con forma
+            incorrecta → `invalidFields: ["studentPhone"]`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+components:
+  schemas:
+    RequestOrigin:
+      type: string
+      enum: [COORDINATION, PUBLIC_LINK]
+      description: |
+        Cómo nació la solicitud (007, FR-007). Se deriva del actor de su entrada de nacimiento
+        en el timeline: el canal público actúa con una cuenta propia desde la 004, así que el
+        dato ya está registrado y no se persiste nada nuevo.
+
+        **Es el mismo enum que `InboxEntryResponse.origin` de la 007**, y los valores no
+        cambian. En Java pasa a un tipo de primer nivel (`dto/RequestOrigin`) porque desde
+        esta feature lo usan dos DTO (research.md D1); en el JSON es invisible.
+
+        `COORDINATION` significa «cualquier cuenta autenticada» mientras no haya roles. No es
+        una comprobación de rol.
+
+    RequestResponse:
+      type: object
+      description: |
+        Detalle de una solicitud (`Request` en los contratos de la 002 y la 003). Gana tres
+        campos en esta feature, **todos aditivos**; los doce anteriores conservan forma y
+        significado (FR-013).
+
+        Los tres se omiten cuando son nulos (`NON_NULL`, como el resto de los campos del
+        formulario desde la 003): una solicitud registrada por la Coordinación sin contacto, o
+        anterior a `V3.3.0`, no los trae.
+
+        **Por qué ahora sí expone contacto** (FR-008a): hasta esta feature el detalle no lo
+        devolvía porque no tenía quién lo usara —la minimización del §III leída como «un dato
+        de contacto se expone cuando tiene consumidor»—. El consumidor es esta feature. No
+        cambia lo que se **almacena**: eso lo decidió la 004 (FR-005, FR-005a).
+
+        **Lo que sigue sin salir en ningún listado**: `studentEmail` y `studentPhone` NO
+        entran en `RequestSummaryResponse` (búsqueda) ni en `InboxEntryResponse` (bandeja).
+        Es el mismo criterio con que la bandeja nunca lleva el documento.
+      required: [id, definition, studentName, studentDocument, currentState, availableTransitions, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        definition:
+          $ref: '#/components/schemas/WorkflowDefinitionResponse'
+        studentName:
+          type: string
+          description: Uno de los tres datos que el aviso puede nombrar (FR-005).
+        studentDocument:
+          type: string
+          description: Como en la 002. **Nunca va en el aviso** (FR-005).
+        studentCode:
+          type: string
+        program:
+          type: string
+        semester:
+          type: string
+        reason:
+          type: string
+        subjects:
+          type: array
+          items:
+            type: object
+        currentState:
+          $ref: '#/components/schemas/StateResponse'
+        availableTransitions:
+          type: array
+          description: Vacía cuando `currentState.isFinal` es `true`, como en la 002.
+          items:
+            type: object
+        createdAt:
+          type: string
+          format: date-time
+          description: |
+            Sin cambios: UTC sin marcador, como en la 002 (issue #36 lo rastrea).
+        origin:
+          type: string
+          enum: [COORDINATION, PUBLIC_LINK]
+          description: |
+            **Campo nuevo.** Ver `RequestOrigin`. Es la mitad de la condición del aviso: se
+            ofrece solo si es `PUBLIC_LINK` (FR-001, FR-004); la otra mitad es
+            `currentState.isFinal` (FR-003).
+
+            **Ausente** —no `null`— solo si la solicitud no tiene entrada de nacimiento, que
+            `register` escribe siempre: es una anomalía de datos declarada, no un tercer origen
+            (007, review M3), y el cliente la trata como «no pública»: sin aviso (FR-004). Se
+            omite en vez de viajar nula porque `RequestResponse` descarta los nulos (`NON_NULL`)
+            desde la 003; la bandeja de la 007 (`InboxEntryResponse`) no los descarta, y por eso
+            allá sí viaja como `null` y es requerida. Corregido el 2026-09-24 (`/speckit-analyze`,
+            I1): la versión anterior prometía «nunca ausente», y el código no lo cumpliría.
+        studentEmail:
+          type: string
+          format: email
+          description: |
+            **Campo nuevo.** El correo que declaró el estudiante, tal como se guardó (004,
+            FR-005). Es el destinatario del aviso por correo (P1): el cliente arma con él un
+            `mailto:` con asunto y cuerpo (RFC 6068; los saltos de línea van como `%0D%0A`,
+            §5). Ausente si no se declaró.
+
+            El sistema no verifica que sea del estudiante: la Coordinación lo ve antes de
+            enviar, y un rebote le llega a ella (spec, casos borde).
+        studentPhone:
+          type: string
+          description: |
+            **Campo nuevo.** El teléfono que declaró el estudiante, **tal como se guardó**
+            (FR-011). Para las solicitudes nuevas son diez dígitos (FR-009); para las
+            anteriores a esta feature puede tener cualquier forma, porque no se reescriben.
+
+            Es el destinatario del aviso por WhatsApp (P2), y **solo si es un móvil
+            colombiano** —diez dígitos que empiezan por 3—, regla que aplica el cliente
+            (FR-002, FR-012): `https://wa.me/57<tel>?text=<texto>`. Un fijo se muestra pero no
+            habilita WhatsApp; el correo sigue disponible. Ausente si no se declaró.
+
+    StateResponse:
+      type: object
+      description: Sin cambios respecto de la 007. Se declara porque `isFinal` es la otra mitad de la condición del aviso.
+      required: [code, name, isInitial, isFinal]
+      properties:
+        code: { type: string }
+        name:
+          type: string
+          description: |
+            Uno de los tres datos que el aviso puede nombrar (FR-005): el estado alcanzado, con el nombre que da la configuración.
+        isInitial: { type: boolean }
+        isFinal:
+          type: boolean
+          description: |
+            Si es un cierre. Leído de `workflow_state.is_final`: el sistema no reconoce
+            códigos (FR-003, §VI). ⚠️ **Final no significa aprobado**: un rechazo también es
+            final y también se avisa, nombrando el estado (FR-005a).
+
+    WorkflowDefinitionResponse:
+      type: object
+      description: Sin cambios respecto de la 002. `name` es uno de los tres datos que el aviso puede nombrar (FR-005).
+      required: [code, name, version]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        version: { type: integer }
+
+    CreateRequestBody:
+      type: object
+      description: |
+        Cuerpo de `POST /requests` (contratos de la 002, 003 y 004). Se declara acá **solo el
+        campo que cambia**; el resto se rige por aquellos.
+      properties:
+        studentPhone:
+          type: string
+          pattern: '^[0-9]{10}$'
+          description: |
+            ⚠️ **ENMIENDA NO ADITIVA** (FR-010, FR-013). Opcional, como en la 004; si viene,
+            exactamente diez dígitos. **Para no declararlo, omitir el campo o mandar `null`**:
+            una cadena vacía se rechaza con 400 (`invalidFields: ["studentPhone"]`). Ya no lleva
+            `maxLength: 30`: el patrón fija la longitud.
+
+    PublicRequestBody:
+      type: object
+      description: |
+        Formato DO-FR-100 diligenciado por el estudiante (contrato de la 004). Se declara acá
+        **solo el campo que cambia**; los once obligatorios, la firma y el resto se rigen por
+        aquél.
+      properties:
+        studentPhone:
+          type: string
+          pattern: '^[0-9]{10}$'
+          description: |
+            ⚠️ **ENMIENDA NO ADITIVA** (FR-009, FR-013). Sigue siendo obligatorio; ahora tiene
+            que ser exactamente diez dígitos: sin espacios, guiones ni `+57`. Ya no lleva
+            `maxLength: 30`: el patrón fija la longitud.
+
+            **Formato nacional colombiano** (decisión del usuario; el sistema **no verifica la
+            nacionalidad** del número, solo la forma): fijos y móviles tienen diez
+            dígitos desde el cambio de marcación de la CRC
+            (https://www.crcom.gov.co/es/noticias/comunicado-prensa/desde-1-septiembre-cambia-forma-hacer-llamadas-en-colombia).
+            No se exige que sea móvil (FR-012).
+
+            El cliente debe filtrar los dígitos **antes** de enviar (research.md D9): este
+            contrato rechaza lo que el estudiante escriba con formato, y en el canal público no
+            hay nadie que se lo explique.
+
+    ProblemDetail:
+      type: object
+      description: |
+        RFC 9457, sin cambios. Los dos canales de captura agregan `missingFields` e
+        `invalidFields` como miembros de extensión (004, issue #27), siempre presentes.
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        missingFields:
+          type: array
+          items: { type: string }
+        invalidFields:
+          type: array
+          items: { type: string }

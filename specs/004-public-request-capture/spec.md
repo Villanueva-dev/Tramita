@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-15
 
-**Status**: Draft
+**Status**: Implementada
 
 **Input**: Reunión con la Coordinación Académica de la Sede Cali del 2026-09-15: la Coordinación aceptó que el formato de adición de créditos lo diligencie el estudiante desde un enlace público, con firma en pantalla, en vez de diligenciarlo ella; y pidió «darse cuenta» cuando llega una solicitud nueva, sin especificar la forma.
 

@@ -12,8 +12,9 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * Escritura de ProblemDetail (RFC 9457) directo a la respuesta desde el filter chain,
  * donde no hay MVC que serialice: la usan el entry point (401 sin sesión), el
- * AuthFailureHandler (401/400 del login) y el LoginThrottlingFilter (429). Un único
- * punto de escritura garantiza el mismo formato en todos los errores de seguridad.
+ * AuthFailureHandler (401/400 del login), el LoginThrottlingFilter (413/429) y, desde la
+ * 004, el PublicSubmissionThrottlingFilter (413/429 del canal público). Un único punto
+ * de escritura garantiza el mismo formato en todos los errores de seguridad.
  */
 @Component
 @RequiredArgsConstructor

@@ -10,6 +10,13 @@ Cómo ejercitar el canal a mano, sin el frontend. Todos los comandos asumen el b
 > escrito antes de que D10 sumara cuatro campos obligatorios al formato. Un comando citado
 > como prueba debe poder re-ejecutarse y dar el mismo resultado.
 
+> ⚠️ **ENMENDADO POR LA 008** (2026-09-24): `studentPhone` exige exactamente diez dígitos
+> (`[0-9]{10}`, FR-009 de la 008), así que los cuerpos de abajo pasaron de `"000 000 0000"` y
+> `"000"` a `"3000000001"`. Con el teléfono viejo el paso 1 daba `422` con
+> `invalidFields: ["studentPhone"]` y el paso 2 daba `422` en vez del `404` que existe para
+> mostrar; con el teléfono válido vuelven a dar lo que este documento mide. Lo encontró el
+> review con agente limpio de la 008 (B3).
+
 ## Levantar
 
 ```bash
@@ -35,7 +42,7 @@ curl -i -X POST http://localhost:8080/api/public/requests/ADICION_CREDITOS \
         "studentName": "Ana Ejemplo Prueba",
         "studentDocument": "SIN-DATO-REAL-001",
         "studentEmail": "ana.ejemplo@correo.test",
-        "studentPhone": "000 000 0000",
+        "studentPhone": "3000000001",
         "program": "Ingeniería de Sistemas",
         "campus": "Cali",
         "faculty": "Facultad de Ingeniería",
@@ -122,7 +129,7 @@ válido, y ahí el canal sí responde lo mismo para «no existe» que para «no 
 ```bash
 curl -i -X POST http://localhost:8080/api/public/requests/NOVEDAD_NOTAS \
   -H 'Content-Type: application/json' \
-  -d '{"studentName":"Ana Ejemplo","studentDocument":"SIN-DATO-REAL-002","studentEmail":"a@b.test","studentPhone":"000","program":"x","campus":"Cali","faculty":"x","modality":"x","semester":"x","reason":"x","signature":"data:image/png;base64,AA=="}'
+  -d '{"studentName":"Ana Ejemplo","studentDocument":"SIN-DATO-REAL-002","studentEmail":"a@b.test","studentPhone":"3000000001","program":"x","campus":"Cali","faculty":"x","modality":"x","semester":"x","reason":"x","signature":"data:image/png;base64,AA=="}'
 ```
 
 **Medido**:
@@ -168,7 +175,7 @@ python3 -c "
 import json
 print(json.dumps({
   'studentName':'Ana Ejemplo','studentDocument':'SIN-DATO-REAL-004',
-  'studentEmail':'a@b.test','studentPhone':'000','program':'x','campus':'Cali',
+  'studentEmail':'a@b.test','studentPhone':'3000000001','program':'x','campus':'Cali',
   'faculty':'x','modality':'x','semester':'x','reason':'x',
   'signature':'data:image/png;base64,' + 'A'*300000
 }))" > /tmp/envio-grande.json
@@ -184,14 +191,18 @@ HTTP/1.1 413
 {"status":413,"title":"El envío excede el tamaño admitido"}
 ```
 
-El envío rechazado por tamaño **no consume cupo** del límite del paso 5: se corta antes de que
-el envío llegue a existir.
+El envío rechazado por tamaño **sí consume cupo** del límite del paso 5 (research.md D7-bis):
+ocupó el canal aunque no se procesara. Con `Content-Length` declarado —como en el `curl` de
+arriba— el servidor corta sin abrir el stream; sin él, lo lee hasta el tope para poder medirlo.
+Cobra en los dos casos. Y si un origen ya agotó su cupo, el corte ocurre antes todavía: recibe el
+`429` del paso 5, no este `413`.
 
 ## 5. Límite de envíos
 
 El umbral es **20 envíos por origen cada 15 minutos** (`app.public-capture` en
-`application.yml`, research.md D3-bis). Cuentan todos los envíos que pasan el tope de tamaño,
-incluidos los que terminan en `422`: el recurso que se protege es el procesamiento.
+`application.yml`, research.md D3-bis). Cuentan TODOS los envíos: los que terminan en `422` y
+también los que el tope de tamaño rechaza con `413`. El recurso que se protege es el
+procesamiento, y quien manda basura o envíos desmesurados lo consume igual.
 
 ```bash
 for i in $(seq 1 25); do

@@ -1,0 +1,387 @@
+openapi: 3.1.0
+info:
+  title: Trámita — delta de contrato de la feature 009
+  version: 0.9.0
+  description: |
+    Delta sobre los contratos de las features 002 a 008, cuyas estructuras NO se alteran salvo
+    donde se declara abajo. Esta feature entrega el catálogo de programas académicos (issue #50)
+    y el anexo exigido por programa al reenviar a la facultad (issue #40). El sistema **no
+    recibe ni almacena el anexo** (FR-012): solo recuerda qué documento pedir y de dónde sale.
+
+    **Un endpoint es nuevo**:
+
+      * `GET /public/programs` — la lista de programas del catálogo, **sin sesión** (FR-001).
+        Es el **cuarto** endpoint abierto del sistema, después del login, la captura pública
+        (004) y la consulta del sello (006). El contrato de la 006 lo llamaba «tercer y último»;
+        esa afirmación deja de ser cierta con esta feature (research.md D5).
+
+    **Cambian**:
+
+      * `POST /requests`, `POST /requests/{id}/transitions`, `GET /requests/{id}` — **cambio
+        aditivo**: el detalle de la solicitud gana `annexRequirement` cuando la configuración de
+        su trámite lo declara para su programa (FR-009). Un cliente que lee los quince campos
+        actuales sigue funcionando (FR-013).
+
+      * `POST /public/requests/{definitionCode}` y `POST /requests` — ⚠️ **ENMIENDA NO ADITIVA
+        del campo `program`** (FR-002, FR-003, FR-013). La 004 lo aceptaba como cualquier texto
+        de hasta 120 caracteres, y la 003 igual en el canal interno; a partir de esta feature
+        tiene que ser **exactamente uno de los nombres que devuelve `GET /public/programs`**,
+        comparado byte a byte, sin normalizar mayúsculas, tildes ni espacios (FR-004).
+        Obligatorio en el canal público y opcional en el interno, como antes. Un cliente que
+        mandara «Psicología» o «ingenieria de sistemas» pasa de 201 a 422 (público) o 400
+        (interno). Se declara con el mismo procedimiento que la 008 usó para `studentPhone` y,
+        como aquélla, **sí tiene consumidor**: el formulario público del front escribe el
+        programa a mano. Por eso el selector del cliente se despliega antes o a la vez
+        (research.md D11).
+
+    **Dos migraciones, ninguna sobre tablas existentes**: `V5.0.0` crea `academic_program` y
+    `workflow_annex_rule`; `V5.1.0` siembra trece programas —⚠️ **provisionales**, sin
+    confirmación escrita de la Coordinación— y una regla. Las solicitudes ya radicadas **no se
+    reescriben** (FR-005).
+
+    **Lo que el detalle NO afirma**: que el anexo se adjuntó. No existe ese dato (FR-012).
+
+    Lo no listado aquí se rige por `specs/008-student-closure-notice/contracts/openapi.yaml` y,
+    en lo que aquélla no altera, por los de la 007, la 006, la 005, la 004, la 003 y la 002.
+
+servers:
+  - url: /api
+
+paths:
+  /public/programs:
+    get:
+      summary: Lista de programas académicos del catálogo, sin sesión
+      description: |
+        **Nuevo.** Devuelve los programas del catálogo, cada uno como un objeto con **solo su
+        nombre** (FR-001, SC-004): ni identificadores, ni conteos, ni nada derivado de las
+        solicitudes. Es la fuente de los selectores de los dos formularios del cliente, el
+        público y el interno.
+
+        **Orden alfabético según la intercalación de la base** (`en_US.utf8` en los entornos
+        conocidos, donde los trece nombres salen en el orden natural del español). Con otra
+        intercalación podría variar el orden relativo de nombres que difieren en mayúsculas tras
+        un prefijo común —los cuatro «Ingeniería …»—; por eso el cliente no debe depender de una
+        posición concreta (research.md D5).
+
+        **El cliente debe enviar el nombre tal como lo recibe**, sin normalizarlo ni recortarlo:
+        la captura lo compara byte a byte (research.md D8).
+
+        Sin CSRF (es un `GET`) y sin límite de tasa: el filtro de la captura pública solo
+        intercepta `POST /public/requests/*`. Sin caché: un programa agregado por configuración
+        aparece en la siguiente petición, sin reiniciar (FR-006).
+
+        Si el catálogo estuviera vacío, la lista sería `[]` y el canal público no podría radicar:
+        es un fallo cerrado aceptado (spec, caso borde «Catálogo vacío»); la siembra no está vacía
+        y un test lo fija.
+      security: []
+      responses:
+        '200':
+          description: Los programas del catálogo.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProgramResponse'
+              example:
+                - name: Administración de Empresas
+                - name: Ingeniería de Sistemas
+                - name: Química Farmacéutica
+
+  /requests:
+    post:
+      summary: Registrar una solicitud (contrato de la 002/003/004/008; acá solo lo que cambia)
+      description: |
+        Dos cambios sobre el contrato vigente:
+
+        1. **`program` del cuerpo** — ⚠️ enmienda **no aditiva** (FR-003): sigue siendo
+           opcional; si viene, tiene que ser exactamente un nombre del catálogo. Para no
+           declarar programa se **omite** el campo (o se manda `null`): una cadena vacía cuenta
+           como «vino, y no está en el catálogo», y responde 400 con el campo en `invalidFields`
+           (mismo criterio que la 008 aplicó a `studentPhone`).
+        2. **La respuesta** es el detalle ampliado (`RequestResponse`, abajo): trae
+           `annexRequirement` si la configuración del trámite lo declara para el programa
+           registrado. Cambio aditivo.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRequestBody'
+      responses:
+        '201':
+          description: Solicitud creada; el cuerpo es el detalle ampliado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestResponse'
+        '400':
+          description: |
+            Cuerpo inválido, como en la 003. Caso nuevo: `program` presente y fuera del catálogo
+            → «Petición inválida» con `invalidFields: ["program"]` y `missingFields: []`. El
+            detalle nombra el campo y **nunca repite el valor**.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+              example:
+                title: Petición inválida
+                status: 400
+                detail: 'El cuerpo de la petición tiene campos con un valor inválido. Campos: program'
+                missingFields: []
+                invalidFields: [program]
+
+  /requests/{id}/transitions:
+    post:
+      summary: Avanzar una solicitud (contrato de la 002/003/008; acá solo lo que cambia)
+      description: |
+        Sin cambios en el cuerpo ni en los errores. **La respuesta** es el detalle ampliado
+        (`RequestResponse`): al llevar la solicitud a la facultad, esta misma respuesta ya trae
+        `annexRequirement` si aplica (FR-009, SC-006; spec US2, escenario 3). No hace falta
+        volver a consultar.
+
+        **Mover una solicitud anterior a esta feature cuyo programa no está en el catálogo sigue
+        funcionando** (FR-005): la regla del catálogo se aplica solo al registrar.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Transición aplicada; se devuelve el detalle ampliado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestResponse'
+
+  /requests/{id}:
+    get:
+      summary: Detalle de una solicitud (contrato de la 002/003/008; acá solo lo que cambia)
+      description: |
+        **La respuesta** es el detalle ampliado (`RequestResponse`). Consultarlo no escribe nada.
+        Una solicitud anterior a esta feature con un programa fuera del catálogo se consulta
+        igual y no trae requisito (FR-005; spec US2, escenario 6). El resto del contrato —404 si
+        no existe, 401 sin sesión— se rige por la 002.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: El detalle ampliado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestResponse'
+
+  /public/requests/{definitionCode}:
+    post:
+      summary: Recibe el formato del estudiante, sin sesión (contrato de la 004/008; acá solo lo que cambia)
+      description: |
+        Un solo cambio, ⚠️ **no aditivo** (FR-002): `program` tiene que ser exactamente uno de
+        los nombres que devuelve `GET /public/programs`. Sigue siendo obligatorio.
+
+        **Cómo se informa el rechazo** (mismo mecanismo de la 004, issue #27): un programa fuera
+        del catálogo responde 422 «Formato inválido» con `invalidFields: ["program"]`; uno en
+        blanco responde 422 «Formato incompleto» con `missingFields: ["program"]` —solo en esa
+        lista: la ausencia domina—. El detalle **nombra el campo y nunca repite el valor
+        recibido**.
+
+        **Coincidencia exacta** (FR-004): «ingenieria de sistemas», «Ing. de Sistemas» o un
+        espacio de más se rechazan igual que un programa inexistente. El sistema publica la lista;
+        una diferencia solo puede venir de un cliente que escribió por su cuenta.
+
+        **Un límite conocido**: si el cuerpo trae además un campo faltante o con forma inválida,
+        la respuesta informa ese campo y todavía no el programa; el programa se informa en el
+        siguiente envío (research.md D4). Un cliente que presenta la lista no llega a ese caso.
+
+        El programa se conserva **tal como llega**, ya validado (FR-005), y es el que imprime el
+        documento formal.
+
+        Todo lo demás —`security: []`, el trámite en la ruta, los once obligatorios, el 404 sin
+        distinguir causas, el 429— se rige por la 004 y la 008.
+      security: []
+      parameters:
+        - name: definitionCode
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 50
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicRequestBody'
+      responses:
+        '422':
+          description: |
+            Formato incompleto o inválido, como en la 004. Caso nuevo: `program` fuera del
+            catálogo → `invalidFields: ["program"]`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+              example:
+                title: Formato inválido
+                status: 422
+                detail: 'El formato tiene campos con un valor que no se puede procesar. Revise estos campos: program'
+                missingFields: []
+                invalidFields: [program]
+
+components:
+  schemas:
+    ProgramResponse:
+      type: object
+      description: |
+        **Nuevo.** Un programa del catálogo tal como lo ve el cliente: solo su nombre (FR-001).
+        Es un objeto y no una cadena para que un campo futuro sea aditivo (research.md D5).
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          description: |
+            Nombre publicado del programa, único en el catálogo. Es el valor que los formularios
+            envían en `program`, **sin transformarlo** (research.md D8).
+
+    AnnexRequirementResponse:
+      type: object
+      description: |
+        **Nuevo.** El anexo que la facultad exige al reenviar una solicitud, según la
+        configuración de su trámite para su programa (FR-007). Es un **hecho derivado**: no se
+        almacena, y refleja la configuración vigente, no la del día del registro (research.md
+        D6). No afirma que el documento se haya pedido, recibido ni adjuntado (FR-012).
+      required: [documentName, sourceHint]
+      properties:
+        documentName:
+          type: string
+          maxLength: 120
+          description: Qué documento adjuntar al reenviar a la facultad.
+          example: Hoja de vida académica
+        sourceHint:
+          type: string
+          maxLength: 255
+          description: De dónde lo obtiene el estudiante.
+          example: La descarga el estudiante desde CLASS
+
+    RequestResponse:
+      type: object
+      description: |
+        Detalle de una solicitud (`Request` en los contratos de la 002 y la 003, ampliado por la
+        008). Gana **un** campo en esta feature, **aditivo**; los quince anteriores conservan
+        forma y significado (FR-013). Se declaran acá solo los que esta feature toca o necesita
+        nombrar; el resto se rige por la 008.
+
+        **Lo que sigue sin salir en ningún listado**: `annexRequirement` NO entra en
+        `RequestSummaryResponse` (búsqueda) ni en `InboxEntryResponse` (bandeja). El requisito se
+        ve en el detalle, que es donde la Coordinación decide reenviar (spec, caso borde «Dónde
+        se ve el requisito»).
+      required: [id, definition, studentName, studentDocument, currentState, availableTransitions, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        definition:
+          type: object
+          description: Sin cambios (`WorkflowDefinitionResponse` de la 002).
+        studentName:
+          type: string
+        studentDocument:
+          type: string
+        program:
+          type: string
+          description: |
+            Sin cambios de forma. El programa **tal como se radicó** (FR-005): para las
+            solicitudes nuevas es un nombre del catálogo; para las anteriores a esta feature puede
+            ser cualquier texto («Ing», «Sistemas»), porque no se reescriben. Ausente si no se
+            declaró.
+        currentState:
+          type: object
+          description: Sin cambios (`StateResponse` de la 007). El requisito **no** depende de él (FR-010).
+        availableTransitions:
+          type: array
+          items:
+            type: object
+        createdAt:
+          type: string
+          format: date-time
+        annexRequirement:
+          $ref: '#/components/schemas/AnnexRequirementResponse'
+          description: |
+            **Campo nuevo.** Presente cuando la configuración del trámite de la solicitud —en la
+            versión con que nació— declara un anexo para su programa, **desde el registro y en
+            cualquier estado** (FR-009, FR-010). El cliente decide cuándo destacarlo (patrón de la
+            008: el sistema expone hechos).
+
+            **Ausente** —no `null`, por el `NON_NULL` del record— cuando la solicitud no declara
+            programa, cuando su programa no tiene regla en su trámite, cuando su programa no
+            coincide con el catálogo (solicitudes anteriores a esta feature) o cuando el trámite
+            no tiene reglas (hoy, la novedad de notas).
+
+    CreateRequestBody:
+      type: object
+      description: |
+        Cuerpo de `POST /requests` (contratos de la 002, 003, 004 y 008). Se declara acá **solo
+        el campo que cambia**; el resto se rige por aquéllos.
+      properties:
+        program:
+          type: string
+          maxLength: 120
+          description: |
+            ⚠️ **ENMIENDA NO ADITIVA** (FR-003, FR-013). Opcional, como en la 003; si viene, uno
+            de los nombres que devuelve `GET /public/programs`, **comparación exacta** (FR-004).
+            **Para no declararlo, omitir el campo o mandar `null`**: una cadena vacía se rechaza
+            con 400 (`invalidFields: ["program"]`). La forma histórica vive en
+            `specs/003-request-form-rules/contracts/openapi.yaml` (`CreateRequestBody.program`).
+
+    PublicRequestBody:
+      type: object
+      description: |
+        Formato DO-FR-100 diligenciado por el estudiante (contrato de la 004, enmendado por la
+        008 en `studentPhone`). Se declara acá **solo el campo que cambia**; los once
+        obligatorios, la firma y el resto se rigen por aquéllos.
+      properties:
+        program:
+          type: string
+          maxLength: 120
+          description: |
+            ⚠️ **ENMIENDA NO ADITIVA** (FR-002, FR-013). Sigue siendo obligatorio; ahora tiene que
+            ser uno de los nombres que devuelve `GET /public/programs`, **comparación exacta**:
+            sin normalizar mayúsculas, tildes, espacios ni forma Unicode (FR-004).
+
+            La plantilla oficial pide el programa escrito a mano; el sistema lo captura como
+            elección de una lista. El dato es el mismo y el documento formal lo imprime en su
+            casilla; cambia el control, por la calidad del dato (research.md D9).
+
+            El cliente debe presentar la lista y enviar el valor elegido **tal como lo recibió**
+            (research.md D8, D11): en el canal público no hay nadie que le explique al estudiante
+            por qué su programa escrito a mano se rechazó.
+
+    ProblemDetail:
+      type: object
+      description: |
+        RFC 9457, sin cambios. Los dos canales de captura agregan `missingFields` e
+        `invalidFields` como miembros de extensión (004, issue #27), siempre presentes. Un
+        programa fuera del catálogo se informa en `invalidFields`, igual que un campo con forma
+        inválida, aunque la comprobación ocurra en el servicio y no en Bean Validation
+        (research.md D4).
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        missingFields:
+          type: array
+          items: { type: string }
+        invalidFields:
+          type: array
+          items: { type: string }

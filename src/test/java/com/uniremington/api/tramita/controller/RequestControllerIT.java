@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -13,7 +14,13 @@ import com.uniremington.api.tramita.TramitaIntegrationTest;
 import com.uniremington.api.tramita.model.Request;
 import com.uniremington.api.tramita.repo.IRequestRepo;
 import com.uniremington.api.tramita.repo.IRequestTransitionLogRepo;
+import jakarta.persistence.EntityManagerFactory;
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +52,9 @@ class RequestControllerIT {
 
     @Autowired
     private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
 
     // --- US1: registrar ------------------------------------------------------------------
 
@@ -238,22 +248,21 @@ class RequestControllerIT {
     }
 
     @Test
-    @DisplayName("el correo del estudiante se conserva pero NUNCA sale en la respuesta (FR-005a)")
-    void registerPersistsStudentEmailButNeverReturnsIt() throws Exception {
-        // ⚠️ ESTE TEST AFIRMABA LO CONTRARIO HASTA EL 2026-09-16. Se llamaba
-        // «registerNeverPersistsNorReturnsStudentContactData» y su comentario decía que
-        // «el sistema no tiene dónde guardarlo: el campo se ignora». Dejó de ser cierto
-        // cuando la 004 agregó student_email a la tabla, y el test siguió en verde
-        // porque solo miraba la respuesta HTTP, nunca la fila. Lo encontró un review
-        // independiente (A-2).
+    @DisplayName("el correo del estudiante se conserva Y sale en la respuesta del registro (008, FR-008)")
+    void registerPersistsAndReturnsStudentEmail() throws Exception {
+        // ⚠️ ESTE TEST SE INVIRTIÓ A CONCIENCIA EL 2026-09-24 (008, FR-008; research.md D4).
+        // Hasta entonces se llamaba «registerPersistsStudentEmailButNeverReturnsIt» y
+        // afirmaba que el correo se guardaba pero NUNCA salía. Y antes, hasta el 2026-09-16,
+        // se llamaba «registerNeverPersistsNorReturnsStudentContactData» y afirmaba que ni
+        // siquiera se guardaba. Cada versión defendió el invariante de su feature: la 003
+        // no lo almacenaba «hasta que exista quien lo use» (su FR-020), la 004 lo almacenó
+        // para el PDF formal (FR-005a) sin exponerlo porque nadie lo consumía.
         //
-        // El FR-020 que citaba era el de la 003 —«MUST NOT almacenar el correo»— que el
-        // FR-005a de la 004 revoca explícitamente: el consumidor apareció (el PDF formal
-        // del SP3). En la 004, FR-020 significa otra cosa: no escribirlo en las bitácoras.
-        //
-        // Lo que sigue siendo cierto, y es lo que este test defiende: el dato se guarda,
-        // pero este endpoint NO lo devuelve. Son dos garantías distintas y ahora se
-        // asertan las dos.
+        // La 008 es ese consumidor: la Coordinación necesita el correo en el detalle para
+        // armar el aviso de cierre. Por eso ahora se afirma que SALE bajo su clave. La
+        // segunda mitad —que la fila lo guarda— no cambia: son dos garantías distintas y
+        // se asertan las dos. Invertir una aserción verde cambia una conducta entregada;
+        // se hizo con la spec delante, no con la suite en rojo.
         String email = "contacto.de.prueba@ejemplo.test";
         String studentName = "Estudiante Con Correo";
 
@@ -265,11 +274,8 @@ class RequestControllerIT {
                           "studentEmail": "%s"
                         }""".formatted(studentName, email)).session(login()))
                 .andExpect(status().isCreated())
-                // No sale: ni bajo su clave, ni bajo ninguna otra
-                .andExpect(jsonPath("$.studentEmail").doesNotExist())
-                .andExpect(content().string(
-                        org.hamcrest.Matchers.not(
-                                org.hamcrest.Matchers.containsString(email))));
+                // Sale bajo su clave: es lo que el cliente lee para armar el mailto (FR-008)
+                .andExpect(jsonPath("$.studentEmail").value(email));
 
         // Y sí se conserva: la aserción que faltaba y que dejaba pasar la contradicción
         Request saved = requestRepo.findAll().stream()
@@ -296,6 +302,29 @@ class RequestControllerIT {
                           "subjects": [
                             {"code":"A-1","name":"Uno","credits":30},
                             {"code":"A-2","name":"Dos","credits":-20}
+                          ]
+                        }""").session(login()))
+                .andExpect(status().isBadRequest());
+
+        assertThat(requestRepo.count()).isEqualTo(requestsBefore);
+    }
+
+    @Test
+    @DisplayName("calificación con más de un decimal: 400, no 422 (FR-013a, SC-008)")
+    void gradeWithMoreThanOneDecimalIsRejectedWithBadRequest() throws Exception {
+        // Acuerdo n.º 13 de 2023, art. 32: un decimal como máximo. Las calificaciones entran
+        // solo por el formulario interno, así que un valor mal formado es un defecto del
+        // contrato de entrada (400) y no un formulario a medio llenar (422, exclusivo del
+        // canal público de captura).
+        long requestsBefore = requestRepo.count();
+
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "NOVEDAD_NOTAS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0009",
+                          "subjects": [
+                            {"code":"MAT-101","name":"Cálculo Diferencial","proposedGrade":3.46}
                           ]
                         }""").session(login()))
                 .andExpect(status().isBadRequest());
@@ -451,12 +480,16 @@ class RequestControllerIT {
     @DisplayName("consultar una solicitud sin sesión: 401 y no se filtra su contenido (FR-021)")
     void readingARequestWithoutSessionLeaksNothing() throws Exception {
         MockHttpSession session = login();
+        // T014 (009): "program" pasa a un nombre DEL CATÁLOGO —antes "Programa Reservado"
+        // no lo era, y con la 009 este registro pasaría a 400 en vez de 201—. El
+        // centinela de no filtración se muda a "Estudiante Reservado" (ya usado arriba):
+        // un nombre del catálogo es texto común y dejaría de ser distintivo.
         String id = mockMvc.perform(createRequestWithForm("""
                         {
                           "definitionCode": "ADICION_CREDITOS",
                           "studentName": "Estudiante Reservado",
                           "studentDocument": "DOC-TEST-0005",
-                          "program": "Programa Reservado"
+                          "program": "Ingeniería de Sistemas"
                         }""").session(session))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString()
@@ -466,7 +499,66 @@ class RequestControllerIT {
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().string(
                         org.hamcrest.Matchers.not(
-                                org.hamcrest.Matchers.containsString("Programa Reservado"))));
+                                org.hamcrest.Matchers.containsString("Estudiante Reservado"))));
+    }
+
+    // --- 009 / FR-003, US1: el canal interno exige el catálogo SOLO si el campo viene ----
+
+    @Test
+    @DisplayName("canal interno: programa fuera del catálogo es 400 «Petición inválida» que lo nombra, sin eco (009, FR-003)")
+    void internalChannelRejectsProgramOutsideCatalog() throws Exception {
+        String response = mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Interno Programa Fuera De Catalogo",
+                          "studentDocument": "SIN-DATO-REAL-904",
+                          "program": "Psicología"
+                        }""").session(login()))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.title").value("Petición inválida"))
+                .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                .andExpect(jsonPath("$.invalidFields[0]").value("program"))
+                .andExpect(jsonPath("$.missingFields.length()").value(0))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(response)
+                .as("el programa rechazado no puede reflejarse de vuelta al cliente (§III)")
+                .doesNotContain("Psicología");
+    }
+
+    @Test
+    @DisplayName("canal interno: programa vacío «vino e inválido», 400 que lo nombra (009, FR-003, D4)")
+    void internalChannelRejectsBlankProgramAsInvalidNotMissing() throws Exception {
+        // "" es «vino e inválido» y no «ausente»: mismo criterio que el teléfono de la
+        // 008 (research.md D4). Solo OMITIR la clave cuenta como ausencia (ver abajo).
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Interno Programa Vacio",
+                          "studentDocument": "SIN-DATO-REAL-905",
+                          "program": ""
+                        }""").session(login()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Petición inválida"))
+                .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                .andExpect(jsonPath("$.invalidFields[0]").value("program"))
+                .andExpect(jsonPath("$.missingFields.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("canal interno: sin la clave program es 201 —la ausencia no se valida (009, FR-003, US1 escenario 5)")
+    void internalChannelAcceptsRequestWithoutProgramKey() throws Exception {
+        // GUARDA, no RED: hoy ya es 201 (program es opcional en CreateRequestBody), y la
+        // 009 no le agrega validación a la ausencia. Vigila el mutante de T028 que
+        // validara también cuando la clave no viene.
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Interno Sin Programa",
+                          "studentDocument": "SIN-DATO-REAL-906"
+                        }""").session(login()))
+                .andExpect(status().isCreated());
     }
 
     // --- US2: avanzar (el motor sobre la semilla real) -----------------------------------
@@ -490,6 +582,56 @@ class RequestControllerIT {
                 .andExpect(jsonPath("$.currentState.isFinal").value(true))
                 // Trámite cerrado: de un estado final no sale nada
                 .andExpect(jsonPath("$.availableTransitions").isEmpty());
+    }
+
+    /**
+     * T030 (009, US2 escenario 3, SC-006, FR-010): el anexo de la regla del catálogo
+     * viaja con la solicitud desde el registro hasta un estado final, «en cualquier
+     * estado». Se recorre la cadena hasta FINALIZADA y no hasta RECHAZADA a propósito:
+     * es el estado cuyo literal vigila la tesis (T043), y así el mutante de T039(c)
+     * muere dos veces.
+     */
+    @Test
+    @DisplayName("el annexRequirement de la regla del catálogo viaja del registro a FINALIZADA (009, US2 escenario 3)")
+    void adicionAnnexRequirementFollowsTheRequestFromRegistrationToFinalState() throws Exception {
+        MockHttpSession session = login();
+        String body = mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Con Anexo",
+                          "studentDocument": "SIN-DATO-REAL-908",
+                          "program": "Ingeniería de Sistemas"
+                        }""").session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.annexRequirement.documentName").value("Hoja de vida académica"))
+                .andExpect(jsonPath("$.annexRequirement.sourceHint").value("La descarga el estudiante desde CLASS"))
+                .andReturn().getResponse().getContentAsString();
+        String id = com.jayway.jsonpath.JsonPath.read(body, "$.id");
+
+        mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.annexRequirement.documentName").value("Hoja de vida académica"))
+                .andExpect(jsonPath("$.annexRequirement.sourceHint").value("La descarga el estudiante desde CLASS"));
+
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.annexRequirement.documentName").value("Hoja de vida académica"))
+                .andExpect(jsonPath("$.annexRequirement.sourceHint").value("La descarga el estudiante desde CLASS"));
+
+        for (String state : new String[] {
+                "APROBADA_FACULTAD", "EN_REGISTRO_CALI", "EN_REGISTRO_NACIONAL"}) {
+            mockMvc.perform(advanceRequest(id, state, null).session(session))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.currentState.code").value(state))
+                    .andExpect(jsonPath("$.annexRequirement.documentName").value("Hoja de vida académica"));
+        }
+
+        mockMvc.perform(advanceRequest(id, "FINALIZADA", null).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.code").value("FINALIZADA"))
+                .andExpect(jsonPath("$.currentState.isFinal").value(true))
+                .andExpect(jsonPath("$.annexRequirement.documentName").value("Hoja de vida académica"))
+                .andExpect(jsonPath("$.annexRequirement.sourceHint").value("La descarga el estudiante desde CLASS"));
     }
 
     @Test
@@ -816,49 +958,248 @@ class RequestControllerIT {
                 .andExpect(jsonPath("$.currentState.code").value("EN_COORDINACION"));
     }
 
-    // --- US2 (004): la bandeja de recientes -----------------------------------------------
+    // --- 007 / SP5: la bandeja de trabajo ------------------------------------------------
+    // El criterio vive en la consulta del repositorio (research.md D1, T010), así que
+    // estos tests corren contra Postgres real: un unit test con el repositorio mockeado
+    // devolvería lo que el mock diga y el mutante de T017 no lo tocaría.
+    //
+    // `limit=200` —el tope del contrato— a propósito en los escenarios: la base es
+    // compartida entre ITs y acumula solicitudes en EN_COORDINACION; con la cota por
+    // defecto y el corte por radicación ascendente (research.md D8), las recién
+    // registradas quedarían fuera y el test afirmaría algo sobre la cota, no sobre el
+    // criterio.
+
+    private static final String INBOX = "/api/requests/inbox";
 
     @Test
-    @DisplayName("la bandeja lista sin criterio y de la más nueva a la más vieja (FR-012, FR-013)")
-    void inboxListsRecentRequestsNewestFirst() throws Exception {
+    @DisplayName("la bandeja lista exactamente lo que espera al responsable, sin duplicados; la devuelta cuenta (FR-001, D1)")
+    void inboxListsExactlyWhatWaitsForTheResponsible() throws Exception {
         MockHttpSession session = login();
+        String waiting = registerAndGetId(session, "ADICION_CREDITOS",
+                "Bandeja Espera Coordinacion", "SIN-DATO-REAL-201");
+        String atFaculty = registerAndGetId(session, "ADICION_CREDITOS",
+                "Bandeja En Facultad", "SIN-DATO-REAL-202");
+        String returned = registerAndGetId(session, "ADICION_CREDITOS",
+                "Bandeja Devuelta", "SIN-DATO-REAL-203");
+        mockMvc.perform(advanceRequest(atFaculty, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(advanceRequest(returned, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+        // La devolución la ejecuta la facultad; el reingreso lo registra la Coordinación,
+        // así que la solicitud devuelta ESPERA a la Coordinación (spec US1, escenario 6).
+        mockMvc.perform(advanceRequest(returned, "DEVUELTA", "Falta la firma del estudiante")
+                        .session(session))
+                .andExpect(status().isOk());
 
-        // Tres solicitudes en orden conocido. Nombres propios del escenario: el IT
-        // comparte base con los demás tests y una bandeja global trae también lo suyo.
-        String primera = "Bandeja Primera EnLlegar";
-        String segunda = "Bandeja Segunda EnLlegar";
-        String tercera = "Bandeja Tercera EnLlegar";
-        registerAndGetId(session, "ADICION_CREDITOS", primera, "SIN-DATO-REAL-201");
-        registerAndGetId(session, "ADICION_CREDITOS", segunda, "SIN-DATO-REAL-202");
-        registerAndGetId(session, "ADICION_CREDITOS", tercera, "SIN-DATO-REAL-203");
-
-        String body = mockMvc.perform(get("/api/requests/inbox").session(session))
+        String body = mockMvc.perform(get(INBOX)
+                        .param("responsible", "COORDINACION").param("limit", "200")
+                        .session(session))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andReturn().getResponse().getContentAsString();
+        List<String> ids = com.jayway.jsonpath.JsonPath.read(body, "$[*].id");
 
-        List<String> names = com.jayway.jsonpath.JsonPath.read(body, "$[*].studentName");
+        // Tamaño EXACTO sobre las solicitudes de este escenario —la base es compartida—.
+        // Hibernate deduplica la entidad raíz aunque el join multiplique filas: la
+        // ausencia de duplicados NO prueba el `distinct` de la consulta. Lo que el
+        // `distinct` decide es que la cota cuente solicitudes y no filas, y eso lo prueba
+        // WorkflowGenericityIT (review M1).
+        assertThat(ids).doesNotHaveDuplicates();
+        assertThat(ids.stream().filter(List.of(waiting, atFaculty, returned)::contains).toList())
+                .as("de las tres, esperan a la Coordinación la recién registrada y la devuelta")
+                .containsExactlyInAnyOrder(waiting, returned);
 
-        // Se asertan las POSICIONES RELATIVAS y no los tres primeros puestos: lo que
-        // FR-013 promete es el orden, y exigir que encabecen la lista ataría el test a
-        // que ningún otro escenario registre algo después.
-        assertThat(names).contains(primera, segunda, tercera);
-        assertThat(names.indexOf(tercera))
-                .as("la última registrada debe aparecer antes que la segunda")
-                .isLessThan(names.indexOf(segunda));
-        assertThat(names.indexOf(segunda))
-                .as("la segunda registrada debe aparecer antes que la primera")
-                .isLessThan(names.indexOf(primera));
+        // Cada entrada dice a quién espera y de dónde vino (FR-007): las registradas con
+        // sesión nacen de la Coordinación.
+        List<String> responsibles = com.jayway.jsonpath.JsonPath.read(body, "$[*].pendingResponsible");
+        assertThat(responsibles).isNotEmpty().containsOnly("COORDINACION");
+        List<String> origins = com.jayway.jsonpath.JsonPath.read(body,
+                "$[?(@.id == '%s' || @.id == '%s')].origin".formatted(waiting, returned));
+        assertThat(origins).containsExactly("COORDINATION", "COORDINATION");
     }
 
     @Test
-    @DisplayName("la bandeja nunca expone el número de documento (FR-014)")
+    @DisplayName("lo que espera a otra área no está en la bandeja pedida, y sí en la de esa área (FR-001)")
+    void aRequestWaitingForAnotherAreaIsNotInTheResponsibleInbox() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Otra Area", "SIN-DATO-REAL-205");
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+
+        assertThat(inboxIds(session, "COORDINACION")).doesNotContain(id);
+        assertThat(inboxIds(session, "FACULTAD")).contains(id);
+    }
+
+    @Test
+    @DisplayName("un trámite cerrado sale de todas las bandejas por construcción: de un estado final no hay transiciones (FR-001)")
+    void aClosedRequestLeavesEveryInboxByConstruction() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Cerrada", "SIN-DATO-REAL-206");
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(advanceRequest(id, "RECHAZADA", null).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.isFinal").value(true));
+
+        // Los responsables salen de la configuración, no de una lista escrita acá: si
+        // mañana entra un área nueva por SQL, este test la recorre sin tocarlo.
+        List<String> responsibles = jdbcTemplate.queryForList(
+                "SELECT DISTINCT responsible FROM workflow_transition", String.class);
+        assertThat(responsibles).isNotEmpty();
+        for (String responsible : responsibles) {
+            assertThat(inboxIds(session, responsible))
+                    .as("la bandeja de %s no debe listar un trámite cerrado", responsible)
+                    .doesNotContain(id);
+        }
+    }
+
+    @Test
+    @DisplayName("la bandeja exige el responsable y una cota dentro del rango: si no, 400 problem+json (contrato 007)")
+    void inboxRequiresTheResponsibleAndABoundedLimit() throws Exception {
+        MockHttpSession session = login();
+
+        mockMvc.perform(get(INBOX).session(session))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+
+        mockMvc.perform(get(INBOX).param("responsible", "COORDINACION").param("limit", "201")
+                        .session(session))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+
+        // La cota inferior también es load-bearing: sin @Min(1), limit=0 llega al
+        // repositorio y Limit.of(0) revienta en un 500 (review B1).
+        mockMvc.perform(get(INBOX).param("responsible", "COORDINACION").param("limit", "0")
+                        .session(session))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+
+        // Con el responsable y sin cota, la cota por defecto alcanza: 200.
+        mockMvc.perform(get(INBOX).param("responsible", "COORDINACION").session(session))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON));
+    }
+
+    @Test
+    @DisplayName("un responsable que no existe en ninguna configuración: 200 con lista vacía, no 404 (contrato 007)")
+    void anUnknownResponsibleAnswersAnEmptyListNotNotFound() throws Exception {
+        // Un 404 filtraría qué etiquetas existen, y una etiqueta inventada no se
+        // distingue de un área real sin nada pendiente.
+        mockMvc.perform(get(INBOX).param("responsible", "NO_EXISTE").session(login()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
+    // --- US2 de la 007: desde cuándo espera ---------------------------------------------
+
+    @Test
+    @DisplayName("una solicitud antigua devuelta hoy espera desde la devolución: waitingSince reciente, createdAt antiguo, y va DESPUÉS de la que lleva más tiempo detenida (D3, D5)")
+    void anOldReturnedRequestWaitsSinceItsReturnNotSinceRegistration() throws Exception {
+        MockHttpSession session = login();
+        String stuck = registerAndGetId(session, "ADICION_CREDITOS",
+                "Bandeja Detenida Hace Rato", "SIN-DATO-REAL-211");
+        String returned = registerAndGetId(session, "ADICION_CREDITOS",
+                "Bandeja Antigua Devuelta", "SIN-DATO-REAL-212");
+        // Envejecer la radicación: created_at NO es inmutable (solo el timeline lo es, por
+        // trg_timeline_immutable), y es exactamente el dato que NO debe mandar en el orden.
+        jdbcTemplate.update("UPDATE request SET created_at = created_at - interval '60 days' WHERE id = ?",
+                UUID.fromString(returned));
+        mockMvc.perform(advanceRequest(returned, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(advanceRequest(returned, "DEVUELTA", "Falta la firma del estudiante")
+                        .session(session))
+                .andExpect(status().isOk());
+
+        String body = mockMvc.perform(get(INBOX)
+                        .param("responsible", "COORDINACION").param("limit", "200")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        // Orden: la detenida desde que nació va ANTES que la devuelta hace un instante,
+        // aunque la devuelta se radicó dos meses antes. Ordenar por radicación lo invertiría.
+        List<String> ids = com.jayway.jsonpath.JsonPath.read(body, "$[*].id");
+        assertThat(ids).contains(stuck, returned);
+        assertThat(ids.indexOf(stuck)).isLessThan(ids.indexOf(returned));
+
+        // La devuelta: createdAt antiguo y waitingSince reciente, LOS DOS con el offset de
+        // la sede (D4, FR-006). Un instante sin marcador se lee como hora local: es el
+        // defecto que la 006 ya corrigió en sus DTO (CampusTime, revisión #34 M1) y que el
+        // review de la 007 (M4) encontró reintroducido en createdAt.
+        String createdAtJson = com.jayway.jsonpath.JsonPath.<List<String>>read(body,
+                "$[?(@.id == '%s')].createdAt".formatted(returned)).get(0);
+        String waitingSinceJson = com.jayway.jsonpath.JsonPath.<List<String>>read(body,
+                "$[?(@.id == '%s')].waitingSince".formatted(returned)).get(0);
+        assertThat(waitingSinceJson).endsWith("-05:00");
+        assertThat(createdAtJson).endsWith("-05:00");
+        OffsetDateTime waitingSince = OffsetDateTime.parse(waitingSinceJson);
+        OffsetDateTime createdAt = OffsetDateTime.parse(createdAtJson);
+        assertThat(waitingSince.toInstant())
+                .isAfter(createdAt.toInstant().plus(Duration.ofDays(59)));
+
+        // La detenida espera desde que nació: su waitingSince y su createdAt son el mismo
+        // instante, salvo microsegundos (la entrada de nacimiento se escribe al registrar).
+        String stuckWaiting = com.jayway.jsonpath.JsonPath.<List<String>>read(body,
+                "$[?(@.id == '%s')].waitingSince".formatted(stuck)).get(0);
+        String stuckCreated = com.jayway.jsonpath.JsonPath.<List<String>>read(body,
+                "$[?(@.id == '%s')].createdAt".formatted(stuck)).get(0);
+        assertThat(Duration.between(
+                OffsetDateTime.parse(stuckCreated).toInstant(),
+                OffsetDateTime.parse(stuckWaiting).toInstant()).abs())
+                .isLessThan(Duration.ofSeconds(5));
+    }
+
+    @Test
+    @DisplayName("la bandeja emite el mismo número de sentencias SQL con N y con N+3 solicitudes: sin N+1 (T029)")
+    void inboxStatementCountDoesNotGrowWithTheNumberOfEntries() throws Exception {
+        // Medición real, no opinión: estadísticas de Hibernate habilitadas en runtime para no
+        // tocar las properties compartidas de @TramitaIntegrationTest (cambiarlas invalidaría
+        // el caché de contexto de todos los IT).
+        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        statistics.setStatisticsEnabled(true);
+        try {
+            MockHttpSession session = login();
+            registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Conteo Uno", "SIN-DATO-REAL-221");
+            registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Conteo Dos", "SIN-DATO-REAL-222");
+            long withN = statementsIssuedBy(statistics, session);
+
+            registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Conteo Tres", "SIN-DATO-REAL-223");
+            registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Conteo Cuatro", "SIN-DATO-REAL-224");
+            registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Conteo Cinco", "SIN-DATO-REAL-225");
+            long withNPlusThree = statementsIssuedBy(statistics, session);
+
+            assertThat(withNPlusThree)
+                    .as("sentencias con N+3 pendientes frente a N: %d vs %d", withNPlusThree, withN)
+                    .isEqualTo(withN);
+        } finally {
+            statistics.setStatisticsEnabled(false);
+        }
+    }
+
+    /** Sentencias preparadas que cuesta UNA consulta de la bandeja de la Coordinación. */
+    private long statementsIssuedBy(Statistics statistics, MockHttpSession session) throws Exception {
+        statistics.clear();
+        mockMvc.perform(get(INBOX)
+                        .param("responsible", "COORDINACION").param("limit", "200")
+                        .session(session))
+                .andExpect(status().isOk());
+        return statistics.getPrepareStatementCount();
+    }
+
+    /**
+     * GUARDA, no RED: el DTO ya no lleva el campo desde la 004. Se conserva para que no se
+     * pierda al ampliarlo (§III); su mutante es T019.
+     */
+    @Test
+    @DisplayName("la bandeja nunca expone el número de documento (FR-014 de la 004, §III)")
     void inboxNeverExposesStudentDocument() throws Exception {
         MockHttpSession session = login();
         String document = "SIN-DATO-REAL-204";
         registerAndGetId(session, "ADICION_CREDITOS", "Bandeja Sin Cedula", document);
 
-        String body = mockMvc.perform(get("/api/requests/inbox").session(session))
+        String body = mockMvc.perform(get(INBOX)
+                        .param("responsible", "COORDINACION").param("limit", "200")
+                        .session(session))
                 .andExpect(status().isOk())
                 // Sobre el JSON servido, no sobre el DTO: lo que se promete es que el
                 // dato no SALE, y quien lo verifica del lado del DTO no vería un campo
@@ -875,8 +1216,17 @@ class RequestControllerIT {
     @Test
     @DisplayName("la bandeja exige sesión: sin ella, 401 (FR-015)")
     void inboxRequiresAnAuthenticatedSession() throws Exception {
-        mockMvc.perform(get("/api/requests/inbox"))
+        mockMvc.perform(get(INBOX).param("responsible", "COORDINACION"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    private List<String> inboxIds(MockHttpSession session, String responsible) throws Exception {
+        String body = mockMvc.perform(get(INBOX)
+                        .param("responsible", responsible).param("limit", "200")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return com.jayway.jsonpath.JsonPath.read(body, "$[*].id");
     }
 
     // --- 010 / SP3: el documento formal del trámite ---------------------------------------
@@ -930,6 +1280,458 @@ class RequestControllerIT {
         mockMvc.perform(get("/api/requests/" + id + "/document").session(session))
                 .andExpect(status().isNotFound())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+    }
+
+    // --- 006/US3, T035: historial de emisiones del documento --------------------------------
+
+    @Test
+    @DisplayName("dos emisiones del documento: el historial devuelve dos entradas en orden")
+    void sealsHistoryListsTwoEmissionsInOrder() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Ana Con Historial", "SEAL-HIST-001");
+
+        mockMvc.perform(get("/api/requests/" + id + "/document").session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/requests/" + id + "/document").session(session))
+                .andExpect(status().isOk());
+
+        String body = mockMvc.perform(get("/api/requests/" + id + "/seals").session(session))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].issuedBy").value(AuthControllerIT.SEED_EMAIL))
+                .andExpect(jsonPath("$[0].formatVersion").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+
+        List<String> codes = com.jayway.jsonpath.JsonPath.read(body, "$[*].verificationCode");
+        List<String> issuedAts = com.jayway.jsonpath.JsonPath.read(body, "$[*].issuedAt");
+        assertThat(codes.get(0))
+                .as("cada emisión tiene SU propio código, no se deduplican")
+                .isNotEqualTo(codes.get(1));
+        assertThat(issuedAts.get(0).compareTo(issuedAts.get(1)))
+                .as("de la más antigua a la más reciente")
+                .isLessThanOrEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("solicitud sin emisiones del documento: historial vacío, no 404")
+    void sealsHistoryOfARequestWithoutEmissionsIsEmpty() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Ana Sin Emisiones", "SEAL-HIST-002");
+
+        // La solicitud EXISTE; simplemente nadie pidió el documento todavía.
+        mockMvc.perform(get("/api/requests/" + id + "/seals").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("historial de sellos con un {id} que no es UUID: 400")
+    void sealsHistoryWithNonUuidIdIsBadRequest() throws Exception {
+        MockHttpSession session = login();
+
+        mockMvc.perform(get("/api/requests/no-es-un-uuid/seals").session(session))
+                .andExpect(status().isBadRequest());
+    }
+
+    // --- 008 / FR-008: el detalle expone el origen y el contacto en las tres acciones ------
+
+    @Test
+    @DisplayName("registrar con correo y teléfono los devuelve bajo su clave con origin COORDINATION, y el detalle repite lo mismo (008, FR-008)")
+    void registerAndDetailExposeContactAndCoordinationOrigin() throws Exception {
+        MockHttpSession session = login();
+        String email = "contacto.expuesto@ejemplo.test";
+        // Sintético a simple vista, como los documentos SIN-DATO-REAL (auditoría del
+        // 2026-09-24, M4): cumple [0-9]{10} y ^3\\d{9}$ sin parecer un número real.
+        String phone = "3000000001";
+        String body = mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Con Contacto Interno",
+                          "studentDocument": "SIN-DATO-REAL-231",
+                          "studentEmail": "%s",
+                          "studentPhone": "%s"
+                        }""".formatted(email, phone)).session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.origin").value("COORDINATION"))
+                .andExpect(jsonPath("$.studentEmail").value(email))
+                .andExpect(jsonPath("$.studentPhone").value(phone))
+                .andReturn().getResponse().getContentAsString();
+        String id = com.jayway.jsonpath.JsonPath.read(body, "$.id");
+
+        mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.origin").value("COORDINATION"))
+                .andExpect(jsonPath("$.studentEmail").value(email))
+                .andExpect(jsonPath("$.studentPhone").value(phone));
+    }
+
+    @Test
+    @DisplayName("sin contacto declarado, la respuesta trae origin COORDINATION y NO trae las claves del contacto (008, NON_NULL)")
+    void registerWithoutContactOmitsTheContactKeys() throws Exception {
+        MockHttpSession session = login();
+
+        mockMvc.perform(createRequest("ADICION_CREDITOS", "Estudiante Sin Contacto", "SIN-DATO-REAL-232")
+                        .session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.origin").value("COORDINATION"))
+                // También sobre el cuerpo crudo: sobre una clave presente con valor null,
+                // jsonPath(...).doesNotExist() pasa igual y no detectaría que alguien quitó
+                // el NON_NULL del record (mutante T020a). Es lo que ya hace el test del
+                // correo con el valor, aplicado acá a la clave.
+                .andExpect(jsonPath("$.studentEmail").doesNotExist())
+                .andExpect(jsonPath("$.studentPhone").doesNotExist())
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("\"studentEmail\""))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("\"studentPhone\""))));
+    }
+
+    /**
+     * GUARDA, no RED: ni la búsqueda ni la bandeja llevan el contacto hoy. Se fija para que
+     * exponerlo en el detalle (T016) no lo filtre por accidente en los listados (§III); su
+     * mutante es T020(b). Precedente: {@code inboxNeverExposesStudentDocument}.
+     */
+    @Test
+    @DisplayName("la búsqueda y la bandeja nunca exponen correo ni teléfono, aunque la solicitud los tenga (008, §III)")
+    void searchAndInboxNeverExposeContact() throws Exception {
+        MockHttpSession session = login();
+        String studentName = "Estudiante Listado Sin Contacto";
+        String email = "listado.sin.contacto@ejemplo.test";
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "%s",
+                          "studentDocument": "SIN-DATO-REAL-233",
+                          "studentEmail": "%s",
+                          "studentPhone": "3000000002"
+                        }""".formatted(studentName, email)).session(session))
+                .andExpect(status().isCreated());
+
+        String search = mockMvc.perform(get("/api/requests").param("search", studentName).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[*].studentEmail").doesNotExist())
+                .andExpect(jsonPath("$[*].studentPhone").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        String inbox = mockMvc.perform(get(INBOX)
+                        .param("responsible", "COORDINACION").param("limit", "200")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].studentEmail").doesNotExist())
+                .andExpect(jsonPath("$[*].studentPhone").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+
+        // Sobre el JSON servido: lo que se promete es que el dato no SALE por ninguna clave.
+        assertThat(search).doesNotContain("\"studentEmail\"", "\"studentPhone\"", email, "3000000002");
+        assertThat(inbox).doesNotContain("\"studentEmail\"", "\"studentPhone\"", email, "3000000002");
+    }
+
+    /**
+     * GUARDA, no RED (SC-006): consultar los hechos del aviso no escribe. Se fija porque
+     * desde T017 el detalle LEE el timeline para derivar el origen, y una lectura que
+     * escribiera sería exactamente el error que este test detecta.
+     */
+    @Test
+    @DisplayName("consultar el detalle no agrega entradas al timeline (008, SC-006)")
+    void readingTheDetailWritesNothingToTheTimeline() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Consulta Sin Rastro", "SIN-DATO-REAL-234");
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/requests/" + id + "/timeline").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+
+        mockMvc.perform(get("/api/requests/" + id).session(session)).andExpect(status().isOk());
+        mockMvc.perform(get("/api/requests/" + id).session(session)).andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/requests/" + id + "/timeline").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+    }
+
+    /**
+     * GUARDA, no RED (FR-011; spec US2, escenario 3): el teléfono sale TAL COMO se guardó. Se
+     * escribe por SQL y no por la API a propósito: representa las filas radicadas antes de la
+     * 008 —que no se reescriben— y es estable en cualquier orden de ejecución, porque antes de
+     * US3 el endpoint aceptaría este valor y después lo rechaza. Es legal: {@code request} no
+     * tiene trigger de inmutabilidad ni CHECK sobre la columna (V3.3.0 solo la agrega como
+     * VARCHAR(30)); {@code updatable = false} es una promesa de JPA, no de la base. Su valor es
+     * el mutante T023: normalizar en el servidor, que es lo que FR-011 prohíbe.
+     */
+    @Test
+    @DisplayName("un teléfono anterior a la feature sale verbatim en el detalle, sin normalizar (008, FR-011)")
+    void detailReturnsLegacyPhoneVerbatim() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Estudiante Con Telefono Viejo",
+                "SIN-DATO-REAL-235");
+        String legacyPhone = "300 123 4567";
+        assertThat(jdbcTemplate.update(
+                "UPDATE request SET student_phone = ? WHERE id = ?::uuid", legacyPhone, id))
+                .as("la fila existe y se pudo escribir el teléfono viejo por SQL")
+                .isEqualTo(1);
+
+        for (int lectura = 1; lectura <= 2; lectura++) {
+            mockMvc.perform(get("/api/requests/" + id).session(session))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.studentPhone").value(legacyPhone));
+        }
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT student_phone FROM request WHERE id = ?::uuid", String.class, id))
+                .as("consultar el detalle no reescribe la fila (FR-011)")
+                .isEqualTo(legacyPhone);
+    }
+
+    /**
+     * GUARDA, no RED (009, FR-005; US1 escenario 7): mismo criterio que
+     * {@link #detailReturnsLegacyPhoneVerbatim()} arriba, pero para el programa. Se
+     * escribe por SQL y no por la API a propósito: después de la 009 la API rechazaría
+     * "Ing" al radicar, así que el test es estable en cualquier orden de ejecución. Es
+     * legal: {@code request} no tiene trigger ni CHECK sobre {@code program}
+     * (V2.3.0__Persist_request_form_data.sql:9 solo la agrega como VARCHAR(120)). Su
+     * valor es el mutante de T028 «validar también al avanzar».
+     */
+    @Test
+    @DisplayName("un programa anterior a la 009 sigue leyéndose y avanzando, sin validarse (009, FR-005)")
+    void legacyProgramOutsideCatalogSurvivesReadAndAdvance() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS",
+                "Estudiante Con Programa Legado", "SIN-DATO-REAL-907");
+        assertThat(jdbcTemplate.update(
+                "UPDATE request SET program = ? WHERE id = ?::uuid", "Ing", id))
+                .as("la fila existe y se pudo escribir el programa legado por SQL")
+                .isEqualTo(1);
+
+        mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.program").value("Ing"));
+
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT program FROM request WHERE id = ?::uuid", String.class, id))
+                .as("avanzar no valida ni reescribe el programa de una fila anterior a la 009")
+                .isEqualTo("Ing");
+    }
+
+    // --- 009 / US2: la GUARDA de las cuatro ausencias de annexRequirement ----------------
+
+    @Test
+    @DisplayName("adición de créditos con un programa del catálogo sin regla no trae annexRequirement (009, US2 escenario 2)")
+    void adicionWithProgramWithoutAnnexRuleOmitsAnnexRequirement() throws Exception {
+        MockHttpSession session = login();
+        String body = mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Sin Anexo Derecho",
+                          "studentDocument": "SIN-DATO-REAL-909",
+                          "program": "Derecho"
+                        }""").session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.annexRequirement").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(body).doesNotContain("\"annexRequirement\"");
+    }
+
+    @Test
+    @DisplayName("novedad de notas nunca trae annexRequirement: entra sin reglas (009, US2 escenario 4, FR-007)")
+    void novedadNeverCarriesAnnexRequirement() throws Exception {
+        MockHttpSession session = login();
+        String body = mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "NOVEDAD_NOTAS",
+                          "studentName": "Estudiante Novedad Sin Anexo",
+                          "studentDocument": "SIN-DATO-REAL-910",
+                          "program": "Ingeniería de Sistemas"
+                        }""").session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.annexRequirement").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(body).doesNotContain("\"annexRequirement\"");
+    }
+
+    /**
+     * GUARDA (009, US2 escenario 6): mismo patrón que
+     * {@link #legacyProgramOutsideCatalogSurvivesReadAndAdvance()} arriba, pero para el
+     * anexo. Un programa legado que no calza exacto con el catálogo («Sistemas» no es
+     * «Ingeniería de Sistemas») no resuelve ninguna regla.
+     */
+    @Test
+    @DisplayName("un programa legado que no calza exacto con el catálogo no trae annexRequirement (009, US2 escenario 6)")
+    void legacyProgramOutsideCatalogOmitsAnnexRequirement() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS",
+                "Estudiante Programa Legado Sin Anexo", "SIN-DATO-REAL-911");
+        assertThat(jdbcTemplate.update(
+                "UPDATE request SET program = ? WHERE id = ?::uuid", "Sistemas", id))
+                .as("la fila existe y se pudo escribir el programa legado por SQL")
+                .isEqualTo(1);
+
+        String body = mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.program").value("Sistemas"))
+                .andExpect(jsonPath("$.annexRequirement").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(body).doesNotContain("\"annexRequirement\"");
+    }
+
+    /**
+     * GUARDA (009, US2): precedente {@link #searchAndInboxNeverExposeContact()} (008)
+     * aplicado al anexo — ni la búsqueda ni la bandeja lo llevan, aunque la solicitud sí.
+     */
+    @Test
+    @DisplayName("ni la búsqueda ni la bandeja exponen annexRequirement, aunque la solicitud lo tenga (009, US2)")
+    void searchAndInboxNeverExposeAnnexRequirement() throws Exception {
+        MockHttpSession session = login();
+        String studentName = "Estudiante Listado Con Anexo";
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "%s",
+                          "studentDocument": "SIN-DATO-REAL-912",
+                          "program": "Ingeniería de Sistemas"
+                        }""".formatted(studentName)).session(session))
+                .andExpect(status().isCreated());
+
+        String search = mockMvc.perform(get("/api/requests").param("search", studentName).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[*].annexRequirement").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        String inbox = mockMvc.perform(get(INBOX)
+                        .param("responsible", "COORDINACION").param("limit", "200")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].annexRequirement").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(search).doesNotContain("\"annexRequirement\"");
+        assertThat(inbox).doesNotContain("\"annexRequirement\"");
+    }
+
+    /**
+     * FR-010: el canal interno mantiene el teléfono opcional y, si viene, con forma. Que sea
+     * 400 y no 422 es la convención del canal: un valor inválido es un defecto del contrato de
+     * entrada, no un formato que no se puede procesar (GlobalExceptionHandler vs.
+     * PublicCaptureExceptionHandler).
+     */
+    @Test
+    @DisplayName("canal interno: sin teléfono 201, y con diez dígitos 201 devuelto bajo su clave (008, FR-010)")
+    void internalChannelKeepsThePhoneOptional() throws Exception {
+        MockHttpSession session = login();
+        mockMvc.perform(createRequest("ADICION_CREDITOS", "Estudiante Sin Telefono Interno",
+                        "SIN-DATO-REAL-236").session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.studentPhone").doesNotExist());
+
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Con Telefono Interno",
+                          "studentDocument": "SIN-DATO-REAL-237",
+                          "studentPhone": "3000000001"
+                        }""").session(session))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.studentPhone").value("3000000001"));
+    }
+
+    @Test
+    @DisplayName("canal interno: un teléfono que no son diez dígitos es 400 «Petición inválida» que nombra el campo (008, FR-010)")
+    void internalChannelRejectsMalformedPhoneNamingTheField() throws Exception {
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "ADICION_CREDITOS",
+                          "studentName": "Estudiante Telefono Interno Mal Escrito",
+                          "studentDocument": "SIN-DATO-REAL-238",
+                          "studentPhone": "300 123 4567"
+                        }""").session(login()))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.title").value("Petición inválida"))
+                .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                .andExpect(jsonPath("$.invalidFields[0]").value("studentPhone"))
+                .andExpect(jsonPath("$.missingFields.length()").value(0));
+    }
+
+    /**
+     * FR-010 dice «la misma regla» que el canal público, y hasta el review con agente limpio
+     * el canal interno solo probaba un valor con espacios: cualquier regex sin espacios lo
+     * rechaza, así que tres mutantes sobre el patrón —{@code [0-9]{9,10}}, {@code .{10}} y
+     * {@code ([0-9]{10})?}— sobrevivían con la suite en verde. Esta matriz es la del canal
+     * público (FR-009), incluido el vacío: en el interno {@code ""} es «vino e inválido» y
+     * responde 400, porque para no declarar teléfono se omite la clave.
+     */
+    @Test
+    @DisplayName("canal interno: toda forma que no sean diez dígitos —9, 11, letras, vacío— es 400 que nombra el campo (008, FR-010)")
+    void internalChannelRejectsEveryPhoneShapeThatIsNotTenDigits() throws Exception {
+        MockHttpSession session = login();
+        java.util.List<String> malformed = java.util.List.of(
+                "300123456", "30012345678", "abcdefghij", "");
+        for (String phone : malformed) {
+            String response = mockMvc.perform(createRequestWithForm("""
+                            {
+                              "definitionCode": "ADICION_CREDITOS",
+                              "studentName": "Estudiante Telefono Interno Forma Invalida",
+                              "studentDocument": "SIN-DATO-REAL-239",
+                              "studentPhone": "%s"
+                            }""".formatted(phone)).session(session))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                    .andExpect(jsonPath("$.title").value("Petición inválida"))
+                    .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                    .andExpect(jsonPath("$.invalidFields[0]").value("studentPhone"))
+                    .andExpect(jsonPath("$.missingFields.length()").value(0))
+                    .andReturn().getResponse().getContentAsString();
+            if (!phone.isEmpty()) {
+                assertThat(response)
+                        .as("[%s] el valor rechazado no se refleja de vuelta", phone)
+                        .doesNotContain(phone);
+            }
+        }
+    }
+
+    /**
+     * El contrato de la 008 promete que sin entrada de nacimiento {@code origin} va AUSENTE,
+     * nunca {@code null}: es una anomalía de datos, no un tercer origen, y el cliente la trata
+     * como «no pública» (FR-004). Ningún test lo fijaba en el detalle —solo el unitario de la
+     * bandeja cubre {@code originOf}— y dos mutantes sobrevivían: un {@code COORDINATION} por
+     * defecto en {@code toResponse} y un {@code @JsonInclude(ALWAYS)} sobre el campo. El
+     * review con agente limpio reprodujo el caso con esta misma sonda: se inserta la fila de
+     * {@code request} por SQL, sin escribir el timeline, que es lo único que el trigger
+     * protege. Se afirma sobre el cuerpo crudo además del jsonPath porque
+     * {@code doesNotExist()} acepta una clave presente con valor {@code null}.
+     */
+    @Test
+    @DisplayName("sin entrada de nacimiento, el detalle omite origin: ausente, no null (008, contrato FR-004)")
+    void detailOmitsOriginWhenTheBirthEntryIsMissing() throws Exception {
+        MockHttpSession session = login();
+        String template = registerAndGetId(session, "ADICION_CREDITOS",
+                "Estudiante Con Nacimiento", "SIN-DATO-REAL-240");
+        String orphan = java.util.UUID.randomUUID().toString();
+        assertThat(jdbcTemplate.update("""
+                INSERT INTO request (id, definition_id, current_state_id, student_name,
+                                     student_document, version, created_at)
+                SELECT ?::uuid, definition_id, current_state_id, 'Estudiante Sin Nacimiento',
+                       'SIN-DATO-REAL-241', 0, created_at
+                FROM request WHERE id = ?::uuid
+                """, orphan, template))
+                .as("la fila huérfana se insertó copiando definición y estado de una real")
+                .isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM request_transition_log WHERE request_id = ?::uuid",
+                Long.class, orphan))
+                .as("la huérfana no tiene entrada de nacimiento")
+                .isZero();
+
+        String body = mockMvc.perform(get("/api/requests/" + orphan).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.origin").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(body)
+                .as("origin va ausente, no como clave con null")
+                .doesNotContain("\"origin\"");
     }
 
     // --- helpers -------------------------------------------------------------------------
@@ -1006,9 +1808,10 @@ class RequestControllerIT {
     }
 
     /**
-     * Publica una v2 de adición de créditos con su propio tope. Le basta un estado
-     * inicial: registrar solo exige exactamente uno, y este test no avanza la
-     * solicitud.
+     * Publica una v2 de adición de créditos con su propio tope. Hasta la 007 le bastaba un
+     * estado inicial; desde FR-014 el motor rechaza registrar en un inicial sin salida —con
+     * razón: sería un callejón—, así que la v2 cierra en CERRADA. Un fixture no puede ser
+     * la excepción de la regla que el sistema afirma. Este test sigue sin avanzar nada.
      */
     private void publishSecondVersionWithMaxCredits(String maxCredits) {
         jdbcTemplate.update("""
@@ -1018,6 +1821,18 @@ class RequestControllerIT {
                 INSERT INTO workflow_state (id, definition_id, code, name, is_initial, is_final)
                 SELECT gen_random_uuid(), id, 'REGISTRADA', 'Registrada', TRUE, FALSE
                 FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2""");
+        jdbcTemplate.update("""
+                INSERT INTO workflow_state (id, definition_id, code, name, is_initial, is_final)
+                SELECT gen_random_uuid(), id, 'CERRADA', 'Cerrada', FALSE, TRUE
+                FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2""");
+        jdbcTemplate.update("""
+                INSERT INTO workflow_transition
+                    (id, definition_id, from_state_id, to_state_id, responsible, requires_note)
+                SELECT gen_random_uuid(), d.id, f.id, s.id, 'COORDINACION', false
+                FROM workflow_definition d
+                JOIN workflow_state f ON f.definition_id = d.id AND f.code = 'REGISTRADA'
+                JOIN workflow_state s ON s.definition_id = d.id AND s.code = 'CERRADA'
+                WHERE d.code = 'ADICION_CREDITOS' AND d.version = 2""");
         jdbcTemplate.update("""
                 INSERT INTO workflow_parameter (id, definition_id, parameter_key, parameter_value)
                 SELECT gen_random_uuid(), id, 'MAX_CREDITS', ?
@@ -1039,6 +1854,9 @@ class RequestControllerIT {
      */
     private void dropSecondVersion() {
         jdbcTemplate.update("""
+                DELETE FROM workflow_transition WHERE definition_id IN (
+                    SELECT id FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2)""");
+        jdbcTemplate.update("""
                 DELETE FROM workflow_parameter WHERE definition_id IN (
                     SELECT id FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2)""");
         jdbcTemplate.update("""
@@ -1046,5 +1864,44 @@ class RequestControllerIT {
                     SELECT id FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2)""");
         jdbcTemplate.update(
                 "DELETE FROM workflow_definition WHERE code = 'ADICION_CREDITOS' AND version = 2");
+    }
+
+    @Test
+    @DisplayName("400 de validación: llega servido como problem+json, en español y nombrando el campo")
+    void validationFailureNamesTheOffendingField() throws Exception {
+        // Es el caso real que originó el cambio: el formulario de novedad de notas no pide
+        // créditos y enviaba el centinela 0, que viola @Min(1). La respuesta decía
+        // «Invalid request content.» y el trámite era irradicable sin pista de la causa.
+        //
+        // El unit test del handler fija la DECISIÓN; este fija que llega servida por MVC,
+        // que es donde se resolvería mal la precedencia entre advices si alguien la tocara.
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "NOVEDAD_NOTAS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0400",
+                          "subjects": [{"code":"IS-704","name":"Arquitectura","credits":0}]
+                        }""").session(login()))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.title").value("Petición inválida"))
+                .andExpect(jsonPath("$.detail").value(
+                        "El cuerpo de la petición tiene campos con un valor inválido. "
+                                + "Campos: subjects[0].credits"))
+                .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                .andExpect(jsonPath("$.invalidFields[0]").value("subjects[0].credits"))
+                .andExpect(jsonPath("$.missingFields.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("400 por JSON ilegible: sigue siendo genérico, porque no hay campo que nombrar")
+    void unreadableBodyStaysGeneric() throws Exception {
+        // La enmienda del contrato cubre solo la violación de bean validation. Un cuerpo que
+        // no se pudo leer lo sigue atendiendo el manejador heredado, y no tiene campos que
+        // listar: afirmar lo contrario sería inventarlos.
+        mockMvc.perform(createRequestWithForm("{\"definitionCode\":").session(login()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.missingFields").doesNotExist())
+                .andExpect(jsonPath("$.invalidFields").doesNotExist());
     }
 }

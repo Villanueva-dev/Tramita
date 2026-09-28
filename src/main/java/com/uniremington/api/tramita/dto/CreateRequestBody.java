@@ -3,6 +3,7 @@ package com.uniremington.api.tramita.dto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 
@@ -21,6 +22,12 @@ import java.util.List;
  * aceptando el cuerpo mínimo de la 002, y quien diligencia el formato completo es el
  * estudiante desde el enlace público.
  *
+ * EL TELÉFONO, SI VIENE, TIENE FORMA (008, FR-010): diez dígitos exactos, la misma regla
+ * del canal público. Sigue siendo opcional —{@code @Pattern} considera válido
+ * {@code null}—, pero {@code ""} cuenta como «vino e inválido» y responde 400 nombrando
+ * el campo: para no declarar teléfono se omite la clave, no se manda vacía. Enmienda
+ * NO aditiva del contrato interno (spec de la 008, FR-013; research.md D3).
+ *
  * NO hay campo de prioridad. La coordinación atiende por orden de llegada y no tiene
  * procedimiento formal de priorización; una bandera de prioridad quedó registrada como
  * deseable pero no bloqueante para la primera versión (Q20 de la tercera entrevista,
@@ -36,7 +43,8 @@ public record CreateRequestBody(
         @Size(max = 2000) String reason,
         @Valid List<SubjectRequestBody> subjects,
         @Email @Size(max = 255) String studentEmail,
-        @Size(max = 30) String studentPhone,
+        /** Diez dígitos si se declara (FR-010 de la 008); sin {@code @Size}: el patrón fija la longitud. */
+        @Pattern(regexp = "[0-9]{10}") String studentPhone,
         @Size(max = 120) String campus,
         @Size(max = 120) String faculty,
         @Size(max = 50) String modality,

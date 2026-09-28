@@ -185,6 +185,89 @@ class PublicRequestControllerIT {
                 .doesNotContain("esto-no-es-un-correo");
     }
 
+    // --- 009 / FR-002, US1: el programa debe pertenecer al catálogo (D8: sin normalizar) -
+
+    @Test
+    @DisplayName("programa fuera del catálogo: 422 que lo nombra, sin eco (009, FR-002)")
+    void publicSubmissionRejectsProgramOutsideCatalog() throws Exception {
+        Map<String, Object> body = filledForm("Estudiante Programa Fuera De Catalogo",
+                "SIN-DATO-REAL-901");
+        body.put("program", "Psicología");
+
+        String response = mockMvc.perform(publicSubmission("203.0.113.90", PUBLIC_TRADE, body))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title").value("Formato inválido"))
+                .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                .andExpect(jsonPath("$.invalidFields[0]").value("program"))
+                .andExpect(jsonPath("$.missingFields.length()").value(0))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(response)
+                .as("el programa rechazado no puede reflejarse de vuelta al cliente (§III)")
+                .doesNotContain("Psicología");
+    }
+
+    // Cuatro variantes de UNA sola dimensión cada una (research.md D10): la variante de
+    // la spec difiere en mayúscula y tilde a la vez, y dejaría vivo un mutante que solo
+    // atacara una de las dos. FR-002 exige coincidencia EXACTA: nada de esto se normaliza.
+
+    @Test
+    @DisplayName("programa con otra mayúscula (sin acentos de por medio): 422, sin normalizar (009, FR-002, D8)")
+    void publicSubmissionRejectsProgramCaseVariant() throws Exception {
+        assertProgramVariantIsRejected("203.0.113.91", "ingeniería de sistemas");
+    }
+
+    @Test
+    @DisplayName("programa sin la tilde: 422, sin normalizar (009, FR-002, D8)")
+    void publicSubmissionRejectsProgramAccentVariant() throws Exception {
+        assertProgramVariantIsRejected("203.0.113.92", "Ingenieria de Sistemas");
+    }
+
+    @Test
+    @DisplayName("programa con un espacio final: 422, sin normalizar (009, FR-002, D8)")
+    void publicSubmissionRejectsProgramTrailingSpaceVariant() throws Exception {
+        // El espacio final es un espacio U+0020 real dentro del literal, no un escape:
+        // es justo lo que la coincidencia EXACTA de FR-002 debe seguir rechazando.
+        assertProgramVariantIsRejected("203.0.113.93", "Ingeniería de Sistemas ");
+    }
+
+    @Test
+    @DisplayName("programa abreviado —el ejemplo de US1 escenario 4—: 422, sin normalizar (009, FR-002)")
+    void publicSubmissionRejectsProgramAbbreviation() throws Exception {
+        assertProgramVariantIsRejected("203.0.113.94", "Ing. de Sistemas");
+    }
+
+    private void assertProgramVariantIsRejected(String origin, String program) throws Exception {
+        Map<String, Object> body = filledForm("Estudiante Variante De Programa",
+                "SIN-DATO-REAL-902");
+        body.put("program", program);
+
+        mockMvc.perform(publicSubmission(origin, PUBLIC_TRADE, body))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                .andExpect(jsonPath("$.invalidFields[0]").value("program"));
+    }
+
+    @Test
+    @DisplayName("programa en blanco: 422 «Formato incompleto», no «inválido» (009, FR-002, D4)")
+    void publicSubmissionTreatsBlankProgramAsMissingNotInvalid() throws Exception {
+        // GUARDA, no RED: @NotBlank (PublicRequestBody.java:51) ya categoriza un valor de
+        // solo espacios como AUSENTE antes de que exista ningún chequeo de catálogo. Fija
+        // que ese chequeo, que corre en el servicio DESPUÉS de Bean Validation, no
+        // convierta un blanco en «inválido» (la ausencia domina, research.md D4).
+        Map<String, Object> body = filledForm("Estudiante Con Programa En Blanco",
+                "SIN-DATO-REAL-903");
+        body.put("program", "   ");
+
+        mockMvc.perform(publicSubmission("203.0.113.95", PUBLIC_TRADE, body))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.title").value("Formato incompleto"))
+                .andExpect(jsonPath("$.missingFields.length()").value(1))
+                .andExpect(jsonPath("$.missingFields[0]").value("program"))
+                .andExpect(jsonPath("$.invalidFields.length()").value(0));
+    }
+
     @Test
     @DisplayName("media type no soportado: 415 problem+json, no 400")
     void submissionWithUnsupportedMediaTypeIsRejected() throws Exception {
@@ -251,6 +334,32 @@ class PublicRequestControllerIT {
                 .andExpect(jsonPath("$[0].actorEmail").value(PORTAL_EMAIL));
     }
 
+    // --- 007 / FR-007: la bandeja distingue de dónde vino cada solicitud -----------------
+
+    @Test
+    @DisplayName("en la bandeja, una solicitud nacida por el enlace público lleva origin PUBLIC_LINK (007, FR-007)")
+    void publicSubmissionShowsUpInTheInboxWithPublicLinkOrigin() throws Exception {
+        String studentName = "Estudiante Origen Publico";
+
+        mockMvc.perform(publicSubmission("203.0.113.112", PUBLIC_TRADE,
+                        filledForm(studentName, "SIN-DATO-REAL-112")))
+                .andExpect(status().isCreated());
+
+        MockHttpSession session = login();
+        String requestId = findIdByName(session, studentName);
+
+        // El origen se deriva del actor de la entrada de nacimiento —el portal—, no de
+        // un campo nuevo: lo que el test anterior afirma sobre el histórico es lo que
+        // la bandeja lee. `limit=200` porque la base es compartida entre ITs y el corte
+        // bajo la cota es por radicación (007, research.md D8).
+        mockMvc.perform(get("/api/requests/inbox")
+                        .param("responsible", "COORDINACION").param("limit", "200")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == '%s')].origin".formatted(requestId))
+                        .value("PUBLIC_LINK"));
+    }
+
     @Test
     @DisplayName("los seis campos del formato llegan a la fila, no solo al 201 (FR-004, FR-005, FR-005a)")
     void publicSubmissionPersistsEveryFieldOfTheFormat() throws Exception {
@@ -305,7 +414,7 @@ class PublicRequestControllerIT {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
 
         assertThat(requestRepo.count())
-                .as("el corte ocurre antes de materializar el envío")
+                .as("el envío se corta antes de que nadie lo procese")
                 .isEqualTo(registeredBefore);
     }
 
@@ -355,6 +464,120 @@ class PublicRequestControllerIT {
                 .andExpect(status().isCreated());
     }
 
+    // --- 008 / FR-008: el detalle expone el origen y el contacto declarado ----------------
+
+    @Test
+    @DisplayName("el detalle de una solicitud pública trae origin, correo y teléfono tal como los mandó el formato (008, FR-008)")
+    void publicRequestDetailExposesOriginAndDeclaredContact() throws Exception {
+        String studentName = "Estudiante Con Contacto Expuesto";
+        Map<String, Object> form = filledForm(studentName, "SIN-DATO-REAL-801");
+        mockMvc.perform(publicSubmission("203.0.113.180", PUBLIC_TRADE, form))
+                .andExpect(status().isCreated());
+        MockHttpSession session = login();
+        String requestId = findIdByName(session, studentName);
+
+        // Se leen del propio formulario, no de literales repetidos: lo que se afirma es
+        // que salen TAL COMO entraron (FR-011). En un estado intermedio los hechos ya
+        // viajan aunque el aviso no se ofrezca (spec US1, escenario 1): ofrecerlo o no
+        // lo decide el cliente con origin + isFinal (research.md D5).
+        mockMvc.perform(get("/api/requests/" + requestId).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.origin").value("PUBLIC_LINK"))
+                .andExpect(jsonPath("$.studentEmail").value(form.get("studentEmail")))
+                .andExpect(jsonPath("$.studentPhone").value(form.get("studentPhone")))
+                .andExpect(jsonPath("$.currentState.isFinal").value(false));
+    }
+
+    @Test
+    @DisplayName("la respuesta de la transición a un estado final ya trae origin, contacto e isFinal, sin otra consulta (008, US1 escenario 2)")
+    void transitionToFinalStateResponseCarriesEverythingTheNoticeNeeds() throws Exception {
+        String studentName = "Estudiante Cerrado Con Aviso";
+        Map<String, Object> form = filledForm(studentName, "SIN-DATO-REAL-802");
+        mockMvc.perform(publicSubmission("203.0.113.181", PUBLIC_TRADE, form))
+                .andExpect(status().isCreated());
+        MockHttpSession session = login();
+        String requestId = findIdByName(session, studentName);
+
+        // El camino más corto a un estado final del seed: EN_COORDINACION → EN_FACULTAD →
+        // RECHAZADA (V2.1.0). El rechazo también es final y el aviso se ofrece igual
+        // (FR-003, FR-005a): el mensaje nombra el estado, no presupone el resultado.
+        mockMvc.perform(advance(requestId, "EN_FACULTAD").session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(advance(requestId, "RECHAZADA").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.isFinal").value(true))
+                .andExpect(jsonPath("$.availableTransitions.length()").value(0))
+                .andExpect(jsonPath("$.origin").value("PUBLIC_LINK"))
+                .andExpect(jsonPath("$.studentEmail").value(form.get("studentEmail")))
+                .andExpect(jsonPath("$.studentPhone").value(form.get("studentPhone")));
+    }
+
+    /**
+     * FR-009: el teléfono del formato tiene forma, no solo presencia. Cada valor viaja desde
+     * un origen distinto para no chocar con el límite de envíos por origen (004, US2).
+     */
+    @Test
+    @DisplayName("un teléfono que no son exactamente diez dígitos: 422 «Formato inválido» que nombra el campo y no repite el valor (008, FR-009)")
+    void phoneWithWrongShapeIsRejectedNamingTheFieldOnly() throws Exception {
+        List<String> malformed = List.of(
+                "300 123 4567", "+57 3001234567", "300123456", "30012345678", "abcdefghij");
+        long registeredBefore = requestRepo.count();
+        int originSuffix = 190;
+        for (String phone : malformed) {
+            Map<String, Object> body = filledForm("Estudiante Telefono Mal Escrito", "SIN-DATO-REAL-803");
+            body.put("studentPhone", phone);
+            String response = mockMvc.perform(
+                            publicSubmission("203.0.113." + originSuffix++, PUBLIC_TRADE, body))
+                    .andExpect(status().isUnprocessableContent())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.title").value("Formato inválido"))
+                    .andExpect(jsonPath("$.invalidFields.length()").value(1))
+                    .andExpect(jsonPath("$.invalidFields[0]").value("studentPhone"))
+                    .andExpect(jsonPath("$.missingFields.length()").value(0))
+                    .andReturn().getResponse().getContentAsString();
+            // §III: se nombra el campo, nunca el valor que envió quien diligencia.
+            assertThat(response)
+                    .as("[%s] el valor rechazado no puede reflejarse de vuelta", phone)
+                    .doesNotContain(phone);
+        }
+        assertThat(requestRepo.count())
+                .as("ningún envío rechazado por el teléfono deja rastro")
+                .isEqualTo(registeredBefore);
+    }
+
+    /**
+     * Con {@code @NotBlank} y {@code @Pattern} sobre el mismo campo, un blanco viola las dos
+     * reglas a la vez; ValidationFields hace que la ausencia domine y el campo se liste UNA
+     * vez, como faltante. Verde antes del @Pattern; se fija para que el @Pattern no lo cambie.
+     */
+    @Test
+    @DisplayName("un teléfono en blanco es «Formato incompleto» y va en missingFields, no en las dos listas (008, FR-009)")
+    void blankPhoneIsReportedAsMissingNotInvalid() throws Exception {
+        Map<String, Object> body = filledForm("Estudiante Sin Telefono", "SIN-DATO-REAL-804");
+        body.put("studentPhone", "   ");
+
+        mockMvc.perform(publicSubmission("203.0.113.196", PUBLIC_TRADE, body))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.title").value("Formato incompleto"))
+                .andExpect(jsonPath("$.missingFields.length()").value(1))
+                .andExpect(jsonPath("$.missingFields[0]").value("studentPhone"))
+                .andExpect(jsonPath("$.invalidFields.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("diez dígitos se aceptan, móvil o fijo: un fijo es contacto válido aunque no habilite WhatsApp (008, FR-012)")
+    void tenDigitPhonesAreAcceptedWhetherMobileOrLandline() throws Exception {
+        Map<String, Object> mobile = filledForm("Estudiante Con Movil", "SIN-DATO-REAL-805");
+        mobile.put("studentPhone", "3000000001");
+        mockMvc.perform(publicSubmission("203.0.113.197", PUBLIC_TRADE, mobile))
+                .andExpect(status().isCreated());
+
+        Map<String, Object> landline = filledForm("Estudiante Con Fijo", "SIN-DATO-REAL-806");
+        landline.put("studentPhone", "6020000001");
+        mockMvc.perform(publicSubmission("203.0.113.198", PUBLIC_TRADE, landline))
+                .andExpect(status().isCreated());
+    }
+
     // --- helpers -------------------------------------------------------------------------
 
     /** El formato entero diligenciado: los once obligatorios más el código opcional. */
@@ -363,7 +586,8 @@ class PublicRequestControllerIT {
         form.put("studentName", studentName);
         form.put("studentDocument", studentDocument);
         form.put("studentEmail", "estudiante.de.prueba@ejemplo.test");
-        form.put("studentPhone", "000 000 0000");
+        // Sintético a simple vista (auditoría del 2026-09-24, M4): cumple [0-9]{10} sin parecer real.
+        form.put("studentPhone", "3000000001");
         form.put("studentCode", "COD-PRUEBA");
         form.put("program", "Ingeniería de Sistemas");
         form.put("campus", "Cali");
@@ -448,6 +672,14 @@ class PublicRequestControllerIT {
                         .session(session))
                 .andExpect(status().isNoContent());
         return session;
+    }
+
+    /** Como {@code RequestControllerIT.advanceRequest}: esta clase no avanzaba solicitudes hasta la 008. */
+    private MockHttpServletRequestBuilder advance(String id, String targetStateCode) {
+        return post("/api/requests/" + id + "/transitions")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"targetStateCode\":\"%s\"}".formatted(targetStateCode));
     }
 
     /** El recibo público no devuelve el id: localizar la solicitud exige la sesión. */
