@@ -63,5 +63,7 @@ public record RequestResponse(
         /** Destinatario del aviso por WhatsApp (008, P2), tal como se guardó. Ausente si no se declaró. */
         String studentPhone,
         /** El anexo por programa vigente (009, FR-009). Ausente sin programa o sin regla configurada. */
-        AnnexRequirementResponse annexRequirement) {
+        AnnexRequirementResponse annexRequirement,
+        /** True si la última entrada registró un retorno a corrección según la definición del trámite. */
+        boolean returnedForCorrection) {
 }

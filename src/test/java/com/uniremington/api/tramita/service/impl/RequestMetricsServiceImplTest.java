@@ -32,7 +32,8 @@ class RequestMetricsServiceImplTest {
         WorkflowState returned = state("DEVUELTO", false);
         WorkflowState completed = state("FINALIZADO", true);
         WorkflowTransition returnTransition = WorkflowTransition.builder()
-                .fromState(underReview).toState(returned).requiresNote(true).responsible("COORDINACION").build();
+                .fromState(underReview).toState(returned).requiresNote(true)
+                .returnForCorrection(true).responsible("COORDINACION").build();
         WorkflowDefinition definition = WorkflowDefinition.builder()
                 .code("ADICION_CREDITOS").version(1).name("Adición de créditos")
                 .transitions(List.of(returnTransition)).build();

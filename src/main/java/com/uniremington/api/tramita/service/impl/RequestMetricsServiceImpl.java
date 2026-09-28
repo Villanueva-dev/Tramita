@@ -67,7 +67,7 @@ public class RequestMetricsServiceImpl implements IRequestMetricsService {
     private boolean isReturn(Request request, RequestTransitionLog log) {
         if (log.getFromState() == null) return false;
         return request.getDefinition().getTransitions().stream()
-                .filter(WorkflowTransition::isRequiresNote)
+                .filter(WorkflowTransition::isReturnForCorrection)
                 .anyMatch(transition -> transition.getFromState().getCode().equals(log.getFromState().getCode())
                         && transition.getToState().getCode().equals(log.getToState().getCode()));
     }

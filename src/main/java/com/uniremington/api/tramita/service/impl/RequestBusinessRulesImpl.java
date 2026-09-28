@@ -36,6 +36,7 @@ import org.springframework.stereotype.Service;
 public class RequestBusinessRulesImpl implements IRequestBusinessRules {
 
     private static final String CAPTURES_CREDITS = "CAPTURES_CREDITS";
+    private static final String CAPTURES_GRADES = "CAPTURES_GRADES";
     private static final String MAX_CREDITS = "MAX_CREDITS";
     private static final String MIN_GRADE = "MIN_GRADE";
     private static final String MAX_GRADE = "MAX_GRADE";
@@ -50,7 +51,7 @@ public class RequestBusinessRulesImpl implements IRequestBusinessRules {
         validateProgram(body);
         List<SubjectRequestBody> subjects = body.subjects();
         validateCredits(definition, subjects);
-        validateGrades(definition, subjects);
+        validateGrades(definition, subjects, capturesGrades(definition));
     }
 
     /**
@@ -131,7 +132,40 @@ public class RequestBusinessRulesImpl implements IRequestBusinessRules {
                         .formatted(CAPTURES_CREDITS, definition.getId()));
     }
 
-    private void validateGrades(WorkflowDefinition definition, List<SubjectRequestBody> subjects) {
+    private boolean capturesGrades(WorkflowDefinition definition) {
+        Optional<String> configured = parameterRepo
+                .findByDefinitionIdAndKey(definition.getId(), CAPTURES_GRADES)
+                .map(WorkflowParameter::getValue);
+        if (configured.isEmpty()) {
+            return false;
+        }
+        String value = configured.get().trim();
+        if ("true".equalsIgnoreCase(value)) {
+            return true;
+        }
+        if ("false".equalsIgnoreCase(value)) {
+            return false;
+        }
+        throw new IncompleteConfigurationException(
+                "El parámetro %s de la definición %s tiene un valor no interpretable"
+                        .formatted(CAPTURES_GRADES, definition.getId()));
+    }
+
+    private void validateGrades(
+            WorkflowDefinition definition, List<SubjectRequestBody> subjects, boolean capturesGrades) {
+        if (capturesGrades) {
+            for (SubjectRequestBody subject : subjects) {
+                if (subject.currentGrade() == null) {
+                    throw new UnprocessableRequestException(
+                            "Este trámite exige la nota actual de cada asignatura");
+                }
+                if (subject.proposedGrade() == null) {
+                    throw new UnprocessableRequestException(
+                            "Este trámite exige la nota propuesta de cada asignatura");
+                }
+            }
+        }
+
         List<BigDecimal> declared = subjects.stream()
                 .flatMap(subject -> Stream.of(
                         subject.currentGrade(), subject.proposedGrade()))

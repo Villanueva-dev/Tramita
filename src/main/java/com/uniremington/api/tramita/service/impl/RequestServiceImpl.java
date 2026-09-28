@@ -380,7 +380,10 @@ public class RequestServiceImpl implements IRequestService {
     public RequestResponse update(UUID requestId, UpdateRequestBody body, String actorEmail) {
         Request request = loadRequest(requestId);
         String stateCode = request.getCurrentState().getCode();
-        if (!stateCode.contains("DEVUELTA") && !stateCode.contains("RECHAZADA")) {
+        boolean returnedForCorrection = isReturnedForCorrection(request,
+                logRepo.findTimelinesOf(Collections.singletonList(request.getId())));
+        if (!stateCode.contains("DEVUELTA") && !stateCode.contains("RECHAZADA")
+                && !returnedForCorrection) {
             throw new IllegalTransitionException(
                     "El trámite solo puede editarse cuando está devuelto o rechazado");
         }
@@ -643,7 +646,21 @@ public class RequestServiceImpl implements IRequestService {
                 originOf(timeline),
                 request.getStudentEmail(),
                 request.getStudentPhone(),
-                resolveAnnexRequirement(definition, request));
+                resolveAnnexRequirement(definition, request),
+                isReturnedForCorrection(request, timeline));
+    }
+
+    private boolean isReturnedForCorrection(Request request, List<RequestTransitionLog> timeline) {
+        return timeline.stream()
+                .max(Comparator.comparing(RequestTransitionLog::getOccurredAt)
+                        .thenComparing(RequestTransitionLog::getId))
+                .filter(entry -> entry.getFromState() != null)
+                .filter(entry -> entry.getToState().getId().equals(request.getCurrentState().getId()))
+                .map(entry -> request.getDefinition().getTransitions().stream()
+                        .anyMatch(transition -> transition.isReturnForCorrection()
+                                && transition.getFromState().getCode().equals(entry.getFromState().getCode())
+                                && transition.getToState().getCode().equals(entry.getToState().getCode())))
+                .orElse(false);
     }
 
     /**

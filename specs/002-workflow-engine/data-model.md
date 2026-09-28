@@ -64,11 +64,16 @@ semilla — si en el futuro hay UI de administración, la garantía se re-evalú
 | `to_state_id` | `UUID` | NOT NULL, FK → `workflow_state` |
 | `responsible` | `VARCHAR(50)` | NOT NULL — etiqueta del responsable del paso (research D5) |
 | `requires_note` | `BOOLEAN` | NOT NULL DEFAULT false — observación obligatoria (research D4) |
+| `return_for_correction` | `BOOLEAN` | NOT NULL DEFAULT false — indica que esta transición devuelve el trámite para corregir datos; independiente de `requires_note` |
 | | | `UNIQUE (definition_id, from_state_id, to_state_id)` |
 
-Avances y retornos son la misma cosa para el motor (FR-013): una devolución es una
-transición hacia un estado anterior con `requires_note = true` en la semilla. **Sin
-`guard_key`** — llega en `003` (research D3).
+Avances y retornos son transiciones para el motor (FR-013). La configuración marca de forma
+explícita el retorno con `return_for_correction`; no se infiere de `requires_note`, porque una
+observación también puede pedirse por otras razones. En la respuesta de detalle el backend
+expone `returnedForCorrection`, derivado de la última entrada inmutable del timeline y la
+transición que la produjo. Así `EN_PREPARACION` puede ser el estado inicial de Novedad o el
+destino de una devolución sin que el cliente tenga que adivinar. **Sin `guard_key`** — llega en
+`003` (research D3).
 
 ### `request` — la solicitud (FR-002, FR-009, FR-011)
 
@@ -135,7 +140,10 @@ feature (la única escritura es la semilla SQL); los repos correspondientes son 
    estado actual es final → `IllegalTransitionException` (409, FR-003/FR-004).
 3. Si `requires_note` y no llegó observación → 422 (FR-014).
 4. Inserta la entrada del log (autor, fecha, nota — FR-005) y mueve `current_state_id`.
-5. Commit; conflicto de `@Version` → 409 (research D6). El estado no se corrompe: gana la
+5. El detalle deriva `returnedForCorrection` comparando la última entrada del timeline con
+  las transiciones marcadas `return_for_correction`; una transición posterior normal lo
+  vuelve a false sin mutar el timeline.
+6. Commit; conflicto de `@Version` → 409 (research D6). El estado no se corrompe: gana la
    transacción que vio el estado vigente.
 
 El método no contiene ningún literal de negocio: ni `'ADICION_CREDITOS'`, ni `'DEVUELTA'`,
@@ -148,19 +156,19 @@ ni el 21. Esa ausencia es verificable leyendo la clase y es el argumento de la d
 Estados: `EN_COORDINACION*` → `EN_FACULTAD` → `APROBADA_FACULTAD` → `EN_REGISTRO_CALI` →
 `EN_REGISTRO_NACIONAL` → `FINALIZADA†` · `DEVUELTA` · `RECHAZADA†`  (* inicial, † final)
 
-| Transición | `responsible` | `requires_note` |
+| Transición | `responsible` | `requires_note` | `return_for_correction` |
 |---|---|---|
-| EN_COORDINACION → EN_FACULTAD | COORDINACION | no |
-| EN_FACULTAD → APROBADA_FACULTAD | FACULTAD | no |
-| APROBADA_FACULTAD → EN_REGISTRO_CALI | COORDINACION | no |
-| EN_REGISTRO_CALI → EN_REGISTRO_NACIONAL | REGISTRO_CALI | no |
-| EN_REGISTRO_NACIONAL → FINALIZADA | REGISTRO_NACIONAL | no |
-| EN_COORDINACION → DEVUELTA | COORDINACION | **sí** |
-| EN_FACULTAD → DEVUELTA | FACULTAD | **sí** |
-| EN_REGISTRO_CALI → DEVUELTA | REGISTRO_CALI | **sí** |
-| EN_REGISTRO_NACIONAL → DEVUELTA | REGISTRO_NACIONAL | **sí** |
-| DEVUELTA → EN_COORDINACION | COORDINACION | no |
-| EN_FACULTAD → RECHAZADA | FACULTAD | no |
+| EN_COORDINACION → EN_FACULTAD | COORDINACION | no | no |
+| EN_FACULTAD → APROBADA_FACULTAD | FACULTAD | no | no |
+| APROBADA_FACULTAD → EN_REGISTRO_CALI | COORDINACION | no | no |
+| EN_REGISTRO_CALI → EN_REGISTRO_NACIONAL | REGISTRO_CALI | no | no |
+| EN_REGISTRO_NACIONAL → FINALIZADA | REGISTRO_NACIONAL | no | no |
+| EN_COORDINACION → DEVUELTA | COORDINACION | **sí** | **sí** |
+| EN_FACULTAD → DEVUELTA | FACULTAD | **sí** | **sí** |
+| EN_REGISTRO_CALI → DEVUELTA | REGISTRO_CALI | **sí** | **sí** |
+| EN_REGISTRO_NACIONAL → DEVUELTA | REGISTRO_NACIONAL | **sí** | **sí** |
+| DEVUELTA → EN_COORDINACION | COORDINACION | no | no |
+| EN_FACULTAD → RECHAZADA | FACULTAD | no | no |
 
 El rechazo (extemporánea) solo existe desde `EN_FACULTAD`: es la facultad quien niega.
 
@@ -174,16 +182,16 @@ el correo de la Coordinación—: registra que devolvió, cuándo y con qué mot
 Estados: `REGISTRADA*` → `EN_PREPARACION` → `EN_FACULTAD` → `EN_REVISION_FINANCIERA` →
 `EN_REGISTRO_CONTROL` → `FINALIZADA†`  — **sin estado de rechazo** (E3-Q19: «siempre termina»)
 
-| Transición | `responsible` | `requires_note` |
+| Transición | `responsible` | `requires_note` | `return_for_correction` |
 |---|---|---|
-| REGISTRADA → EN_PREPARACION | COORDINACION | no |
-| EN_PREPARACION → EN_FACULTAD | SEDE | no |
-| EN_FACULTAD → EN_REVISION_FINANCIERA | FACULTAD | no |
-| EN_REVISION_FINANCIERA → EN_REGISTRO_CONTROL | FINANCIERA | no |
-| EN_REGISTRO_CONTROL → FINALIZADA | REGISTRO_NACIONAL | no |
-| EN_FACULTAD → EN_PREPARACION | FACULTAD | **sí** |
-| EN_REVISION_FINANCIERA → EN_PREPARACION | FINANCIERA | **sí** |
-| EN_REGISTRO_CONTROL → EN_PREPARACION | REGISTRO_NACIONAL | **sí** |
+| REGISTRADA → EN_PREPARACION | COORDINACION | no | no |
+| EN_PREPARACION → EN_FACULTAD | SEDE | no | no |
+| EN_FACULTAD → EN_REVISION_FINANCIERA | FACULTAD | no | no |
+| EN_REVISION_FINANCIERA → EN_REGISTRO_CONTROL | FINANCIERA | no | no |
+| EN_REGISTRO_CONTROL → FINALIZADA | REGISTRO_NACIONAL | no | no |
+| EN_FACULTAD → EN_PREPARACION | FACULTAD | **sí** | **sí** |
+| EN_REVISION_FINANCIERA → EN_PREPARACION | FINANCIERA | **sí** | **sí** |
+| EN_REGISTRO_CONTROL → EN_PREPARACION | REGISTRO_NACIONAL | **sí** | **sí** |
 
 Aquí la devolución **no es un estado**: es la transición de retorno a `EN_PREPARACION`
 (donde vive la carpeta editable). Que un trámite modele la devolución como estado y el otro

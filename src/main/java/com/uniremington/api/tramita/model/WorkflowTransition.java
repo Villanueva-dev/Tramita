@@ -17,12 +17,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * Paso permitido entre dos estados de una definición (data-model.md). Avances y
- * devoluciones son la misma cosa para el motor (FR-013): una devolución es una
- * transición hacia un estado anterior que la configuración marca con
- * requiresNote — el motivo obligatorio de FR-014 (research.md D4). Desde la
- * feature 003 puede además condicionarse a una regla de negocio nombrada
- * (guardKey, FR-015).
+ * Paso permitido entre dos estados de una definición (data-model.md). Avances y devoluciones
+ * son transiciones para el motor (FR-013). La definición marca explícitamente los retornos
+ * con {@code returnForCorrection}; {@code requiresNote} es una propiedad independiente que
+ * exige el motivo de FR-014 (research.md D4). Desde la feature 003 una transición también
+ * puede condicionarse a una regla de negocio nombrada (guardKey, FR-015).
  */
 @Entity
 @Table(name = "workflow_transition")
@@ -59,6 +58,10 @@ public class WorkflowTransition {
     /** true = el motor exige observación al recorrerla (FR-014). */
     @Column(name = "requires_note", nullable = false)
     private boolean requiresNote;
+
+    /** True cuando esta transición devuelve el trámite a corrección (SP2, FR-013). */
+    @Column(name = "return_for_correction", nullable = false)
+    private boolean returnForCorrection;
 
     /**
      * Nombre de la regla de negocio que condiciona el paso (FR-015). Solo el

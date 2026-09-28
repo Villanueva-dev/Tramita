@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -196,6 +197,74 @@ class RequestControllerIT {
                 .andExpect(jsonPath("$.subjects.length()").value(1))
                 .andExpect(jsonPath("$.subjects[0].currentGrade").value(2.80))
                 .andExpect(jsonPath("$.subjects[0].proposedGrade").value(3.50));
+    }
+
+    @Test
+    @DisplayName("novedad de notas rechaza una asignatura sin nota actual (FR-003)")
+    void registerRejectsANoveltySubjectWithoutCurrentGrade() throws Exception {
+        mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "NOVEDAD_NOTAS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0013",
+                          "subjects": [
+                            {"code":"MAT-101","name":"Cálculo Diferencial","proposedGrade":3.50}
+                          ]
+                        }""").session(login()))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.detail",
+                        org.hamcrest.Matchers.containsString("nota actual")));
+    }
+
+    @Test
+    @DisplayName("solo la Novedad devuelta a preparación se puede corregir (FR-013)")
+    void onlyReturnedGradeNoveltyCanBeEditedInPreparation() throws Exception {
+        MockHttpSession session = login();
+        String created = mockMvc.perform(createRequestWithForm("""
+                        {
+                          "definitionCode": "NOVEDAD_NOTAS",
+                          "studentName": "Estudiante De Prueba",
+                          "studentDocument": "DOC-TEST-0014",
+                          "subjects": [{"code":"MAT-101","name":"Cálculo Diferencial",
+                                        "currentGrade":2.80,"proposedGrade":3.50}]
+                        }""").session(session))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String id = com.jayway.jsonpath.JsonPath.read(created, "$.id");
+
+        mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.code").value("REGISTRADA"))
+                .andExpect(jsonPath("$.returnedForCorrection").value(false));
+
+        mockMvc.perform(advanceRequest(id, "EN_PREPARACION", null).session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(advanceRequest(id, "EN_PREPARACION", "Falta el soporte de la asignatura")
+                        .session(session))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.code").value("EN_PREPARACION"))
+                .andExpect(jsonPath("$.returnedForCorrection").value(true));
+
+        mockMvc.perform(put("/api/requests/" + id).with(csrf()).session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "studentName": "Estudiante De Prueba",
+                                  "studentDocument": "DOC-TEST-0014",
+                                  "program": "Ingeniería de Sistemas",
+                                  "semester": "8",
+                                  "reason": "Soporte actualizado para continuar el trámite.",
+                                  "subjects": [{"code":"MAT-101","name":"Cálculo Diferencial",
+                                                "currentGrade":2.80,"proposedGrade":3.20}]
+                                }"""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.subjects[0].proposedGrade").value(3.20))
+                .andExpect(jsonPath("$.returnedForCorrection").value(true));
     }
 
     @Test
@@ -409,7 +478,7 @@ class RequestControllerIT {
             setMaxCredits("ADICION_CREDITOS", "10");
             // Novedad de notas no captura créditos en la configuración real, así que para
             // que sirva como "el otro trámite con su propio tope" hay que declararle
-            // ambas cosas. Se revierte en el finally.
+            // MAX_CREDITS y CAPTURES_CREDITS. Sus notas siguen siendo obligatorias.
             jdbcTemplate.update("""
                     INSERT INTO workflow_parameter (id, definition_id, parameter_key, parameter_value)
                     SELECT gen_random_uuid(), id, p.parameter_key, p.parameter_value
@@ -420,7 +489,8 @@ class RequestControllerIT {
                     WHERE d.code = 'NOVEDAD_NOTAS' AND d.version = 1""");
 
             String subjects = """
-                    "subjects": [{"code":"A-1","name":"Uno","credits":20}]""";
+                    "subjects": [{"code":"A-1","name":"Uno","credits":20,
+                                  "currentGrade":2.0,"proposedGrade":3.0}]""";
 
             // 20 créditos: excede el tope de adición (10) y no el de novedad (30)
             mockMvc.perform(createRequestWithForm("""

@@ -591,7 +591,7 @@ components:
     Request:
       type: object
       required: [id, definition, studentName, studentDocument, currentState,
-                 availableTransitions, createdAt]
+             availableTransitions, createdAt, returnedForCorrection]
       properties:
         id: { type: string, format: uuid }
         definition: { $ref: '#/components/schemas/WorkflowDefinition' }
@@ -612,6 +612,9 @@ components:
           description: Vacía cuando el estado actual es final (trámite cerrado)
           items: { $ref: '#/components/schemas/AvailableTransition' }
         createdAt: { type: string, format: date-time }
+        returnedForCorrection:
+          type: boolean
+          description: True si la última transición fue marcada como retorno a corrección en la definición del trámite.
 
     RequestSummary:
       type: object

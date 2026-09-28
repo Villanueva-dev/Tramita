@@ -110,6 +110,39 @@ class RequestBusinessRulesImplTest {
                 .doesNotThrowAnyException();
     }
 
+    @Test
+    @DisplayName("Novedad de notas exige ambas notas cuando captura una asignatura")
+    void aGradeCapturingTradeRequiresBothGradesForEverySubject() {
+        WorkflowDefinition gradeDefinition = WorkflowDefinition.builder()
+                .id(DEFINITION_ID).code("NOVEDAD_NOTAS").version(1).name("Novedad de notas").build();
+        stub("CAPTURES_GRADES", "true");
+        CreateRequestBody missingCurrentGrade = new CreateRequestBody(
+                "NOVEDAD_NOTAS", "Estudiante", "DOC-TEST-0001", null, null, null, null,
+                List.of(subject(null, null, "4.0")));
+        CreateRequestBody missingProposedGrade = new CreateRequestBody(
+                "NOVEDAD_NOTAS", "Estudiante", "DOC-TEST-0001", null, null, null, null,
+                List.of(subject(null, "3.0", null)));
+
+        assertThatThrownBy(() -> rules.validate(gradeDefinition, missingCurrentGrade))
+                .isInstanceOf(UnprocessableRequestException.class)
+                .hasMessageContaining("nota actual");
+        assertThatThrownBy(() -> rules.validate(gradeDefinition, missingProposedGrade))
+                .isInstanceOf(UnprocessableRequestException.class)
+                .hasMessageContaining("nota propuesta");
+    }
+
+    @Test
+    @DisplayName("Novedad sin asignaturas mantiene compatibilidad con el cuerpo legado")
+    void aGradeCapturingTradeStillAcceptsTheLegacyEmptySubjectList() {
+        WorkflowDefinition gradeDefinition = WorkflowDefinition.builder()
+                .id(DEFINITION_ID).code("NOVEDAD_NOTAS").version(1).name("Novedad de notas").build();
+        stub("CAPTURES_GRADES", "true");
+        CreateRequestBody noSubjects = new CreateRequestBody(
+                "NOVEDAD_NOTAS", "Estudiante", "DOC-TEST-0001", null, null, null, null, List.of());
+
+        assertThatCode(() -> rules.validate(gradeDefinition, noSubjects)).doesNotThrowAnyException();
+    }
+
     // --- Tope de créditos ----------------------------------------------------------------
 
     @Test

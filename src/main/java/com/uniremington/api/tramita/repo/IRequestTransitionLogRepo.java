@@ -20,8 +20,9 @@ public interface IRequestTransitionLogRepo extends JpaRepository<RequestTransiti
 
     /**
      * El timeline completo de un lote de solicitudes en UNA consulta (007, US2). La
-     * bandeja deriva de él dos cosas por solicitud: el origen (la entrada de nacimiento,
-     * FR-007) y desde cuándo espera (el {@code occurredAt} más reciente, research.md D3).
+        * bandeja deriva de él el origen (la entrada de nacimiento, FR-007) y desde cuándo
+        * espera (el {@code occurredAt} más reciente, research.md D3); el detalle también compara
+        * la última transición con la definición para derivar {@code returnedForCorrection}.
      *
      * Se trae el lote entero y se deriva en memoria en vez de una consulta agregada
      * {@code max(occurredAt) … group by}: es una consulta menos por bandeja, no exige un
@@ -34,6 +35,8 @@ public interface IRequestTransitionLogRepo extends JpaRepository<RequestTransiti
     @Query("""
             select l from RequestTransitionLog l
             join fetch l.actor
+            left join fetch l.fromState
+            join fetch l.toState
             where l.request.id in :requestIds
             """)
     List<RequestTransitionLog> findTimelinesOf(@Param("requestIds") Collection<UUID> requestIds);
