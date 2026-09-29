@@ -4,6 +4,10 @@
 
 **Input**: Feature specification from `/specs/010-request-counts/spec.md`
 
+**Estado**: aprobado en el gate `review-plan` el 2026-09-29. En el gate se revisaron a fondo las cuatro
+decisiones centrales (research D1, D2, D4 y D5); se mantuvieron las cuatro y se reescribió el argumento
+de D1 y D4, que no se sostenía (`3fd182b`). El propietario confirmó la opción 1 del #58.
+
 ## Summary
 
 La Coordinación pidió que vuelvan las tarjetas del tablero —cuántas solicitudes terminaron, cuántas

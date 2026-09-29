@@ -94,8 +94,8 @@ Al citar literatura o normativa institucional, **incluir la referencia exacta** 
 
 <!-- SPECKIT START -->
 **Feature activa: `010-request-counts`** (`Tramita#58`, conteos de solicitudes por trámite y estado sobre toda la base,
-`GET /api/requests/counts`). Spec aprobada en el gate `review-spec` (`5f6936c`) y plan en
-`specs/010-request-counts/plan.md`. Hoy solo se entrega la **Fase A** (spec, plan y contrato); tareas, implementación y
+`GET /api/requests/counts`). Spec y plan aprobados en sus gates el 2026-09-29 (`review-spec` en `5f6936c`;
+`review-plan` en `specs/010-request-counts/plan.md`, con D1 y D4 re-argumentadas en `3fd182b`). Hoy solo se entrega la **Fase A** (spec, plan y contrato); tareas, implementación y
 review van después de la entrega de la tesis del 2026-09-29. La rama es local: su estado se mide con
 `git log --oneline origin/main..010-request-counts`, no se lee de acá.
 La última cerrada es **`009-program-catalog-annex`** — Sprint 3, issues `Tramita#40` (la hoja
