@@ -1,10 +1,67 @@
 <!--
 Sync Impact Report — Constitución de Trámita
 ============================================
-Cambio de versión: 2.3.0 → 2.3.1
-Ratificada: 2026-07-02 | Última enmienda: 2026-09-19
-Bump: PATCH (rectificación de evidencia y aclaración de un mecanismo; ningún principio
-      se crea, se elimina ni se redefine)
+Cambio de versión: 2.3.1 → 3.0.0
+Ratificada: 2026-07-02 | Última enmienda: 2026-09-28 (PENDIENTE DE RATIFICAR: ver abajo)
+Bump: MAJOR (§III: la minimización de datos personales admite una excepción acotada; una
+      garantía que era absoluta deja de serlo)
+
+Enmienda 2026-09-28 — v3.0.0
+----------------------------
+§III admite una excepción acotada a la minimización: el sistema PUEDE guardar el anexo que
+aporta el propio solicitante cuando la configuración del trámite lo exige para su programa,
+bajo cinco condiciones que el principio enumera (Tramita#57).
+
+Origen: la Coordinación exige, solo para Ingeniería de Sistemas, que la adición de créditos
+se reenvíe a la facultad junto con la hoja de vida académica del estudiante: «tengo que
+anexar hoja de vida académica» (entrevista 1, `material-coord/transcript-entrevista-coordi.md`,
+fuera del repositorio por contener datos personales, `.gitignore:93`). La feature 009 lo
+expuso como un recordatorio en el detalle de la solicitud sin recibir el archivo (su FR-012).
+El 2026-09-28 el equipo decidió que el estudiante pueda subirlo al radicar, de forma
+opcional, y que el sistema lo conserve hasta que la Coordinación lo reenvíe.
+
+⚠️ Esa decisión es del EQUIPO, no de la Coordinación. La entrevista dice que la Coordinadora
+anexa el documento; no dice que se lo pida al estudiante ni que el sistema deba recibirlo.
+
+Por qué no basta con generarlo a demanda, como el documento formal: el DO-FR-100 se dibuja
+cada vez desde datos que el sistema ya guarda; la hoja de vida la produce CLASS, que es caja
+negra («Restricciones tecnológicas»), y sin conservar el archivo no hay de dónde
+reconstruirlo.
+
+Evidencia re-ejecutable (§IV):
+  grep -n 'MUST NOT recibir ni almacenar el anexo' specs/009-program-catalog-annex/spec.md
+      → 83 (el FR-012 de la 009, que la feature del anexo deberá enmendar)
+  grep -n 'solo en el detalle de la solicitud' specs/009-program-catalog-annex/spec.md
+      → 66 (el caso «Dónde se ve el requisito», que también se enmienda)
+  grep -n 'public byte\[\] render' src/main/java/com/uniremington/api/tramita/service/impl/DoFr100Renderer.java
+      → 208 (el documento formal se genera desde la solicitud guardada; no se almacena)
+  rg -n 'bytea|MultipartFile|@Lob' src/main
+      → sin resultados: hoy ningún código recibe ni guarda archivos
+Medido el 2026-09-28 sobre `fa3573a`.
+
+Por qué MAJOR y no MINOR: la regla «el sistema almacena únicamente los datos personales que
+el trámite necesita para existir» deja de ser absoluta. Un anexo opcional es, por
+definición, uno sin el cual el trámite existe: la excepción no amplía la guía, invierte en
+parte una garantía que el equipo dio ante la Coordinación. La v2.2.0 fue MINOR porque sumó
+una regla sin invertir ninguna (ver su entrada, más abajo); esta hace lo contrario. Ningún
+artefacto existente queda en incumplimiento, porque nada guarda archivos hoy, pero lo que un
+lector de la v2.3.1 podía dar por garantizado ya no lo está: eso la hace incompatible.
+
+Lo que NO cambia:
+- La prohibición de persistir documentos de identidad, recibos de pago y anexos con datos
+  de terceros.
+- El FR-010 de la 006: los PDF emitidos siguen sin guardarse, y se regeneran.
+- El §VII: subir o eliminar el anexo no escribe en las tablas inmutables.
+
+Lo que obliga a enmendar la feature que implemente el anexo (no esta constitución): el
+FR-012 y el caso «Dónde se ve el requisito» de la 009, y el contrato de captura pública de
+la 004.
+
+Estado de ratificación: TODO(ACUERDO_COORDINACION). La minimización es un compromiso que el
+equipo asumió ante la Coordinación en la Sesión 2 (§III, Rationale). Esta versión se
+redactó el 2026-09-28 y NO se ratifica —su PR no se mergea— hasta registrar aquí la fecha y
+el medio del acuerdo de la Coordinación, sin reproducir su contenido. Si la ratificación
+ocurre otro día, se actualizan la fecha de esta entrada y la de la línea de versión.
 
 Enmienda 2026-09-19 — v2.3.1
 ----------------------------
@@ -187,7 +244,7 @@ estereotipo porque Spring Boot los auto-registraría por duplicado.
 Principios vigentes:
 - I.   Simplicidad primero (KISS + YAGNI)
 - II.  Arquitectura por capas            ← enmendado en 2.0.0
-- III. Seguridad por defecto              ← enmendado en 2.2.0
+- III. Seguridad por defecto              ← enmendado en 2.2.0 y 3.0.0
 - IV.  Decisiones defendibles y trazables ← enmendado en 2.1.0 y 2.2.0
 - V.   Testing del comportamiento sensible
 - VI.  Workflow configurable por dato     ← nuevo en 2.3.0
@@ -201,7 +258,9 @@ Plantillas dependientes (verificadas, alineadas, sin cambios):
 - OK .specify/templates/spec-template.md  (genérico, sin principios hardcodeados)
 - OK .specify/templates/tasks-template.md (tests OPTIONAL: coherente con el Principio V)
 
-TODOs pendientes: ninguno
+TODOs pendientes:
+- TODO(ACUERDO_COORDINACION): fecha y medio del acuerdo de la Coordinación con la excepción
+  del §III (v3.0.0). Sin él esta versión no se ratifica.
 -->
 
 # Constitución del proyecto Trámita
@@ -249,12 +308,31 @@ SameSite=Strict` (patrón BFF); NO se usa JWT. Las contraseñas se almacenan con
 Los DTOs en la frontera de la API son obligatorios — NUNCA se exponen entities. La
 validación autoritativa DEBE ocurrir en el backend; la validación del frontend es solo UX.
 
-**Datos personales — minimización obligatoria**. El sistema almacena únicamente los datos
-personales que el trámite necesita para existir (identificación del solicitante, datos
-académicos de la solicitud y trazabilidad de quién actuó). NO se persisten documentos de
-identidad, recibos de pago ni anexos con datos de terceros: el documento formal se entrega
-y es la institución quien lo custodia en sus propios sistemas. Todo dato personal en
-documentos de ejemplo, fixtures o material de prueba DEBE estar anonimizado por rol.
+**Datos personales — minimización obligatoria**. Salvo la excepción acotada del párrafo
+siguiente, el sistema almacena únicamente los datos personales que el trámite necesita para
+existir (identificación del solicitante, datos académicos de la solicitud y trazabilidad de
+quién actuó). NO se persisten documentos de identidad, recibos de pago ni anexos con datos
+de terceros: el documento formal se entrega y es la institución quien lo custodia en sus
+propios sistemas. Todo dato personal en documentos de ejemplo, fixtures o material de
+prueba DEBE estar anonimizado por rol.
+
+**Excepción acotada — el anexo que aporta el propio solicitante**. El sistema PUEDE guardar
+un archivo aportado por el propio solicitante solo si se cumplen TODAS estas condiciones:
+
+- la configuración del trámite lo declara como anexo exigido para el programa de la
+  solicitud: es un dato, no una regla escrita en el código (§VI);
+- es un PDF, y el tipo se comprueba por el contenido del archivo, no por su nombre ni por
+  lo que declare el cliente;
+- es opcional: la solicitud es válida sin él y su ausencia nunca impide radicarla;
+- su única finalidad es que la Coordinación lo adjunte al reenviar la solicitud a quien lo
+  exige. Solo se descarga con sesión, y nunca aparece en listados, búsquedas ni bandejas;
+- su contenido se elimina cuando la solicitud llega a un estado final o cuando vence un
+  plazo máximo, lo que ocurra primero. La especificación que lo implemente fija ese plazo y
+  lo justifica con la duración documentada del trámite. La eliminación la ejecuta el
+  sistema, no la disciplina de una persona.
+
+Fuera de esta excepción ningún archivo se recibe ni se guarda. En las pruebas se usan
+archivos fabricados, nunca uno real.
 
 **Rationale**: elegir la opción segura más simple que cumple el requisito, respaldada por
 OWASP e IETF, en lugar de tecnología de moda que resuelve problemas que este sistema no tiene.
@@ -265,10 +343,22 @@ su decreto reglamentario **1377 de 2013**. La Coordinación confirmó que la ins
 recoge autorización de tratamiento tanto de estudiantes al matricularse como de empleados
 al vincularse; el sistema no puede ofrecer menos garantías que el proceso que reemplaza.
 
+**Por qué la excepción no rompe la minimización**: la Coordinación exige la hoja de vida
+académica al reenviar la adición de créditos de Ingeniería de Sistemas (entrevista 1), y ese
+documento lo produce CLASS, que es caja negra: a diferencia del documento formal, no se puede
+regenerar desde datos que el sistema ya guarda. La excepción conserva lo que la
+minimización protege: una finalidad declarada, acceso restringido y un plazo que el sistema
+hace cumplir. Que el estudiante aporte el documento al radicar es decisión del equipo
+(2026-09-28, Tramita#57), no un pedido de la Coordinación; por eso esta excepción exige su
+acuerdo, registrado en el Sync Impact Report, antes de ratificarse.
+
 **Pendiente de verificación documental**: la referencia legal anterior está citada por su
 identificación oficial pero **no se ha contrastado contra el texto publicado**, ni se ha
 obtenido la política de tratamiento de datos de la propia universidad. Hasta que ocurra,
-se aplica el régimen del §IV para normativa institucional.
+se aplica el régimen del §IV para normativa institucional. Lo mismo vale para el plazo de
+conservación de la excepción: se apoya en la idea de conservar un dato solo mientras dure su
+finalidad, que se atribuye a ese marco legal y que tampoco se ha contrastado contra el texto
+publicado.
 
 ### IV. Decisiones defendibles y trazables
 
@@ -382,4 +472,4 @@ especificación y plan verifica su alineación con estos principios; toda comple
 introducida debe justificarse explícitamente. La guía operativa del día a día vive en
 `CLAUDE.md`.
 
-**Versión**: 2.3.1 | **Ratificada**: 2026-07-02 | **Última enmienda**: 2026-09-19
+**Versión**: 3.0.0 | **Ratificada**: 2026-07-02 | **Última enmienda**: 2026-09-28
