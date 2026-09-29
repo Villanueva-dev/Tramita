@@ -126,6 +126,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
+     * La petición parte de un estado que la solicitud ya no tiene (H-10) → 409. Mismo
+     * title que el locking optimista porque el cliente hace lo mismo en ambos casos:
+     * recargar el estado vigente. El detail viaja tal cual: nombra el estado actual por
+     * su nombre, no por códigos internos.
+     */
+    @ExceptionHandler(StaleRequestStateException.class)
+    ProblemDetail handleStaleRequestState(StaleRequestStateException ex) {
+        ProblemDetail problem =
+                ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Conflicto de concurrencia");
+        return problem;
+    }
+
+    /**
      * Locking optimista (002, research.md D6): dos avances casi simultáneos —
      * solo prosperó el que vio el estado vigente. 409 con instrucción de
      * reintento; nada interno (entidad, versión) se filtra al cliente.

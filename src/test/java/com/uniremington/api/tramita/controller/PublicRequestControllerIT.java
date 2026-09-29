@@ -676,10 +676,7 @@ class PublicRequestControllerIT {
 
     /** Como {@code RequestControllerIT.advanceRequest}: esta clase no avanzaba solicitudes hasta la 008. */
     private MockHttpServletRequestBuilder advance(String id, String targetStateCode) {
-        return post("/api/requests/" + id + "/transitions")
-                .with(csrf())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"targetStateCode\":\"%s\"}".formatted(targetStateCode));
+        return AdvanceRequestSupport.advanceFromCurrentState(mockMvc, id, targetStateCode, null);
     }
 
     /** El recibo público no devuelve el id: localizar la solicitud exige la sesión. */

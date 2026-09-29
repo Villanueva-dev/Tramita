@@ -100,6 +100,15 @@ paths:
         Aplica la transición del estado actual hacia targetStateCode si la definición de
         la solicitud la contempla. note es obligatoria cuando la transición la exige
         (devoluciones — FR-014). El motor no distingue avance de retorno (FR-013).
+
+        ENMENDADO EL 2026-09-28 (H-10). El body gana `fromStateCode`, OBLIGATORIO: el estado
+        que quien envía vio al decidir. Si no coincide con el vigente responde 409 y no se
+        evalúa nada más. Se midió que una devolución pulsada desde una pestaña vieja se
+        registraba desde el estado ACTUAL: en la novedad de notas las tres devoluciones
+        van al mismo destino, que seguía siendo válido, y el timeline —inmutable— quedaba
+        con un «desde» que nadie vio. El `@Version` no lo cubre: la segunda petición carga
+        la entidad ya actualizada. CAMBIO INCOMPATIBLE: un cliente que no envíe el campo
+        recibe 400 (`missingFields: [fromStateCode]`).
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       requestBody:
@@ -120,7 +129,10 @@ paths:
           description: |
             Transición no definida desde el estado actual, estado final (trámite
             cerrado), o conflicto de concurrencia (otro avance ganó — reintentar
-            leyendo el estado vigente). El estado no cambia y no se escribe timeline.
+            leyendo el estado vigente). También cuando `fromStateCode` no coincide con el
+            estado vigente (H-10): title «Conflicto de concurrencia» y detail con el
+            NOMBRE del estado actual; recargar y decidir de nuevo. El estado no cambia y
+            no se escribe timeline.
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -255,8 +267,18 @@ components:
 
     AdvanceRequestBody:
       type: object
-      required: [targetStateCode]
+      required: [fromStateCode, targetStateCode]
       properties:
+        fromStateCode:
+          type: string
+          maxLength: 50
+          example: EN_FACULTAD
+          description: |
+            Código del estado que quien envía vio al decidir (H-10). Debe coincidir con el
+            estado vigente de la solicitud; si no, 409 sin efectos. El cliente envía el
+            `currentState.code` que MOSTRABA la pantalla en la que la persona decidió, NO el de
+            una consulta hecha justo antes de enviar: ese siempre coincide con el vigente y
+            anula la protección.
         targetStateCode: { type: string, example: EN_FACULTAD }
         note:
           type: string

@@ -163,10 +163,7 @@ class SealControllerIT {
     }
 
     private MockHttpServletRequestBuilder advance(String id, String targetStateCode) {
-        return post("/api/requests/" + id + "/transitions")
-                .with(csrf())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"targetStateCode\":\"%s\"}".formatted(targetStateCode));
+        return AdvanceRequestSupport.advanceFromCurrentState(mockMvc, id, targetStateCode, null);
     }
 
     private String registerAndGetId(MockHttpSession session, String studentName, String studentDocument)
