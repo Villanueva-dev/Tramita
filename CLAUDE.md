@@ -93,7 +93,12 @@ issue por SP1–SP7), no en un archivo. Se cierra con `Closes #N` en el cuerpo d
 Al citar literatura o normativa institucional, **incluir la referencia exacta** en cada afirmación — alineado con la regla general #4 del CLAUDE.md global.
 
 <!-- SPECKIT START -->
-**No hay feature activa.** La última cerrada es **`009-program-catalog-annex`** — Sprint 3, issues `Tramita#40` (la hoja
+**Feature activa: `010-request-counts`** (`Tramita#58`, conteos de solicitudes por trámite y estado sobre toda la base,
+`GET /api/requests/counts`). Spec aprobada en el gate `review-spec` (`5f6936c`) y plan en
+`specs/010-request-counts/plan.md`. Hoy solo se entrega la **Fase A** (spec, plan y contrato); tareas, implementación y
+review van después de la entrega de la tesis del 2026-09-29. La rama es local: su estado se mide con
+`git log --oneline origin/main..010-request-counts`, no se lee de acá.
+La última cerrada es **`009-program-catalog-annex`** — Sprint 3, issues `Tramita#40` (la hoja
 de vida académica que exige Ingeniería de Sistemas al reenviar) y `Tramita#50` (el programa entraba como texto libre),
 **MERGEADA el 2026-09-26 por la PR #52 (`d8e031d`)**; los dos issues cerraron con el merge y el milestone Sprint 3
 quedó en 0 abiertos / 8 cerrados. Recorrido: spec `202d594` → gate `review-spec` `ef4d61a` → plan `a57b136` → tareas
@@ -102,12 +107,13 @@ quedó en 0 abiertos / 8 cerrados. Recorrido: spec `202d594` → gate `review-sp
 final **171 unitarios + 151 IT** (línea base `163 + 127`); **19 mutantes** muertos (13 de `tasks.md` + 6 del review).
 ⛔ `/speckit-tasks` NO se vuelve a correr sobre una feature con `tasks.md` escrito (regenera desde plantilla,
 `.claude/skills/speckit-tasks/SKILL.md:77`): se edita a mano. La siguiente feature arranca con `/speckit-specify`, que
-reescribe `.specify/feature.json` (hoy apunta a la 009, como la 008 apuntó hasta que nació la 009). El estado de una
+reescribe `.specify/feature.json` (hoy apunta a la 010, como apuntó a la 009 hasta que nació la 010). El estado de una
 PR no se escribe acá: `gh pr list --head <rama> --state all`.
 Artefactos en `specs/009-program-catalog-annex/`: `spec.md` («Implementada»), `plan.md`, `research.md` (D1–D11),
 `data-model.md`, `contracts/openapi.yaml`, `quickstart.md` (recorrido contra el servidor `dev` el 2026-09-26: doce
 bloques, una corrección) y `tasks.md`. ⚠️ Este bloque lo reescribe **solo `/speckit-plan`** cuando corre
-(`.claude/skills/speckit-plan/SKILL.md`); fuera de eso se corrige a mano (última vez: tras el merge de la 009).
+(`.claude/skills/speckit-plan/SKILL.md`); fuera de eso se corrige a mano (última vez: `/speckit-plan` de la 010, el 2026-09-29, editando solo las líneas que la
+PR #59 no toca, para no provocar un conflicto al mergear la segunda).
 🔑 **Qué ES la 009**: el programa se ELIGE de un catálogo de 13 programas de la Sede Cali (dato: tabla
 `academic_program`, siembra `V5.1.0`; lista PROVISIONAL dictada el 25-sep sin confirmación escrita de la Coordinación,
 §IV) por los dos canales, con coincidencia EXACTA (FR-004) validada en `RequestBusinessRulesImpl` ANTES que los
@@ -144,5 +150,5 @@ Stack: Java 21 · Spring Boot 4.0.7 (Security 7, Data JPA, Validation, WebMVC) �
 Paquete `com.uniremington.api.tramita`, estructura **package-by-layer**: `controller/`,
 `dto/`, `model/`, `repo/`, `security/`, `service/` (contratos) + `service/impl/`, `util/`
 y `shared/` (`config/`, `exception/`, `seed/`). Interfaces con prefijo `I`.
-Para más contexto de tecnologías, estructura y comandos, leer `specs/009-program-catalog-annex/plan.md`.
+Para más contexto de tecnologías, estructura y comandos, leer `specs/010-request-counts/plan.md`.
 <!-- SPECKIT END -->

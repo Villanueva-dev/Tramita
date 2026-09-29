@@ -1,0 +1,210 @@
+openapi: 3.1.0
+info:
+  title: Trámita — delta de contrato de la feature 010
+  version: 0.10.0
+  description: |
+    Delta sobre los contratos de las features 002 a 009, cuyas estructuras NO se alteran. Esta
+    feature entrega los conteos de solicitudes por trámite y por estado (issue #58): lo que el
+    tablero necesita para volver a mostrar cuántas solicitudes hay en cada estado, contando toda
+    la base y no solo lo que el navegador tiene cargado.
+
+    **Un endpoint es nuevo**, y es protegido (el mismo mecanismo de sesión que el resto de
+    `/api/**`):
+
+      * `GET /requests/counts` — cuántas solicitudes están hoy en cada estado de cada trámite.
+
+    **Cambio puramente aditivo** (FR-011): ningún contrato existente cambia y un cliente actual
+    sigue funcionando sin modificaciones. **No es un endpoint abierto**: la lista de endpoints sin
+    sesión sigue siendo la de la 009 (login, captura pública, consulta del sello y catálogo de
+    programas).
+
+    **Sin migración.** Esta feature no crea tablas ni columnas; los conteos no se almacenan, se
+    calculan al consultar. La última migración del repositorio sigue siendo `V5.2.0`.
+
+    **El backend no clasifica** (FR-008). Expone hechos —código, nombre, marcas y conteo— y el
+    cliente decide qué estados agrupa como «terminados», «rechazados» o «en curso». Ver la nota
+    sobre esta división de responsabilidades en la descripción del endpoint.
+
+    Lo no listado aquí se rige por `specs/009-program-catalog-annex/contracts/openapi.yaml` y, en lo
+    que aquél no altera, por los de la 008, la 007, la 006, la 005, la 004, la 003 y la 002.
+
+servers:
+  - url: /api
+
+paths:
+  /requests/counts:
+    get:
+      summary: Cuántas solicitudes hay en cada estado de cada trámite, sobre toda la base
+      description: |
+        **Nuevo.** Devuelve, para cada trámite configurado, **todos** los estados de su versión
+        vigente, cada uno con su código, su nombre, si es inicial, si es final y **cuántas
+        solicitudes están hoy en él** (FR-002, FR-003). Un estado sin solicitudes viene con `count`
+        0 y nunca se omite. Una solicitud cuenta **solo en su estado actual**.
+
+        **Cubre toda la base** (FR-006): cualquier estado, cualquier canal de radicación
+        —el enlace público y el formulario interno cuentan igual— y cualquier versión del trámite,
+        sin paginar. No depende de la búsqueda ni de la bandeja.
+
+        **Sin parámetros, y no admite filtros.** ⚠️ Un parámetro de consulta que llegue
+        —`?responsible=X`, `?program=Y`, `?from=…`— **se ignora**: la respuesta es siempre la de toda
+        la base y no cambia. No es un error: es una decisión de la feature (FR-006). Un conteo
+        filtrado puede identificar a una persona —«Ingeniería de Sistemas, rechazada: 1» señala al
+        único estudiante de ese programa al que le negaron la adición—, así que agregar un filtro
+        exige revisarlo antes contra el Principio III.
+
+        **Sin caché** (FR-007): cada llamada lee la base. Una solicitud radicada o movida se ve en la
+        consulta siguiente, y un trámite cargado por configuración aparece sin desplegar código.
+
+        **Cómo se suman las versiones** (FR-005): los conteos se agrupan por el **código** del
+        trámite y del estado. El nombre del trámite y el nombre y las marcas de cada estado son los de
+        la **versión más alta que tiene ese estado**. Un estado que existe solo en versiones
+        anteriores aparece **únicamente si todavía tiene solicitudes**. La suma supone que un mismo
+        código conserva su sentido entre versiones: en la novedad de notas, `EN_PREPARACION` de la v1
+        incluye una espera que en la v2 es `EN_FIRMA_SEDE`, y ambos se suman bajo el mismo nombre.
+
+        **Dos trámites nunca se mezclan** (FR-004): `EN_FACULTAD` existe en la adición de créditos y en
+        la novedad de notas y sale en **dos** entradas, cada una con su propio conteo, nunca como una
+        suma de ambas.
+
+        **Sin orden significativo entre estados**: el flujo admite devoluciones y rechazos, no es una
+        secuencia. Los trámites vienen ordenados por nombre; el cliente no debe depender de una
+        posición concreta más allá de eso.
+
+        **Sin total**: el cliente suma lo que necesite. **Sin tiempos ni prioridad**: fuera de
+        alcance.
+
+        **El backend no clasifica** (FR-008): `isFinal` no significa exitoso, un rechazo también es
+        final, y la respuesta no rotula ningún estado como «rechazado» o «devuelto». La devolución de
+        la novedad de notas **no es un estado** —es un retorno a `EN_PREPARACION`—, así que una
+        solicitud devuelta se cuenta ahí. Es una limitación declarada del issue #58.
+
+        **No expone datos personales** (FR-009, Principio III): solo códigos, nombres de trámites y de
+        estados, marcas y conteos. Ni identificadores de solicitud, ni documentos, ni programas.
+      responses:
+        '200':
+          description: |
+            Un elemento por trámite, ordenado por nombre. Sin trámites configurados sería `[]`.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RequestCounts'
+              # Ejemplo COMPLETO: los 15 estados de la versión vigente de la semilla (8 de la adición,
+              # V2.1.0:27-34 con el inicial renombrado en V3.2.0:32-39; 7 de la novedad v2,
+              # V5.2.0:62-68), ninguno omitido, también los que están en 0. Los códigos, nombres y
+              # marcas son los reales; los conteos son ilustrativos.
+              example:
+                - definitionCode: ADICION_CREDITOS
+                  definitionName: Adición de créditos
+                  states:
+                    - state: { code: EN_COORDINACION, name: En coordinación (revisión), isInitial: true, isFinal: false }
+                      count: 3
+                    - state: { code: EN_FACULTAD, name: En facultad, isInitial: false, isFinal: false }
+                      count: 2
+                    - state: { code: APROBADA_FACULTAD, name: Aprobada por facultad, isInitial: false, isFinal: false }
+                      count: 0
+                    - state: { code: EN_REGISTRO_CALI, name: En registro Cali (carga en QF), isInitial: false, isFinal: false }
+                      count: 1
+                    - state: { code: EN_REGISTRO_NACIONAL, name: En registro nacional, isInitial: false, isFinal: false }
+                      count: 0
+                    - state: { code: FINALIZADA, name: Finalizada, isInitial: false, isFinal: true }
+                      count: 5
+                    - state: { code: DEVUELTA, name: Devuelta para corrección, isInitial: false, isFinal: false }
+                      count: 0
+                    - state: { code: RECHAZADA, name: Rechazada, isInitial: false, isFinal: true }
+                      count: 1
+                - definitionCode: NOVEDAD_NOTAS
+                  definitionName: Novedad de notas
+                  states:
+                    - state: { code: REGISTRADA, name: Registrada, isInitial: true, isFinal: false }
+                      count: 1
+                    - state: { code: EN_PREPARACION, name: En preparación (carpeta y firmas), isInitial: false, isFinal: false }
+                      count: 1
+                    - state: { code: EN_FIRMA_SEDE, name: En firma de la sede, isInitial: false, isFinal: false }
+                      count: 0
+                    - state: { code: EN_FACULTAD, name: En facultad, isInitial: false, isFinal: false }
+                      count: 1
+                    - state: { code: EN_REVISION_FINANCIERA, name: En revisión financiera, isInitial: false, isFinal: false }
+                      count: 0
+                    - state: { code: EN_REGISTRO_CONTROL, name: En registro y control, isInitial: false, isFinal: false }
+                      count: 0
+                    - state: { code: FINALIZADA, name: Finalizada, isInitial: false, isFinal: true }
+                      count: 2
+        '401':
+          description: |
+            Sin sesión, como cualquier operación protegida (FR-001): no se revela ninguna cifra. Es
+            **401** y no 403: el 403 de este backend es de las peticiones mutantes sin CSRF, y esta es
+            un `GET`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+
+components:
+  schemas:
+    RequestCounts:
+      type: object
+      description: |
+        Los conteos de un trámite: todas sus versiones sumadas por código de estado. **Nunca lleva
+        datos personales.**
+      required: [definitionCode, definitionName, states]
+      properties:
+        definitionCode:
+          type: string
+          description: El código estable del trámite entre versiones.
+        definitionName:
+          type: string
+          description: El nombre de la versión más alta.
+        states:
+          type: array
+          description: |
+            Los estados del trámite con su conteo. Todo estado de la versión vigente está presente,
+            también con 0. Sin orden significativo.
+          items:
+            $ref: '#/components/schemas/StateCount'
+
+    StateCount:
+      type: object
+      description: Cuántas solicitudes están hoy en un estado de un trámite.
+      required: [state, count]
+      properties:
+        state:
+          $ref: '#/components/schemas/State'
+        count:
+          type: integer
+          format: int64
+          minimum: 0
+          description: |
+            Solicitudes que están **hoy** en este estado, sumadas entre las versiones del trámite.
+            0 si ninguna. Una solicitud cuenta solo en su estado actual.
+
+    State:
+      type: object
+      description: |
+        Estado de un trámite, **idéntico al vigente** (007): las mismas cuatro claves que en el
+        detalle de una solicitud y en el catálogo de definiciones. Sin cambios.
+      required: [code, name, isInitial, isFinal]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        isInitial:
+          type: boolean
+          description: Si es el punto de partida del trámite.
+        isFinal:
+          type: boolean
+          description: |
+            Si es un cierre. ⚠️ **Final no significa exitoso**: un rechazo también es final.
+            Distinguirlos no se resuelve con esta marca; es una clasificación del cliente (FR-008).
+
+    ProblemDetail:
+      type: object
+      description: RFC 9457, sin cambios respecto de las features anteriores.
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
