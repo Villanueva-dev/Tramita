@@ -123,13 +123,11 @@ programa; los tres anexos universales de la novedad de notas (FUERA; una regla �
 `program_id` en `request` (D3: se guarda el NOMBRE); normalizar mayúsculas, tildes o espacios (D8: tres mutantes lo
 vigilan); administrar el catálogo por pantalla (§I); Bean Validation con BD (D4); recibir archivos (FR-012, 006);
 guardar el requisito en vez de derivarlo (D6: un mutante lo vigila).
-⚠️ **LO ÚNICO VIVO DE LA 009 ESTÁ EN EL FRONT: `tramita-frontend#74`** (brief, precedente front#59). El backend ya
-rechaza con 422 cualquier programa fuera del catálogo, y el formulario público del front, medido el 2026-09-26 sobre
-`origin/main` = `06a0f8c` (PR #73), sigue mandando texto libre (`components/do-fr-100/sections.tsx:172`, `TextField`) sin
-consumir `/api/public/programs`; el interno usa la constante `PROGRAMS` (`lib/ui-constants.ts:33`) y preselecciona
-`PROGRAMS[0]`. El brief front#74 cita las líneas de `0650548`, que el front ya movió: sus enlaces son permanentes.
-Hasta que entre el selector, **un estudiante que escriba el programa a mano recibe 422**. El front avanza en paralelo:
-re-medir su punta antes de escribir cualquier número.
+✅ **La contraparte de la 009 en el front está CERRADA**: `tramita-frontend#74` se cerró el 2026-09-26 con la PR #76
+(el formulario público elige el programa de `GET /api/public/programs`) y la PR #79 (el formulario interno usa el
+mismo catálogo y el detalle muestra `annexRequirement`). Ya no queda texto libre en ningún canal, así que el rechazo por
+programa fuera del catálogo (422 en el público, 400 en el interno) solo lo recibe un cliente que no pase por el front. El front avanza en paralelo: re-medir su
+punta antes de escribir cualquier número (`git -C ../tramita-frontend log --oneline -1 origin/main`).
 📎 Cómo se cerró (precedente para la próxima): PR con `Closes #40` y `Closes #50` en texto plano y sin `--milestone`
 (los dos cerraron al merge, verificado); `BREAKING CHANGE` en el commit de US1; brief al front como issue; contratos
 históricos de la 003 (`:159`) y la 004 (`:27-35`, `:283`) con la nota «ENMENDADO POR LA 009»; review con agente limpio
