@@ -132,7 +132,7 @@ propio. Solo `/me` y `/password` son métodos de controller.
 
 ## Modelo de datos
 
-**Once tablas**, todas creadas por Flyway (`V1.0.0` → `V5.1.0`, trece migraciones).
+**Once tablas**, todas creadas por Flyway (`V1.0.0` → `V5.2.0`, catorce migraciones).
 
 **Auth** (`V1.0.0`): `users` — índice único funcional `uq_users_email_lower` sobre
 `LOWER(email)`; la cuenta la provisiona `CoordinationUserSeeder` por env (nunca credenciales
@@ -181,6 +181,11 @@ en git).
 **provisionales** hasta la confirmación escrita de la Coordinación) y `workflow_annex_rule` (FK a la **versión** de la
 definición y al programa, `ON DELETE RESTRICT`, única por definición y programa). `request.program` guarda el **nombre**,
 no una FK: lo ya radicado no se toca, y el anexo se deriva al leer el detalle, nunca se guarda.
+
+**Novedad de notas v2** (`V5.2.0`, solo datos): la preparación se parte en dos, `EN_PREPARACION` (a cargo de la
+Coordinación) → `EN_FIRMA_SEDE` (firma del Jefe Regional de Sede) → `EN_FACULTAD`, con devolución de la sede a
+preparación. Así la novedad en preparación vuelve a la bandeja de la Coordinación (H-11). Lo ya radicado conserva la
+v1: el responsable de cada entrada del historial se deriva al leer, y editar la v1 lo habría reescrito.
 
 Detalle por feature: [`002`](specs/002-workflow-engine/data-model.md) ·
 [`003`](specs/003-request-form-rules/data-model.md) ·
@@ -270,7 +275,7 @@ integración para el SPA en
 | `GET`  | `/api/requests?search=` | — | `200` — localiza por cédula exacta o fragmento del nombre |
 | `GET`  | `/api/requests/inbox` | — | `200` — las recientes, **sin documento de identidad** |
 | `GET`  | `/api/requests/{id}` | — | `200` — detalle + transiciones disponibles + `annexRequirement` cuando el programa lo exige |
-| `POST` | `/api/requests/{id}/transitions` | ✅ | `200` — avanza o devuelve; `409` si no está definida o la rechaza una guarda |
+| `POST` | `/api/requests/{id}/transitions` | ✅ | `200` — avanza o devuelve; exige `fromStateCode`, el estado que vio quien envía (`400` si falta); `409` si ese estado ya no rige, si la transición no está definida o si la rechaza una guarda |
 | `GET`  | `/api/requests/{id}/timeline` | — | `200` — el recorrido del trámite, en orden cronológico |
 | `GET`  | `/api/requests/{id}/document` | — | `200` `application/pdf` — el DO-FR-100 diligenciado y sellado |
 | `GET`  | `/api/requests/{id}/seals` | — | `200` — historial de emisiones (lista vacía si nunca se pidió) |

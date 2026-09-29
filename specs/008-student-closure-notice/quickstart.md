@@ -5,6 +5,11 @@ cableado, que es lo que los tests con mocks no ven. Y demuestra lo central del d
 lo que el backend devuelve, **el aviso se arma sin una segunda consulta y sin que el servidor
 sepa que existe**.
 
+> ⚠️ **ENMENDADO POR H-10** (2026-09-28, PR #61): desde `3869a34`, `POST /api/requests/{id}/transitions`
+> exige `fromStateCode`, el código del estado vigente que se vio antes de enviar (`400` si falta, `409` si ya no
+> coincide). Los cuerpos de abajo son los que se corrieron en su fecha: para repetirlos hoy, agregar
+> `"fromStateCode": "<estado actual>"`.
+
 **Recorrido completo el 2026-09-24 contra Tomcat real, sobre `813113d`**: los diez pasos dieron
 las salidas que figuran abajo. La única corrección fue de este documento: los identificadores
 `SIN-DATO-REAL-<teléfono>` tenían 24 caracteres y `studentDocument` admite 20

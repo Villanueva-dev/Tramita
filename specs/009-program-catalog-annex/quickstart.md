@@ -5,6 +5,11 @@ cableado —la seguridad del endpoint abierto, la resolución entre los dos mane
 siembra real— que los tests con mocks no ven. Y demuestra lo central del diseño: que **un programa
 y una regla nuevos entran por SQL, sin reiniciar ni desplegar**.
 
+> ⚠️ **ENMENDADO POR H-10** (2026-09-28, PR #61): desde `3869a34`, `POST /api/requests/{id}/transitions`
+> exige `fromStateCode`, el código del estado vigente que se vio antes de enviar (`400` si falta, `409` si ya no
+> coincide). Los cuerpos de abajo son los que se corrieron en su fecha: para repetirlos hoy, agregar
+> `"fromStateCode": "<estado actual>"`.
+
 ✅ **Recorrido contra Tomcat real el 2026-09-26 sobre `5849039`.** Las salidas de abajo son
 observaciones, no expectativas: los once pasos coincidieron con lo escrito, y solo el paso 9 tuvo
 una corrección (el nombre real del constraint de la FK, que se había dejado como placeholder).

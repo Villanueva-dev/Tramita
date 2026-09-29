@@ -4,6 +4,11 @@ Cómo levantar el backend y recorrer el motor de punta a punta con `curl`, inclu
 demostración en vivo de SC-005 (trámite nuevo sin recompilar ni reiniciar). Asume el
 perfil `dev` (cookie sin `Secure`, ver `001`).
 
+> ⚠️ **ENMENDADO POR H-10** (2026-09-28, PR #61): desde `3869a34`, `POST /api/requests/{id}/transitions`
+> exige `fromStateCode`, el código del estado vigente que se vio antes de enviar (`400` si falta, `409` si ya no
+> coincide). Los cuerpos de abajo son los que se corrieron en su fecha: para repetirlos hoy, agregar
+> `"fromStateCode": "<estado actual>"`.
+
 ## 1. Arranque
 
 ```bash

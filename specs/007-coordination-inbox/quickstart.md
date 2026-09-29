@@ -3,6 +3,11 @@
 Cómo comprobar la feature contra un servidor real. No reemplaza la suite: comprueba el
 cableado, que es lo que los tests con mocks no ven.
 
+> ⚠️ **ENMENDADO POR H-10** (2026-09-28, PR #61): desde `3869a34`, `POST /api/requests/{id}/transitions`
+> exige `fromStateCode`, el código del estado vigente que se vio antes de enviar (`400` si falta, `409` si ya no
+> coincide). Los cuerpos de abajo son los que se corrieron en su fecha: para repetirlos hoy, agregar
+> `"fromStateCode": "<estado actual>"`.
+
 ## 0. Levantar
 
 ```bash
