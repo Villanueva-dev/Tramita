@@ -1,0 +1,37 @@
+# Specification Quality Checklist: Conteos de solicitudes por trámite y estado
+
+**Purpose**: Validate specification completeness and quality before proceeding to planning
+**Created**: 2026-09-28
+**Feature**: [spec.md](../spec.md)
+
+## Content Quality
+
+- [x] No implementation details (languages, frameworks, APIs)
+- [x] Focused on user value and business needs
+- [x] Written for non-technical stakeholders
+- [x] All mandatory sections completed
+
+## Requirement Completeness
+
+- [x] No [NEEDS CLARIFICATION] markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Success criteria are measurable
+- [x] Success criteria are technology-agnostic (no implementation details)
+- [x] All acceptance scenarios are defined
+- [x] Edge cases are identified
+- [x] Scope is clearly bounded
+- [x] Dependencies and assumptions identified
+
+## Feature Readiness
+
+- [x] All functional requirements have clear acceptance criteria
+- [x] User scenarios cover primary flows
+- [x] Feature meets measurable outcomes defined in Success Criteria
+- [x] No implementation details leak into specification
+
+## Notes
+
+- Validado en una iteración el 2026-09-28. Sin marcadores `[NEEDS CLARIFICATION]`: las cuatro decisiones de fondo (quién clasifica, versiones, qué no trae, número) quedaron tomadas en el plan aprobado.
+- Las citas `archivo:línea` (`RequestController.java:72-76`, `V2.1.0__…:90-92`, etc.) son **evidencia** del estado actual, no diseño: es la convención de las specs del repo (la 009 cita igual). No prescriben cómo implementar.
+- Los códigos de estado (`EN_FACULTAD`, `FINALIZADA`, `DEVUELTA`) aparecen como datos de ejemplo de la configuración sembrada, no como literales que el sistema deba reconocer (FR-010 lo prohíbe).
+- Cobertura de FR por escenario: FR-001 → escenario 6; FR-002/FR-003 → 1; FR-004 → 3; FR-005 → caso borde «Versiones»; FR-006/FR-007 → 2; FR-008 → 4; FR-009 → SC-005; FR-010 → 5; FR-011 → sin escenario propio (se verifica en el contrato: ningún endpoint existente cambia).
