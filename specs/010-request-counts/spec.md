@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-28
 
-**Status**: Borrador — pendiente del gate `review-spec`
+**Status**: Aprobada — gate `review-spec` superado el 2026-09-29, con las citas re-medidas contra `main` (`09c7b6f`)
 
 **Input**: issue [#58](https://github.com/Villanueva-dev/Tramita/issues/58), más la decisión de `tramita-frontend#51` (comentario del 2026-09-29): las tarjetas del tablero cuentan **toda la base**, ni la búsqueda ni la bandeja. El pedido es de la Coordinadora, transmitido por el propietario el 2026-09-28: que vuelvan las tarjetas de estadísticas con los trámites que ya existen en la base —cuántos terminaron, cuántos siguen en curso, cuántos se rechazaron—, porque le sirven para llevar a ojo el control de lo que maneja. El usuario eligió la **opción 1** del #58 al aprobar el plan (2026-09-28): el sistema expone conteos por estado y el cliente los clasifica.
 
