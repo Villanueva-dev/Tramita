@@ -417,7 +417,9 @@ class RequestControllerIT {
                              CROSS JOIN (VALUES ('MAX_CREDITS', '30'),
                                                 ('CAPTURES_CREDITS', 'true'))
                         AS p(parameter_key, parameter_value)
-                    WHERE d.code = 'NOVEDAD_NOTAS' AND d.version = 1""");
+                    WHERE d.code = 'NOVEDAD_NOTAS'
+                      AND d.version = (SELECT MAX(version) FROM workflow_definition
+                                       WHERE code = 'NOVEDAD_NOTAS')""");
 
             String subjects = """
                     "subjects": [{"code":"A-1","name":"Uno","credits":20}]""";
@@ -1218,6 +1220,110 @@ class RequestControllerIT {
     void inboxRequiresAnAuthenticatedSession() throws Exception {
         mockMvc.perform(get(INBOX).param("responsible", "COORDINACION"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // --- H-11: la novedad en preparación es trabajo de la Coordinación, no espera de la sede -----
+    //
+    // En la v1 de NOVEDAD_NOTAS la única salida de EN_PREPARACION era hacia EN_FACULTAD con
+    // responsable SEDE, así que TODA novedad en preparación salía de la bandeja de la
+    // Coordinación aunque armar la carpeta sea trabajo suyo. La v2 parte ese paso en dos:
+    // EN_PREPARACION → EN_FIRMA_SEDE (COORDINACION) y EN_FIRMA_SEDE → EN_FACULTAD (SEDE).
+    // La semántica de `responsible` no cambia (specs/007-coordination-inbox/research.md:24-35).
+    // La bandeja se asserta por id: la base es compartida entre IT.
+
+    @Test
+    @DisplayName("una novedad nace en la v2 y, en preparación, espera a la Coordinación (H-11)")
+    void aNovedadInPreparationWaitsForCoordination() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "NOVEDAD_NOTAS", "Novedad Preparacion Bandeja", "SIN-DATO-REAL-H11-1");
+
+        // El registro usa la versión vigente: la mayor
+        mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.definition.version").value(2));
+        mockMvc.perform(advanceRequest(id, "EN_PREPARACION", null).session(session))
+                .andExpect(status().isOk());
+
+        assertThat(inboxIds(session, "COORDINACION"))
+                .as("armar la carpeta es trabajo de la Coordinación")
+                .contains(id);
+    }
+
+    @Test
+    @DisplayName("entregada la carpeta, la novedad pasa a la bandeja de la sede y de ahí a la facultad (H-11)")
+    void aNovedadInSedeSignatureWaitsForSedeThenFaculty() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "NOVEDAD_NOTAS", "Novedad Firma Sede", "SIN-DATO-REAL-H11-2");
+        mockMvc.perform(advanceRequest(id, "EN_PREPARACION", null).session(session))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(advanceRequest(id, "EN_FIRMA_SEDE", null).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.code").value("EN_FIRMA_SEDE"));
+
+        assertThat(inboxIds(session, "COORDINACION")).doesNotContain(id);
+        assertThat(inboxIds(session, "SEDE")).contains(id);
+
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.code").value("EN_FACULTAD"));
+        assertThat(inboxIds(session, "SEDE")).doesNotContain(id);
+        assertThat(inboxIds(session, "FACULTAD")).contains(id);
+    }
+
+    @Test
+    @DisplayName("la novedad devuelta por la facultad vuelve a la bandeja de la Coordinación (H-11)")
+    void aNovedadReturnedByFacultyWaitsForCoordinationAgain() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "NOVEDAD_NOTAS", "Novedad Devuelta Facultad", "SIN-DATO-REAL-H11-3");
+        for (String state : new String[] {"EN_PREPARACION", "EN_FIRMA_SEDE", "EN_FACULTAD"}) {
+            mockMvc.perform(advanceRequest(id, state, null).session(session))
+                    .andExpect(status().isOk());
+        }
+        assertThat(inboxIds(session, "COORDINACION")).doesNotContain(id);
+
+        mockMvc.perform(advanceRequest(id, "EN_PREPARACION", "Falta la firma del docente")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.code").value("EN_PREPARACION"));
+
+        assertThat(inboxIds(session, "COORDINACION")).contains(id);
+    }
+
+    @Test
+    @DisplayName("la sede devuelve la carpeta para corregir: exige motivo y la deja en preparación (H-11)")
+    void sedeReturnRequiresANoteAndLeavesTheRequestInPreparation() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "NOVEDAD_NOTAS", "Novedad Devuelta Sede", "SIN-DATO-REAL-H11-4");
+        for (String state : new String[] {"EN_PREPARACION", "EN_FIRMA_SEDE"}) {
+            mockMvc.perform(advanceRequest(id, state, null).session(session))
+                    .andExpect(status().isOk());
+        }
+
+        mockMvc.perform(advanceRequest(id, "EN_PREPARACION", null).session(session))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+
+        mockMvc.perform(advanceRequest(id, "EN_PREPARACION", "El jefe de sede pide corregir la nota")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.code").value("EN_PREPARACION"));
+        assertThat(inboxIds(session, "COORDINACION")).contains(id);
+    }
+
+    @Test
+    @DisplayName("la v1 de la novedad queda intacta: sus solicitudes conservan EN_PREPARACION → EN_FACULTAD con la sede (FR-009, H-11)")
+    void novedadVersionOneKeepsItsOriginalPreparationExit() {
+        List<String> responsibles = jdbcTemplate.queryForList("""
+                SELECT t.responsible
+                FROM workflow_transition t
+                JOIN workflow_definition d ON d.id = t.definition_id
+                JOIN workflow_state f ON f.id = t.from_state_id
+                JOIN workflow_state s ON s.id = t.to_state_id
+                WHERE d.code = 'NOVEDAD_NOTAS' AND d.version = 1
+                  AND f.code = 'EN_PREPARACION' AND s.code = 'EN_FACULTAD'""", String.class);
+
+        assertThat(responsibles).containsExactly("SEDE");
     }
 
     private List<String> inboxIds(MockHttpSession session, String responsible) throws Exception {

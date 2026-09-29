@@ -33,6 +33,12 @@ la transición en el sistema, que en el MVP es siempre la Coordinación (FR-003b
 2. En novedad de notas, `EN_PREPARACION → EN_FACULTAD` lleva `SEDE` (`V2.1.0:86`): la carpeta
    que la Coordinación arma **no** está en su bandeja mientras espera la firma de la Dirección
    de Sede. Es una decisión del seed de la 002, no de esta feature.
+   > ⚠️ **ENMENDADO POR H-11** (2026-09-28): esto describe la **v1** de la novedad, que sigue
+   > así para las solicitudes ya radicadas. La v2 (`V5.2.0`) resuelve la consecuencia sin
+   > cambiar la semántica de `responsible`: parte el paso con un estado `EN_FIRMA_SEDE`, de
+   > modo que `EN_PREPARACION → EN_FIRMA_SEDE` lleva `COORDINACION` (la novedad en preparación
+   > aparece en su bandeja) y solo `EN_FIRMA_SEDE → EN_FACULTAD` lleva `SEDE` (la espera de la
+   > firma de la sede).
 3. Si un estado tuviera salidas con responsables distintos, la solicitud aparece en la bandeja
    de cada uno (caso borde de la spec, cerrado así). Hoy ninguna definición sembrada lo tiene.
 4. Un estado **no final sin salidas** dejaría la solicitud fuera de toda bandeja y sin responsable
