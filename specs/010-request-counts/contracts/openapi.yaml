@@ -47,10 +47,10 @@ paths:
 
         **Sin parámetros, y no admite filtros.** ⚠️ Un parámetro de consulta que llegue
         —`?responsible=X`, `?program=Y`, `?from=…`— **se ignora**: la respuesta es siempre la de toda
-        la base y no cambia. No es un error: es una decisión de la feature (FR-006). Un conteo
-        filtrado puede identificar a una persona —«Ingeniería de Sistemas, rechazada: 1» señala al
-        único estudiante de ese programa al que le negaron la adición—, así que agregar un filtro
-        exige revisarlo antes contra el Principio III.
+        la base y no cambia. No es un error: es una decisión de la feature (FR-006). Nadie pidió
+        filtros (Principio I), y agregar uno exige revisarlo antes contra el Principio III: si
+        mañana hay roles o el tablero se proyecta, un conteo por programa y estado —«Ingeniería de
+        Sistemas, rechazada: 1»— puede señalar a una persona.
 
         **Sin caché** (FR-007): cada llamada lee la base. Una solicitud radicada o movida se ve en la
         consulta siguiente, y un trámite cargado por configuración aparece sin desplegar código.

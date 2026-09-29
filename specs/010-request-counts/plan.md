@@ -81,7 +81,7 @@ la v2). **Un endpoint nuevo**, protegido: `GET /api/requests/counts`.
 |---|---|---|---|
 | **I — KISS + YAGNI** | ✅ | ✅ | Ninguna tabla, columna ni migración (`constitution.md:211-217`: crecer con migraciones «cuando el requisito exista»). Un controller, un servicio y un repositorio-método; el plegado son ~20–30 líneas. Se descartaron con evidencia el total (el cliente suma), los filtros, la caché, el orden de estados y la marca de rechazo en la base (D1, D4, D7). |
 | **II — Arquitectura por capas** | ✅ | ✅ | Cada pieza cae en su capa: `controller/`, `dto/`, `repo/`, `service/` + `service/impl/`. Interfaz con prefijo `I` y el controller la inyecta (`constitution.md:223-226`). **No se engorda `RequestServiceImpl`** y no se toca `RequestController`, donde entrará la feature del #57. |
-| **III — Seguridad y minimización** | ✅, con una tensión declarada | ✅ | Solo con sesión (FR-001). La respuesta lleva **códigos, nombres, marcas y conteos**: ningún dato personal (FR-009), y un IT fija el **conjunto exacto de claves**. Sin filtros a propósito: un conteo filtrado puede identificar a una persona («Ingeniería de Sistemas, rechazada: 1», FR-006). DTOs en la frontera, nunca entidades (`constitution.md:245-250`). Tensión: ver abajo. |
+| **III — Seguridad y minimización** | ✅, con una tensión declarada | ✅ | Solo con sesión (FR-001). La respuesta lleva **códigos, nombres, marcas y conteos**: ningún dato personal (FR-009), y un IT fija el **conjunto exacto de claves**. Sin filtros: nadie los pidió (§I), y agregar uno exige revisarlo contra el §III (FR-006, tensión 2). DTOs en la frontera, nunca entidades (`constitution.md:245-250`). Tensión: ver abajo. |
 | **IV — Decisiones trazables** | ✅ | ✅ | Doce decisiones en `research.md`, cada una con su alternativa descartada, su costo y su comando. Las fuentes técnicas (Hibernate, Spring Data JPA) se citan con URL y se leyeron el 2026-09-29. No hay normativa institucional en juego. |
 | **V — Testing del comportamiento sensible** | ✅ | ✅ | Lo sensible es **no mezclar trámites que comparten un código de estado** y **no perder estados en 0 ni solicitudes de versiones viejas**. Por eso: un unitario del plegado, un IT sobre el JSON servido y cuatro mutantes con su test asignado (D10). |
 | **VI — Workflow configurable por dato** | ✅, con una deuda declarada del cliente | ✅ | El endpoint **no nombra ningún código de trámite ni de estado** (FR-010): un trámite cargado por SQL aparece sin desplegar. Prueba viva: `git grep -nE '"(FINALIZADA\|DEVUELTA\|RECHAZADA\|ADICION_CREDITOS\|NOVEDAD_NOTAS)"' -- 'src/main/java/*.java'` → `DoFr100Renderer.java:166`, y debe seguir así. Un IT carga una definición propia por SQL y comprueba que aparece con todos sus estados en 0. Deuda: ver abajo. |
@@ -98,13 +98,16 @@ mañana se incorpora por configuración un trámite con un estado de rechazo, el
 «terminado» hasta actualizar y desplegar esa tabla: la promesa de no desplegar código se cumple en el
 motor y no en la pantalla. La deuda **no nace aquí** —la misma tabla ya decide hoy las insignias del
 detalle— y la corrección de fondo, marcar en `workflow_state` qué finales son rechazo o devolución
-(opción 2 del #58), es la de `tramita-frontend#51`: una migración y un cambio en el contrato de `State`,
-que usa toda la API. **Se descarta hoy por costo, a horas de la entrega** (research D1).
+(opción 2 del #58), es la de `tramita-frontend#51`. **Se descarta aquí, y no por el plazo** (research D1).
+Por dos razones: no distingue la devolución de la novedad de notas, que no es un estado; y se puede
+agregar después sin cambiar este contrato, porque cada conteo ya trae su `state`.
 
-**2. Sin filtros, un conteo pequeño sigue siendo un dato.** «Rechazadas: 1» no identifica a nadie **mientras
-el conteo sea global**; por programa, fecha o responsable sí podría. Por eso FR-006 prohíbe filtros y la
-implementación no declara ningún `@RequestParam`: un parámetro que llegue se ignora, y un IT lo fija.
-Agregar uno exige revisarlo contra el §III antes.
+**2. Sin filtros: por YAGNI hoy, por el §III mañana.** La razón de hoy es el §I: nadie pidió filtros. El
+§III no protege hoy a nadie, porque el único usuario ya ve cada solicitud con su programa y su estado
+(`RequestResponse.java:49-56`). Pero si mañana hay roles o el tablero se proyecta, «Ingeniería de
+Sistemas, rechazada: 1» señala a una persona. Por eso FR-006 prohíbe filtros y la implementación no
+declara ningún `@RequestParam`: un parámetro que llegue se ignora, y un IT lo fija. Agregar uno exige
+revisarlo contra el §III antes.
 
 ## Project Structure
 

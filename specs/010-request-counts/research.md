@@ -24,8 +24,9 @@ hace el cliente. Es la **opción 1** del issue #58, que el propietario eligió a
 
 **Justificación**:
 
-- **Sin migración ni cambio de modelo.** Con el plazo de la entrega, la opción 1 no toca el esquema ni el
-  contrato de `State` (FR-011: el cambio es aditivo).
+- **Separa dos preguntas.** «Cuántas solicitudes hay en cada estado» es de esta feature; «qué cuenta como
+  terminada, rechazada o pendiente» sigue abierta en `tramita-frontend#51`. La opción 1 contesta la
+  primera sin cerrar la segunda, y no toca el esquema ni el contrato de `State` (FR-011).
 - **Es el criterio de la 008**: *«el backend no sabe nada de "aviso": expone hechos y el cliente aplica la
   regla»* (`specs/008-student-closure-notice/research.md:224`, D5). Lo repite el javadoc de
   `RequestResponse` (`RequestResponse.java:34-35`, «el backend expone hechos; el cliente decide»).
@@ -39,11 +40,17 @@ hace el cliente. Es la **opción 1** del issue #58, que el propietario eligió a
 
 - *Opción 2 del #58: una marca en `workflow_state`* (qué finales son un rechazo y cuáles una devolución).
   Es la corrección de fondo, la que sí cumpliría el §VI también en la pantalla y la que
-  `tramita-frontend#51` reclama. Cuesta una migración, un campo nuevo en `StateResponse` —que **usa toda
-  la API**: el detalle, el catálogo y la bandeja— y coordinar el despliegue con el front. **Fuera hoy, por
-  costo, a horas de la entrega.** Sigue disponible después y es **aditiva** sobre este endpoint: el
-  conteo ya trae `state`, así que el día que `StateResponse` gane la marca, las tarjetas la reciben sin
-  cambiar este contrato.
+  `tramita-frontend#51` reclama. Cuesta una migración, marcar la semilla y un campo nuevo en
+  `StateResponse`, que es **aditivo** (no rompe a ningún cliente) pero aparece en **toda la API**: el
+  detalle, el catálogo y la bandeja. **No entra aquí, y el motivo no es el plazo.** Ese motivo se
+  escribió primero y no se sostiene: hoy solo se entrega la Fase A, así que el tiempo no separa las dos
+  opciones. Las razones que sí la dejan fuera son dos:
+  1. **No resuelve la novedad de notas.** Su devolución no es un estado, es un retorno a `EN_PREPARACION`
+     (spec, *Edge Cases*), así que marcar estados no distingue a una novedad devuelta de una que está en
+     preparación por primera vez. La tarjeta «devueltas» seguiría sin poder armarse para ese trámite.
+  2. **Se puede agregar después sin cambiar este contrato.** Cada conteo ya trae su `state`, así que el día
+     que `StateResponse` gane la marca, las tarjetas la reciben solas. Elegir la opción 1 hoy no cierra la
+     puerta a la 2.
 - *Que el backend devuelva ya los tres grupos.* Obliga a que el motor reconozca códigos como `RECHAZADA` y
   `DEVUELTA`: viola el §VI de raíz y el `git grep` de la tesis dejaría de dar una línea.
 
@@ -156,9 +163,14 @@ prefijo `I`, package-by-layer.
 - **Sin total**: el cliente suma lo que necesite, y SC-002 (la suma por trámite iguala el número de
   solicitudes) es comprobable con los datos que ya vienen. Un total sería un campo que agregar y
   mantener sin que nadie lo pida.
-- **Sin filtros — §III**: un conteo filtrado puede identificar a una persona: «Ingeniería de Sistemas,
-  rechazada: 1» señala al único estudiante de ese programa al que le negaron la adición (spec, FR-006).
-  Con el conteo global y sin dimensiones, esa inferencia no existe. **Ignorar** el parámetro y no
+- **Sin filtros — primero §I, después §III.** La razón principal es YAGNI: la Coordinadora pidió
+  tarjetas globales y nadie pidió filtros, y cada filtro es una dimensión más que probar y mantener. El
+  §III no aplica como daño presente, y conviene decirlo: el único usuario es la Coordinación, que ya ve
+  nombre, cédula, programa y estado de cada solicitud en el detalle (`RequestResponse.java:49-56`), así
+  que un filtro por programa no le revelaría nada nuevo. El §III aplica como **regla hacia adelante**: si
+  mañana hay roles o el tablero se proyecta en una reunión, «Ingeniería de Sistemas, rechazada: 1» señala
+  al único estudiante de ese programa al que le negaron la adición (spec, FR-006). Por eso agregar un
+  filtro exige revisarlo antes. **Ignorar** el parámetro y no
   rechazarlo mantiene compatible a un cliente que mande uno de más y garantiza que la respuesta es
   siempre la de toda la base. Técnicamente basta con **no declarar `@RequestParam`**: Spring ignora los
   que no declara.
