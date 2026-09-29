@@ -33,6 +33,7 @@ import com.uniremington.api.tramita.shared.exception.GuardRejectedException;
 import com.uniremington.api.tramita.shared.exception.IllegalTransitionException;
 import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationException;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
+import com.uniremington.api.tramita.shared.exception.StaleRequestStateException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
 import com.uniremington.api.tramita.util.CampusTime;
 import java.time.LocalDateTime;
@@ -259,9 +260,23 @@ public class RequestServiceImpl implements IRequestService {
     public RequestResponse advance(UUID requestId, AdvanceRequestBody body, String actorEmail) {
         Request request = loadRequest(requestId);
 
+        WorkflowState current = request.getCurrentState();
+
+        // La premisa de la petición es el estado que vio quien la envía (H-10). Si ya no
+        // es el vigente no se evalúa nada más: aunque el destino sea legal desde el
+        // estado nuevo, la decisión se tomó mirando otro, y el timeline es inmutable —lo
+        // que se registre desde el estado equivocado no se puede corregir después—.
+        // Va antes de la comprobación de estado final: una petición desactualizada contra
+        // un trámite ya cerrado debe pedir recargar, no fingir que la salida no existe.
+        if (!current.getCode().equals(body.fromStateCode())) {
+            throw new StaleRequestStateException(
+                    ("La solicitud cambió de estado mientras la tenía abierta: ahora está en "
+                            + "«%s». Recargue la página antes de continuar.")
+                            .formatted(current.getName()));
+        }
+
         // La definición que rige es la de nacimiento (FR-009), y de un estado
         // final no hay salida: el trámite está cerrado (US2-4)
-        WorkflowState current = request.getCurrentState();
         if (current.isFinalState()) {
             throw new IllegalTransitionException(
                     "El trámite está cerrado en '%s' y no admite más transiciones"

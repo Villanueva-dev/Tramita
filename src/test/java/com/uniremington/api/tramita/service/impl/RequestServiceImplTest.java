@@ -33,6 +33,7 @@ import com.uniremington.api.tramita.service.IRequestBusinessRules;
 import com.uniremington.api.tramita.service.IWorkflowGuard;
 import com.uniremington.api.tramita.shared.exception.GuardRejectedException;
 import com.uniremington.api.tramita.shared.exception.IllegalTransitionException;
+import com.uniremington.api.tramita.shared.exception.StaleRequestStateException;
 import com.uniremington.api.tramita.shared.exception.IncompleteConfigurationException;
 import com.uniremington.api.tramita.shared.exception.ResourceNotFoundException;
 import com.uniremington.api.tramita.shared.exception.UnprocessableRequestException;
@@ -171,7 +172,7 @@ class RequestServiceImplTest {
         Request request = requestAt(initial);
 
         RequestResponse response = service.advance(
-                REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL);
+                REQUEST_ID, new AdvanceRequestBody("INICIAL", "SIGUIENTE", null), EMAIL);
 
         assertThat(response.currentState().code()).isEqualTo("SIGUIENTE");
         assertThat(request.getCurrentState()).isSameAs(next);
@@ -195,10 +196,31 @@ class RequestServiceImplTest {
         // INICIAL → FINAL no existe en la definición (el camino pasa por SIGUIENTE)
         assertThatExceptionOfType(IllegalTransitionException.class)
                 .isThrownBy(() -> service.advance(
-                        REQUEST_ID, new AdvanceRequestBody("FINAL", null), EMAIL));
+                        REQUEST_ID, new AdvanceRequestBody("INICIAL", "FINAL", null), EMAIL));
 
         assertThat(request.getCurrentState()).isSameAs(initial);
         verify(logRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("el estado que vio quien envía ya no es el vigente: 409, sin efectos y sin evaluar nada más (H-10)")
+    void advanceFromAStateThatIsNoLongerCurrentRejectsWithoutSideEffects() {
+        // La solicitud ya avanzó a SIGUIENTE, pero quien envía todavía veía INICIAL. El
+        // destino INICIAL SÍ es válido desde SIGUIENTE (es la devolución), así que sin la
+        // premisa la petición prosperaría y quedaría registrada desde un estado que
+        // quien decidió nunca vio.
+        Request request = requestAt(next);
+
+        assertThatExceptionOfType(StaleRequestStateException.class)
+                .isThrownBy(() -> service.advance(
+                        REQUEST_ID,
+                        new AdvanceRequestBody("INICIAL", "INICIAL", "Devuelvo desde una pestaña vieja"),
+                        EMAIL))
+                .withMessageContaining("Siguiente");
+
+        assertThat(request.getCurrentState()).isSameAs(next);
+        verify(logRepo, never()).save(any());
+        verify(requestRepo, never()).save(any());
     }
 
     @Test
@@ -208,7 +230,7 @@ class RequestServiceImplTest {
 
         assertThatExceptionOfType(IllegalTransitionException.class)
                 .isThrownBy(() -> service.advance(
-                        REQUEST_ID, new AdvanceRequestBody("INICIAL", null), EMAIL));
+                        REQUEST_ID, new AdvanceRequestBody("FINAL", "INICIAL", null), EMAIL));
 
         assertThat(request.getCurrentState()).isSameAs(terminal);
         verify(logRepo, never()).save(any());
@@ -221,7 +243,7 @@ class RequestServiceImplTest {
 
         assertThatExceptionOfType(UnprocessableRequestException.class)
                 .isThrownBy(() -> service.advance(
-                        REQUEST_ID, new AdvanceRequestBody("INICIAL", " "), EMAIL));
+                        REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", "INICIAL", " "), EMAIL));
 
         assertThat(request.getCurrentState()).isSameAs(next);
         verify(logRepo, never()).save(any());
@@ -234,7 +256,7 @@ class RequestServiceImplTest {
 
         RequestResponse response = service.advance(
                 REQUEST_ID,
-                new AdvanceRequestBody("INICIAL", "Falta la firma de la casilla 2"), EMAIL);
+                new AdvanceRequestBody("SIGUIENTE", "INICIAL", "Falta la firma de la casilla 2"), EMAIL);
 
         assertThat(response.currentState().code()).isEqualTo("INICIAL");
 
@@ -251,7 +273,7 @@ class RequestServiceImplTest {
 
         assertThatExceptionOfType(ResourceNotFoundException.class)
                 .isThrownBy(() -> service.advance(
-                        REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL));
+                        REQUEST_ID, new AdvanceRequestBody("INICIAL", "SIGUIENTE", null), EMAIL));
     }
 
     // --- US4: guardas de transición ------------------------------------------------------
@@ -374,7 +396,7 @@ class RequestServiceImplTest {
         Request request = requestAt(initial, definitionGuardedBy("CON_GUARDA", GUARD_KEY));
 
         RequestResponse response = serviceWith(guard)
-                .advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL);
+                .advance(REQUEST_ID, new AdvanceRequestBody("INICIAL", "SIGUIENTE", null), EMAIL);
 
         assertThat(response.currentState().code()).isEqualTo("SIGUIENTE");
         assertThat(request.getCurrentState()).isSameAs(next);
@@ -393,7 +415,7 @@ class RequestServiceImplTest {
         // arriba, lanzaría IllegalTransitionException y este caso fallaría.
         assertThatExceptionOfType(GuardRejectedException.class)
                 .isThrownBy(() -> serviceWith(guard)
-                        .advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL))
+                        .advance(REQUEST_ID, new AdvanceRequestBody("INICIAL", "SIGUIENTE", null), EMAIL))
                 .withMessageContaining(GUARD_KEY);
 
         assertThat(request.getCurrentState()).isSameAs(initial);
@@ -410,7 +432,7 @@ class RequestServiceImplTest {
         Request request = requestAt(initial);
 
         RequestResponse response = serviceWith(guard)
-                .advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL);
+                .advance(REQUEST_ID, new AdvanceRequestBody("INICIAL", "SIGUIENTE", null), EMAIL);
 
         assertThat(response.currentState().code()).isEqualTo("SIGUIENTE");
         assertThat(request.getCurrentState()).isSameAs(next);
@@ -424,11 +446,11 @@ class RequestServiceImplTest {
         RequestServiceImpl guarded = serviceWith(guard);
 
         requestAt(initial, definitionGuardedBy("ADICION_PRUEBA", GUARD_KEY));
-        assertThat(guarded.advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL)
+        assertThat(guarded.advance(REQUEST_ID, new AdvanceRequestBody("INICIAL", "SIGUIENTE", null), EMAIL)
                 .currentState().code()).isEqualTo("SIGUIENTE");
 
         requestAt(initial, definitionGuardedBy("NOVEDAD_PRUEBA", GUARD_KEY));
-        assertThat(guarded.advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL)
+        assertThat(guarded.advance(REQUEST_ID, new AdvanceRequestBody("INICIAL", "SIGUIENTE", null), EMAIL)
                 .currentState().code()).isEqualTo("SIGUIENTE");
 
         assertThat(guard.evaluations).isEqualTo(2);
@@ -444,7 +466,7 @@ class RequestServiceImplTest {
         // ejecutaría una transición cuya condición nadie llegó a evaluar.
         assertThatExceptionOfType(IncompleteConfigurationException.class)
                 .isThrownBy(() -> serviceWith()
-                        .advance(REQUEST_ID, new AdvanceRequestBody("SIGUIENTE", null), EMAIL));
+                        .advance(REQUEST_ID, new AdvanceRequestBody("INICIAL", "SIGUIENTE", null), EMAIL));
 
         assertThat(request.getCurrentState()).isSameAs(initial);
         verify(logRepo, never()).save(any());
@@ -567,7 +589,7 @@ class RequestServiceImplTest {
 
         assertThatExceptionOfType(IncompleteConfigurationException.class)
                 .isThrownBy(() -> service.advance(
-                        REQUEST_ID, new AdvanceRequestBody("LIMBO", null), EMAIL))
+                        REQUEST_ID, new AdvanceRequestBody("INICIAL", "LIMBO", null), EMAIL))
                 .withMessageContaining("LIMBO")
                 .withMessageContaining("TRAMITE_CALLEJON");
 

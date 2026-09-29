@@ -14,8 +14,20 @@ import jakarta.validation.constraints.Size;
  * LoginThrottlingFilter, con la diferencia de que aquí los bytes se guardan en
  * lugar de descartarse. 2.000 caracteres sobran para el motivo de una
  * devolución y es el orden de magnitud de un campo de observaciones del formato.
+ *
+ * fromStateCode es el código del estado que quien envía VIO al decidir, y existe
+ * por H-10: una devolución pulsada desde una pestaña vieja se registraba desde el
+ * estado ACTUAL, no desde el que la usuaria tenía en pantalla. En la novedad de
+ * notas las tres devoluciones van al mismo destino (EN_PREPARACION), así que el
+ * destino seguía siendo válido desde el estado nuevo y el motor la aceptaba; el
+ * timeline, inmutable por trigger, quedaba con «desde EN_REVISION_FINANCIERA,
+ * nota: Facultad devuelve…» sin forma de corregirlo. El @Version de Request no
+ * cubre este caso: la segunda petición carga la entidad YA actualizada y su
+ * versión coincide. Por eso la premisa viaja en el body y el motor la compara con
+ * el estado vigente antes de evaluar cualquier otra cosa.
  */
 public record AdvanceRequestBody(
+        @NotBlank @Size(max = 50) String fromStateCode,
         @NotBlank @Size(max = 50) String targetStateCode,
         @Size(max = 2000) String note) {
 }

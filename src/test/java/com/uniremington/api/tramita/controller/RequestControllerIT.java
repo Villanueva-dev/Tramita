@@ -778,6 +778,25 @@ class RequestControllerIT {
     }
 
     @Test
+    @DisplayName("transición sin fromStateCode: 400 que lo nombra y nada se persiste en el timeline (H-10)")
+    void transitionWithoutFromStateCodeIsRejectedNamingTheField() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Sin Estado Visto", "407407");
+        long logEntriesBefore = logRepo.count();
+
+        mockMvc.perform(post("/api/requests/" + id + "/transitions")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetStateCode\":\"EN_FACULTAD\"}")
+                        .session(session))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.missingFields")
+                        .value(org.hamcrest.Matchers.hasItem("fromStateCode")));
+
+        assertThat(logRepo.count()).isEqualTo(logEntriesBefore);
+    }
+
+    @Test
     @DisplayName("detalle por id con transiciones disponibles; id desconocido: 404")
     void getByIdReturnsDetailAndUnknownIdReturns404() throws Exception {
         MockHttpSession session = login();
@@ -1853,13 +1872,7 @@ class RequestControllerIT {
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder advanceRequest(
             String id, String targetStateCode, String note) {
-        String body = note == null
-                ? "{\"targetStateCode\":\"%s\"}".formatted(targetStateCode)
-                : "{\"targetStateCode\":\"%s\",\"note\":\"%s\"}".formatted(targetStateCode, note);
-        return post("/api/requests/" + id + "/transitions")
-                .with(csrf())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(body);
+        return AdvanceRequestSupport.advanceFromCurrentState(mockMvc, id, targetStateCode, note);
     }
 
     private MockHttpSession login() throws Exception {

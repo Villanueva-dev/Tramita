@@ -63,6 +63,11 @@ paths:
         se listan —200, 400, 401, 404, 422— se rigen por
         `specs/002-workflow-engine/contracts/openapi.yaml` sin modificación, y el cuerpo de
         la petición (`AdvanceRequestBody`) tampoco cambia, por eso no se redeclara acá.
+
+        ⚠️ **ENMENDADO POR H-10** (2026-09-28), de forma NO aditiva: el cuerpo de la petición
+        SÍ cambió después de la 003. `AdvanceRequestBody` exige `fromStateCode` —el estado que
+        quien envía vio al decidir—: 400 si falta y 409 si no coincide con el estado vigente.
+        La definición vigente está en `specs/002-workflow-engine/contracts/openapi.yaml`.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       responses:

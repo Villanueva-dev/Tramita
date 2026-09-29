@@ -86,6 +86,39 @@ class WorkflowGenericityIT {
     }
 
     @Test
+    @DisplayName("devolución desde una pestaña vieja: 409, el estado sigue donde estaba y el timeline no crece (H-10)")
+    void returnFromAStaleTabIsRejectedWithoutTouchingTheTimeline() throws Exception {
+        MockHttpSession session = login();
+        String id = registerAndGetId(session, "ADICION_CREDITOS", "Pestaña Vieja", "605");
+        // Pestaña A: la Coordinación aprobó su revisión y la solicitud pasó a la facultad
+        mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
+                .andExpect(status().isOk());
+        int timelineBefore = timelineLength(session, id);
+
+        // La adición tiene dos devoluciones hacia DEVUELTA —desde EN_COORDINACION (V3.2.0) y desde
+        // EN_FACULTAD (V2.1.0)—: el destino sigue siendo válido desde EN_FACULTAD, así que sin la
+        // premisa esta devolución de la Coordinación quedaría registrada como si la hubiera hecho
+        // la facultad. Es el defecto que el E2E midió en la novedad; se prueba sobre la adición
+        // porque la cadena de la novedad sigue siendo provisional (encabezado de V2.1.0) y cambia
+        // con cada versión. Body a mano: el helper envía siempre el estado vigente.
+        mockMvc.perform(post("/api/requests/" + id + "/transitions")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fromStateCode":"EN_COORDINACION","targetStateCode":"DEVUELTA",
+                                 "note":"La Coordinación devuelve desde la pestaña vieja"}""")
+                        .session(session))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.title").value("Conflicto de concurrencia"));
+
+        mockMvc.perform(get("/api/requests/" + id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentState.code").value("EN_FACULTAD"));
+        assertThat(timelineLength(session, id)).isEqualTo(timelineBefore);
+    }
+
+    @Test
     @DisplayName("el rechazo existe en adición y NO en novedad: la asimetría vive en la definición (FR-015)")
     void rejectionExistsOnlyWhereTheDefinitionDeclaresIt() throws Exception {
         MockHttpSession session = login();
@@ -723,15 +756,16 @@ class WorkflowGenericityIT {
         return com.jayway.jsonpath.JsonPath.read(body, "$.id");
     }
 
+    private int timelineLength(MockHttpSession session, String id) throws Exception {
+        String body = mockMvc.perform(get("/api/requests/" + id + "/timeline").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return com.jayway.jsonpath.JsonPath.<java.util.List<?>>read(body, "$").size();
+    }
+
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder advanceRequest(
             String id, String targetStateCode, String note) {
-        String body = note == null
-                ? "{\"targetStateCode\":\"%s\"}".formatted(targetStateCode)
-                : "{\"targetStateCode\":\"%s\",\"note\":\"%s\"}".formatted(targetStateCode, note);
-        return post("/api/requests/" + id + "/transitions")
-                .with(csrf())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(body);
+        return AdvanceRequestSupport.advanceFromCurrentState(mockMvc, id, targetStateCode, note);
     }
 
     /**
