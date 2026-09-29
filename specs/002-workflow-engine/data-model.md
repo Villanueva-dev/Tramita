@@ -189,6 +189,16 @@ Aquí la devolución **no es un estado**: es la transición de retorno a `EN_PRE
 (donde vive la carpeta editable). Que un trámite modele la devolución como estado y el otro
 como retorno directo, sobre el mismo esquema, es parte de la demostración de US4.
 
+> ⚠️ **ENMENDADO POR H-11** (2026-09-28): la tabla de arriba describe la **v1**, que queda
+> como está en la base (las novedades ya radicadas la conservan, FR-009). El paso
+> `EN_PREPARACION → EN_FACULTAD | SEDE` mezclaba el trabajo de la Coordinación (armar la
+> carpeta) con la espera de la firma de la sede, y sacaba toda novedad en preparación de la
+> bandeja de la Coordinación. La **v2** (`V5.2.0__Split_novedad_preparation_and_sede_signature.sql`)
+> lo parte en dos: `EN_PREPARACION → EN_FIRMA_SEDE` (`COORDINACION`) y
+> `EN_FIRMA_SEDE → EN_FACULTAD` (`SEDE`), más la devolución `EN_FIRMA_SEDE → EN_PREPARACION`
+> (`SEDE`, **con nota**). Ya no existe `EN_PREPARACION → EN_FACULTAD` en la v2; el resto es
+> igual a la v1. Las solicitudes nuevas nacen en la v2.
+
 **La asimetría completa que demuestra la tesis** (SC-004): mismo motor, dos definiciones —
 una con `RECHAZADA` y estado `DEVUELTA`, la otra sin rechazo y con retorno directo. Cero
 `if` por trámite en el código.

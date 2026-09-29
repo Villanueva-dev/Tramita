@@ -34,7 +34,7 @@ class WorkflowDefinitionControllerIT {
     private MockMvc mockMvc;
 
     @Test
-    @DisplayName("lista las definiciones vigentes de la semilla: los dos trámites en v1")
+    @DisplayName("lista las definiciones vigentes de la semilla: adición en v1 y novedad en v2 (H-11)")
     void listsCurrentDefinitionsFromSeed() throws Exception {
         mockMvc.perform(get("/api/workflow-definitions").session(login()))
                 .andExpect(status().isOk())
@@ -43,7 +43,9 @@ class WorkflowDefinitionControllerIT {
                 .andExpect(jsonPath("$[0].code").value("ADICION_CREDITOS"))
                 .andExpect(jsonPath("$[0].version").value(1))
                 .andExpect(jsonPath("$[1].code").value("NOVEDAD_NOTAS"))
-                .andExpect(jsonPath("$[1].version").value(1));
+                // La v2 parte EN_PREPARACION en dos estados (V5.2.0); la v1 sigue en la base
+                // para las solicitudes que ya nacieron en ella (FR-009).
+                .andExpect(jsonPath("$[1].version").value(2));
     }
 
     // --- 007, US3: el catálogo expone los estados con sus marcas (issue #22) -------------

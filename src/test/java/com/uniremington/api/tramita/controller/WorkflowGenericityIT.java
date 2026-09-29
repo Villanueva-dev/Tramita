@@ -52,7 +52,8 @@ class WorkflowGenericityIT {
         String id = registerAndGetId(session, "NOVEDAD_NOTAS", "Genérica Uno", "601");
 
         for (String state : new String[] {
-                "EN_PREPARACION", "EN_FACULTAD", "EN_REVISION_FINANCIERA", "EN_REGISTRO_CONTROL"}) {
+                "EN_PREPARACION", "EN_FIRMA_SEDE", "EN_FACULTAD", "EN_REVISION_FINANCIERA",
+                "EN_REGISTRO_CONTROL"}) {
             mockMvc.perform(advanceRequest(id, state, null).session(session))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.currentState.code").value(state));
@@ -70,6 +71,8 @@ class WorkflowGenericityIT {
         MockHttpSession session = login();
         String id = registerAndGetId(session, "NOVEDAD_NOTAS", "Genérica Dos", "602");
         mockMvc.perform(advanceRequest(id, "EN_PREPARACION", null).session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(advanceRequest(id, "EN_FIRMA_SEDE", null).session(session))
                 .andExpect(status().isOk());
         mockMvc.perform(advanceRequest(id, "EN_FACULTAD", null).session(session))
                 .andExpect(status().isOk());
@@ -99,6 +102,8 @@ class WorkflowGenericityIT {
         // transición no existe y el motor la bloquea sin saber por qué no existe
         String novedad = registerAndGetId(session, "NOVEDAD_NOTAS", "Imparable", "604");
         mockMvc.perform(advanceRequest(novedad, "EN_PREPARACION", null).session(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(advanceRequest(novedad, "EN_FIRMA_SEDE", null).session(session))
                 .andExpect(status().isOk());
         mockMvc.perform(advanceRequest(novedad, "EN_FACULTAD", null).session(session))
                 .andExpect(status().isOk());
