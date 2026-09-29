@@ -8,6 +8,9 @@ import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.PublicRequestBody;
 import com.uniremington.api.tramita.dto.RequestOrigin;
 import com.uniremington.api.tramita.dto.RequestResponse;
+import com.uniremington.api.tramita.dto.RequestDashboardCategory;
+import com.uniremington.api.tramita.dto.RequestDashboardEntryResponse;
+import com.uniremington.api.tramita.dto.RequestDashboardPageResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
 import com.uniremington.api.tramita.dto.SubjectResponse;
 import com.uniremington.api.tramita.dto.TimelineEntryResponse;
@@ -46,6 +49,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.Limit;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -133,6 +138,7 @@ public class RequestServiceImpl implements IRequestService {
         Request request = requestRepo.save(Request.builder()
                 .definition(definition)
                 .currentState(initial)
+                .priority(body.priority() == null ? "normal" : body.priority())
                 .studentName(body.studentName())
                 .studentDocument(body.studentDocument())
                 .studentCode(body.studentCode())
@@ -446,6 +452,28 @@ public class RequestServiceImpl implements IRequestService {
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public RequestDashboardPageResponse getDashboardCategory(
+            RequestDashboardCategory category, int page, int size) {
+        Page<Request> result = requestRepo.findDashboardCategory(category.name(), PageRequest.of(page, size));
+        List<RequestDashboardEntryResponse> content = result.getContent().stream()
+                .map(request -> new RequestDashboardEntryResponse(
+                        request.getId(),
+                        new WorkflowDefinitionResponse(
+                                request.getDefinition().getCode(),
+                                request.getDefinition().getName(),
+                                request.getDefinition().getVersion()),
+                        request.getStudentName(),
+                        StateResponseMapper.toResponse(request.getCurrentState()),
+                        request.getCreatedAt(),
+                        request.getPriority()))
+                .toList();
+        return new RequestDashboardPageResponse(
+                content, result.getNumber(), result.getSize(), result.getTotalElements(),
+                result.getTotalPages(), result.hasNext(), result.hasPrevious());
+    }
+
     /**
      * El timeline del lote entero, agrupado por solicitud: UNA consulta, no una por
      * fila. De él salen las dos cosas que la bandeja deriva por entrada: el origen
@@ -536,7 +564,8 @@ public class RequestServiceImpl implements IRequestService {
                 request.getStudentName(),
                 request.getStudentDocument(),
                 StateResponseMapper.toResponse(request.getCurrentState()),
-                request.getCreatedAt());
+                request.getCreatedAt(),
+                request.getPriority());
     }
 
     /**
@@ -647,7 +676,8 @@ public class RequestServiceImpl implements IRequestService {
                 request.getStudentEmail(),
                 request.getStudentPhone(),
                 resolveAnnexRequirement(definition, request),
-                isReturnedForCorrection(request, timeline));
+                isReturnedForCorrection(request, timeline),
+                request.getPriority());
     }
 
     private boolean isReturnedForCorrection(Request request, List<RequestTransitionLog> timeline) {

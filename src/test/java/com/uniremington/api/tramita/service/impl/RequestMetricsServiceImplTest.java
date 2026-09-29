@@ -80,13 +80,54 @@ class RequestMetricsServiceImplTest {
         RequestMetricsResponse result = service.getRequestMetrics();
 
         assertThat(result.total()).isEqualTo(2);
-        assertThat(result.completed()).isEqualTo(1);
+        assertThat(result.completedSuccessfully()).isEqualTo(1);
         assertThat(result.averageCycleHours()).isNull();
         assertThat(result.returnCount()).isZero();
     }
 
+        @Test
+        @DisplayName("clasifica pendientes, trámites en proceso, cierres exitosos y urgentes")
+        void countsDashboardCategoriesFromConfiguredStateAndPriority() {
+                WorkflowDefinition definition = WorkflowDefinition.builder()
+                                .code("ADICION_CREDITOS").version(1).name("Adición de créditos").build();
+                LocalDateTime createdAt = LocalDateTime.of(2026, 9, 10, 8, 0);
+                List<Request> requests = List.of(
+                                request(definition, state("REGISTRADA", true, false), "normal", createdAt),
+                                request(definition, state("APROBADA_FACULTAD", false, false), "normal", createdAt),
+                                request(definition, state("FINALIZADA", false, true), "normal", createdAt),
+                                request(definition, state("RECHAZADA", false, true), "normal", createdAt),
+                                request(definition, state("EN_FACULTAD", false, false), "urgente", createdAt));
+                when(requestRepo.findAll()).thenReturn(requests);
+                requests.forEach(request -> when(logRepo.findByRequestIdOrderByOccurredAtAscIdAsc(request.getId()))
+                                .thenReturn(List.of()));
+
+                RequestMetricsResponse result = service.getRequestMetrics();
+
+                assertThat(result.pending()).isEqualTo(1);
+                assertThat(result.inProgress()).isEqualTo(2);
+                assertThat(result.completedSuccessfully()).isEqualTo(1);
+                assertThat(result.urgent()).isEqualTo(1);
+        }
+
+        private Request request(
+                        WorkflowDefinition definition, WorkflowState state, String priority, LocalDateTime createdAt) {
+                return Request.builder()
+                                .id(UUID.randomUUID())
+                                .definition(definition)
+                                .currentState(state)
+                                .studentName("Estudiante")
+                                .studentDocument("123")
+                                .priority(priority)
+                                .createdAt(createdAt)
+                                .build();
+        }
+
     private WorkflowState state(String code, boolean finalState) {
-        return WorkflowState.builder().code(code).name(code).finalState(finalState).build();
+                return state(code, false, finalState);
+        }
+
+        private WorkflowState state(String code, boolean initial, boolean finalState) {
+                return WorkflowState.builder().code(code).name(code).initial(initial).finalState(finalState).build();
     }
 
     private RequestTransitionLog log(WorkflowState from, WorkflowState to, LocalDateTime occurredAt) {

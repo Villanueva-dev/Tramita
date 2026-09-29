@@ -28,10 +28,8 @@ import java.util.List;
  * el campo: para no declarar teléfono se omite la clave, no se manda vacía. Enmienda
  * NO aditiva del contrato interno (spec de la 008, FR-013; research.md D3).
  *
- * NO hay campo de prioridad. La coordinación atiende por orden de llegada y no tiene
- * procedimiento formal de priorización; una bandera de prioridad quedó registrada como
- * deseable pero no bloqueante para la primera versión (Q20 de la tercera entrevista,
- * material-coord/2026-06-04-entrevista3-sintesis-analitica.md:165-168). Diferido a SP5.
+ * La prioridad es una marca operativa ingresada por Coordinación, no altera el workflow
+ * ni constituye un plazo institucional.
  */
 public record CreateRequestBody(
         @NotBlank @Size(max = 50) String definitionCode,
@@ -48,11 +46,13 @@ public record CreateRequestBody(
         @Size(max = 120) String campus,
         @Size(max = 120) String faculty,
         @Size(max = 50) String modality,
-        String signature) {
+        String signature,
+        @Pattern(regexp = "normal|urgente") String priority) {
 
     /** Compatibilidad con los clientes y tests de la primera versión del API (FR-006). */
     public CreateRequestBody(String definitionCode, String studentName, String studentDocument) {
-        this(definitionCode, studentName, studentDocument, null, null, null, null, List.of());
+        this(definitionCode, studentName, studentDocument, null, null, null, null, List.of(),
+            null, null, null, null, null, null, "normal");
     }
 
     /**
@@ -64,7 +64,17 @@ public record CreateRequestBody(
             String studentCode, String program, String semester, String reason,
             List<SubjectRequestBody> subjects) {
         this(definitionCode, studentName, studentDocument, studentCode, program, semester,
-                reason, subjects, null, null, null, null, null, null);
+                reason, subjects, null, null, null, null, null, null, "normal");
+    }
+
+    /** Compatibilidad con el cuerpo interno anterior a la prioridad persistida. */
+    public CreateRequestBody(String definitionCode, String studentName, String studentDocument,
+            String studentCode, String program, String semester, String reason,
+            List<SubjectRequestBody> subjects, String studentEmail, String studentPhone,
+            String campus, String faculty, String modality, String signature) {
+        this(definitionCode, studentName, studentDocument, studentCode, program, semester,
+                reason, subjects, studentEmail, studentPhone, campus, faculty, modality,
+                signature, "normal");
     }
 
     /** Nunca null: simplifica a los consumidores y evita repetir la guarda. */

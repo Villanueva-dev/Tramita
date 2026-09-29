@@ -4,6 +4,8 @@ import com.uniremington.api.tramita.dto.AdvanceRequestBody;
 import com.uniremington.api.tramita.dto.CreateRequestBody;
 import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.RequestResponse;
+import com.uniremington.api.tramita.dto.RequestDashboardCategory;
+import com.uniremington.api.tramita.dto.RequestDashboardPageResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
 import com.uniremington.api.tramita.dto.SealEntryResponse;
 import com.uniremington.api.tramita.dto.TimelineEntryResponse;
@@ -109,6 +111,14 @@ public class RequestController {
             @RequestParam @NotBlank @Size(max = 50) String responsible,
             @RequestParam(defaultValue = "50") @Min(1) @Max(200) int limit) {
         return requestService.getInbox(responsible, limit);
+    }
+
+    @GetMapping("/dashboard")
+    public RequestDashboardPageResponse getDashboardCategory(
+            @RequestParam RequestDashboardCategory category,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
+        return requestService.getDashboardCategory(category, page, size);
     }
 
     /** US3: detalle con las transiciones disponibles desde el estado actual. */

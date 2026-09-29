@@ -3,12 +3,11 @@ package com.uniremington.api.tramita.dto;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-/** Resultado de la localización por nombre o cédula (FR-011, contracts/openapi.yaml). */
-public record RequestSummaryResponse(
+/** Fila paginada del tablero: no expone el documento del estudiante. */
+public record RequestDashboardEntryResponse(
         UUID id,
         WorkflowDefinitionResponse definition,
         String studentName,
-        String studentDocument,
         StateResponse currentState,
         LocalDateTime createdAt,
         String priority) {

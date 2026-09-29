@@ -5,6 +5,8 @@ import com.uniremington.api.tramita.dto.CreateRequestBody;
 import com.uniremington.api.tramita.dto.InboxEntryResponse;
 import com.uniremington.api.tramita.dto.PublicRequestBody;
 import com.uniremington.api.tramita.dto.RequestResponse;
+import com.uniremington.api.tramita.dto.RequestDashboardCategory;
+import com.uniremington.api.tramita.dto.RequestDashboardPageResponse;
 import com.uniremington.api.tramita.dto.RequestSummaryResponse;
 import com.uniremington.api.tramita.dto.TimelineEntryResponse;
 import com.uniremington.api.tramita.dto.UpdateRequestBody;
@@ -73,6 +75,9 @@ public interface IRequestService {
      * @param limit cota explícita del resultado; la decide quien llama (D8).
      */
     List<InboxEntryResponse> getInbox(String responsible, int limit);
+
+        RequestDashboardPageResponse getDashboardCategory(
+            RequestDashboardCategory category, int page, int size);
 
     /**
      * Timeline completo en orden cronológico (US3, FR-008): cada entrada con su

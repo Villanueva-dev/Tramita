@@ -30,6 +30,10 @@ public class RequestMetricsServiceImpl implements IRequestMetricsService {
         Map<String, Long> byDefinition = new LinkedHashMap<>();
         Map<String, Long> byCurrentState = new LinkedHashMap<>();
         long completed = 0;
+        long pending = 0;
+        long inProgress = 0;
+        long completedSuccessfully = 0;
+        long urgent = 0;
         long returnCount = 0;
         long completedCycleHours = 0;
         long completedWithCycle = 0;
@@ -37,11 +41,22 @@ public class RequestMetricsServiceImpl implements IRequestMetricsService {
         for (Request request : requests) {
             increment(byDefinition, request.getDefinition().getCode());
             increment(byCurrentState, request.getCurrentState().getCode());
+            if (request.getCurrentState().isInitial()) {
+                pending++;
+            } else if (!request.getCurrentState().isFinalState()) {
+                inProgress++;
+            }
+            if (!request.getCurrentState().isFinalState() && "urgente".equals(request.getPriority())) {
+                urgent++;
+            }
             List<RequestTransitionLog> timeline = logRepo.findByRequestIdOrderByOccurredAtAscIdAsc(request.getId());
             returnCount += timeline.stream().filter(log -> isReturn(request, log)).count();
 
             if (request.getCurrentState().isFinalState()) {
                 completed++;
+                if (!"RECHAZADA".equals(request.getCurrentState().getCode())) {
+                    completedSuccessfully++;
+                }
                 var completedAt = timeline.stream()
                         .map(RequestTransitionLog::getOccurredAt)
                         .max(Comparator.naturalOrder())
@@ -61,7 +76,8 @@ public class RequestMetricsServiceImpl implements IRequestMetricsService {
                 ? null
                 : (double) completedCycleHours / completedWithCycle;
         return new RequestMetricsResponse(
-                requests.size(), byDefinition, byCurrentState, completed, averageCycleHours, returnCount);
+            requests.size(), byDefinition, byCurrentState, completed, averageCycleHours, returnCount,
+            pending, inProgress, completedSuccessfully, urgent);
     }
 
     private boolean isReturn(Request request, RequestTransitionLog log) {

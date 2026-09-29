@@ -65,5 +65,6 @@ public record RequestResponse(
         /** El anexo por programa vigente (009, FR-009). Ausente sin programa o sin regla configurada. */
         AnnexRequirementResponse annexRequirement,
         /** True si la última entrada registró un retorno a corrección según la definición del trámite. */
-        boolean returnedForCorrection) {
+        boolean returnedForCorrection,
+        String priority) {
 }

@@ -67,6 +67,10 @@ public class Request {
     @JoinColumn(name = "current_state_id")
     private WorkflowState currentState;
 
+    @Builder.Default
+    @Column(nullable = false, length = 16)
+    private String priority = "normal";
+
     @Column(name = "student_name", nullable = false)
     private String studentName;
 

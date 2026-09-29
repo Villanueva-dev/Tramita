@@ -1,6 +1,8 @@
 package com.uniremington.api.tramita.repo;
 
 import com.uniremington.api.tramita.model.Request;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Limit;
@@ -32,6 +34,23 @@ public interface IRequestRepo extends JpaRepository<Request, UUID> {
             order by r.createdAt desc
             """)
     List<Request> search(@Param("q") String q, @Param("pattern") String escapedPattern);
+
+     @Query(value = """
+          select r from Request r
+          where (:category = 'PENDING' and r.currentState.initial = true)
+            or (:category = 'IN_PROGRESS' and r.currentState.initial = false and r.currentState.finalState = false)
+            or (:category = 'COMPLETED' and r.currentState.finalState = true and r.currentState.code <> 'RECHAZADA')
+            or (:category = 'URGENT' and r.priority = 'urgente' and r.currentState.finalState = false)
+          order by r.createdAt desc, r.id desc
+          """,
+          countQuery = """
+          select count(r) from Request r
+          where (:category = 'PENDING' and r.currentState.initial = true)
+            or (:category = 'IN_PROGRESS' and r.currentState.initial = false and r.currentState.finalState = false)
+            or (:category = 'COMPLETED' and r.currentState.finalState = true and r.currentState.code <> 'RECHAZADA')
+            or (:category = 'URGENT' and r.priority = 'urgente' and r.currentState.finalState = false)
+          """)
+     Page<Request> findDashboardCategory(@Param("category") String category, Pageable pageable);
 
     /**
      * La bandeja de trabajo (007, FR-001, research.md D1): las solicitudes cuyo estado

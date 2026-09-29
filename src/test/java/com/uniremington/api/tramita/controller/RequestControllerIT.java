@@ -772,6 +772,50 @@ class RequestControllerIT {
     }
 
     @Test
+    @DisplayName("el dashboard pagina urgentes persistidos y no expone el documento del estudiante")
+    void dashboardReturnsUrgentRequestsWithoutDocumentsAndWithPagination() throws Exception {
+        mockMvc.perform(get("/api/requests/dashboard")
+                        .param("category", "URGENT"))
+                .andExpect(status().isUnauthorized());
+
+        MockHttpSession session = login();
+        String firstId = registerUrgentAndGetId(session, "Urgente Uno", "DASHBOARD-URGENT-001");
+        String secondId = registerUrgentAndGetId(session, "Urgente Dos", "DASHBOARD-URGENT-002");
+
+        String firstPage = mockMvc.perform(get("/api/requests/dashboard")
+                        .param("category", "URGENT")
+                        .param("page", "0")
+                        .param("size", "1")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(1))
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.totalPages").value(2))
+                .andExpect(jsonPath("$.hasNext").value(true))
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].priority").value("urgente"))
+                .andReturn().getResponse().getContentAsString();
+
+        String secondPage = mockMvc.perform(get("/api/requests/dashboard")
+                        .param("category", "URGENT")
+                        .param("page", "1")
+                        .param("size", "1")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.hasPrevious").value(true))
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andReturn().getResponse().getContentAsString();
+
+        List<String> pageIds = List.of(
+                com.jayway.jsonpath.JsonPath.read(firstPage, "$.content[0].id"),
+                com.jayway.jsonpath.JsonPath.read(secondPage, "$.content[0].id"));
+        assertThat(pageIds).containsExactlyInAnyOrder(firstId, secondId);
+        assertThat(firstPage + secondPage).doesNotContain("studentDocument", "DASHBOARD-URGENT");
+    }
+
+    @Test
     @DisplayName("localiza por cédula exacta y por fragmento del nombre, sin distinguir mayúsculas")
     void searchFindsByDocumentAndNameFragment() throws Exception {
         MockHttpSession session = login();
@@ -1814,6 +1858,21 @@ class RequestControllerIT {
                 .andReturn().getResponse().getContentAsString();
         return com.jayway.jsonpath.JsonPath.read(body, "$.id");
     }
+
+        private String registerUrgentAndGetId(MockHttpSession session, String studentName,
+                        String studentDocument) throws Exception {
+                String body = mockMvc.perform(createRequestWithForm("""
+                                                {
+                                                  "definitionCode": "ADICION_CREDITOS",
+                                                  "studentName": "%s",
+                                                  "studentDocument": "%s",
+                                                  "priority": "urgente"
+                                                }""".formatted(studentName, studentDocument)).session(session))
+                                .andExpect(status().isCreated())
+                                .andExpect(jsonPath("$.priority").value("urgente"))
+                                .andReturn().getResponse().getContentAsString();
+                return com.jayway.jsonpath.JsonPath.read(body, "$.id");
+        }
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder advanceRequest(
             String id, String targetStateCode, String note) {
